@@ -156,6 +156,8 @@ button.link { background: none; color: var(--green); padding: 0; text-decoration
 label.btn { display: block; background: var(--green); color: #fff; border-radius: 10px; font-weight: 600; cursor: pointer; }
 .crew { display: flex; flex-wrap: wrap; gap: 8px 16px; }
 .job-row.today { border-color: var(--green); }
+.leak-bad { border-color: var(--danger); }
+.leak-count { color: var(--danger); border-color: var(--danger); font-weight: 700; }
 .seg { display: flex; flex-wrap: wrap; gap: 4px; }
 .seg button { padding: 5px 10px; font-size: .82rem; background: var(--bg); color: var(--ink); border: 1px solid var(--line); }
 .seg button.on { background: var(--green); color: #fff; border-color: var(--green); }

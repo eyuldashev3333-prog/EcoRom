@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { useAuth } from '../auth'
 import { supabase } from '../supabase'
 import { progressPct } from '../components/StageGrid'
+import { attentionCount, type Leaks } from '../lib/leaks'
 import { uz } from '../uz'
 
 interface WOrder {
@@ -23,7 +24,9 @@ function RahbarHome() {
   const [debt, setDebt] = useState<number | null>(null)
   const [supDebt, setSupDebt] = useState<number | null>(null)
   const [openService, setOpenService] = useState<number | null>(null)
+  const [attention, setAttention] = useState<number | null>(null)
   useEffect(() => {
+    supabase.rpc('leaks_report').then(({ data }) => data && setAttention(attentionCount(data as Leaks)))
     supabase.from('service_tickets').select('id', { count: 'exact', head: true }).neq('status', 'closed').then(({ count }) => setOpenService(count ?? 0))
     supabase
       .from('v_supplier_debt')
@@ -86,6 +89,10 @@ function RahbarHome() {
         </Link>
         <Link to="/expenses" className="card tile">
           {uz.home.expenses}
+        </Link>
+        <Link to="/leaks" className={`card tile ${attention ? 'leak-bad' : ''}`}>
+          {uz.home.leaks}
+          {attention !== null && attention > 0 && <small className="debt-tag"> · {attention}</small>}
         </Link>
         <Link to="/report" className="card tile">
           {uz.home.report}
