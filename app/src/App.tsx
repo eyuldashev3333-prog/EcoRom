@@ -14,6 +14,9 @@ import ShopOrder from './pages/ShopOrder'
 import InstallOrder from './pages/InstallOrder'
 import Breakages from './pages/Breakages'
 import Expenses from './pages/Expenses'
+import Payroll from './pages/Payroll'
+import PayRules from './pages/PayRules'
+import MyPay from './pages/MyPay'
 import Service from './pages/Service'
 import ServiceWork from './pages/ServiceWork'
 import Stock from './pages/Stock'
@@ -58,6 +61,9 @@ export default function App() {
           <Route path="/password" element={<Password />} />
           <Route path="/install/:id" element={me.role === 'montajchi' ? <InstallOrder /> : <Navigate to="/" />} />
           <Route path="/breakages" element={me.role === 'rahbar' ? <Breakages /> : <Navigate to="/" />} />
+          <Route path="/payroll" element={me.role === 'rahbar' ? <Payroll /> : <Navigate to="/" />} />
+          <Route path="/pay-rules" element={me.role === 'rahbar' ? <PayRules /> : <Navigate to="/" />} />
+          <Route path="/my-pay" element={<MyPay />} />
           <Route path="/expenses" element={me.role === 'rahbar' ? <Expenses /> : <Navigate to="/" />} />
           <Route path="/service" element={me.role === 'rahbar' ? <Service /> : <Navigate to="/" />} />
           <Route path="/servis/:id" element={me.role === 'montajchi' ? <ServiceWork /> : <Navigate to="/" />} />

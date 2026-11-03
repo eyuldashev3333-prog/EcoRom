@@ -87,6 +87,9 @@ function RahbarHome() {
         <Link to="/expenses" className="card tile">
           {uz.home.expenses}
         </Link>
+        <Link to="/payroll" className="card tile">
+          {uz.home.payroll}
+        </Link>
         <Link to="/service" className="card tile">
           {uz.home.service}
           {openService !== null && openService > 0 && <small className="debt-tag"> · {openService} {uz.service.openCount}</small>}
@@ -269,6 +272,11 @@ export default function Home() {
       </h1>
       {me?.role === 'rahbar' ? <RahbarHome /> : me?.role === 'ishlab' ? <ShopHome /> : me?.role === 'montajchi' ? <InstallHome /> : <WorkerHome />}
       <p>
+        {me?.role !== 'rahbar' && (
+          <>
+            <Link to="/my-pay">{uz.home.myPay}</Link> ·{' '}
+          </>
+        )}
         <Link to="/password">{uz.home.password}</Link>
       </p>
     </>
