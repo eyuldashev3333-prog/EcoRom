@@ -26,6 +26,8 @@ import Purchases from './pages/Purchases'
 import Suppliers from './pages/Suppliers'
 // PDF-библиотеки тяжёлые — грузятся только при открытии печати
 const OrderPrint = lazy(() => import('./pages/OrderPrint'))
+// three.js тяжёлый — грузится только при открытии 3D-цеха
+const Workshop = lazy(() => import('./pages/Workshop'))
 
 export default function App() {
   const { session, me, loading, signOut } = useAuth()
@@ -63,6 +65,18 @@ export default function App() {
           <Route path="/password" element={<Password />} />
           <Route path="/install/:id" element={me.role === 'montajchi' ? <InstallOrder /> : <Navigate to="/" />} />
           <Route path="/breakages" element={me.role === 'rahbar' ? <Breakages /> : <Navigate to="/" />} />
+          <Route
+            path="/workshop"
+            element={
+              me.role === 'rahbar' ? (
+                <Suspense fallback={<p className="muted">{uz.loading}</p>}>
+                  <Workshop />
+                </Suspense>
+              ) : (
+                <Navigate to="/" />
+              )
+            }
+          />
           <Route path="/leaks" element={me.role === 'rahbar' ? <Leaks /> : <Navigate to="/" />} />
           <Route path="/report" element={me.role === 'rahbar' ? <Report /> : <Navigate to="/" />} />
           <Route path="/payroll" element={me.role === 'rahbar' ? <Payroll /> : <Navigate to="/" />} />

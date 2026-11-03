@@ -90,6 +90,9 @@ function RahbarHome() {
         <Link to="/expenses" className="card tile">
           {uz.home.expenses}
         </Link>
+        <Link to="/workshop" className="card tile">
+          {uz.home.workshop}
+        </Link>
         <Link to="/leaks" className={`card tile ${attention ? 'leak-bad' : ''}`}>
           {uz.home.leaks}
           {attention !== null && attention > 0 && <small className="debt-tag"> · {attention}</small>}
