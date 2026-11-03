@@ -84,6 +84,9 @@ function RahbarHome() {
         <Link to="/stock" className="card tile">
           {uz.home.stock}
         </Link>
+        <Link to="/expenses" className="card tile">
+          {uz.home.expenses}
+        </Link>
         <Link to="/service" className="card tile">
           {uz.home.service}
           {openService !== null && openService > 0 && <small className="debt-tag"> · {openService} {uz.service.openCount}</small>}

@@ -1,6 +1,7 @@
 // Бот @ecorombot: (1) вебхук Telegram — /start, кнопка «открыть систему», ответы цеха «Yetadi/Yetmaydi/Brak» и причина;
 // (2) внутренний вызов из базы — отправить уведомление из таблицы notifications.
 import { createClient } from 'npm:@supabase/supabase-js@2.45.4'
+import { parseExpense } from './parse-expense.ts'
 
 const BOT = Deno.env.get('TELEGRAM_BOT_TOKEN')!
 const SECRET = Deno.env.get('TG_WEBHOOK_SECRET')!
@@ -34,6 +35,28 @@ function keyboard(role: string | null, payload: Record<string, string>) {
   if (role === 'montajchi' && payload.order_id)
     return { inline_keyboard: [[{ text: 'Montajni ochish', web_app: { url: `${APP_URL}#/install/${payload.order_id}` } }]] }
   return openButton
+}
+
+const fmtSum = (n: number) => new Intl.NumberFormat('ru-RU').format(n).replace(/ /g, ' ')
+interface Draft {
+  id: string
+  amount: number
+  note: string | null
+  category_id: number | null
+  category: string | null
+  employee: string | null
+}
+// текст и кнопки подтверждения расхода
+function draftCard(d: Draft) {
+  const text =
+    `💸 ${fmtSum(Number(d.amount))} so‘m\n` +
+    `Kategoriya: ${d.category ?? '❓ tanlanmagan'}` +
+    (d.employee ? `\nXodim: ${d.employee}` : '') +
+    (d.note ? `\n«${d.note}»` : '')
+  const row = [] as { text: string; callback_data: string }[]
+  if (d.category_id) row.push({ text: '✅ Tasdiqlash', callback_data: `ex:ok:${d.id}` })
+  row.push({ text: d.category_id ? '🔁 Kategoriya' : '📂 Kategoriyani tanlang', callback_data: `ex:cat:${d.id}` })
+  return { text, reply_markup: { inline_keyboard: [row, [{ text: '❌ Bekor', callback_data: `ex:no:${d.id}` }]] } }
 }
 
 const tashkentTime = () => new Date().toLocaleTimeString('ru-RU', { timeZone: 'Asia/Tashkent', hour: '2-digit', minute: '2-digit' })
@@ -95,6 +118,51 @@ Deno.serve(async (req) => {
     return new Response('ok')
   }
 
+  // расходы Rahbar: подтвердить / сменить категорию / отменить / отменить уже записанное
+  if (cq?.data?.startsWith('ex:')) {
+    const [, act, id, extra] = cq.data.split(':')
+    const chat = cq.message?.chat?.id
+    const mid = cq.message?.message_id
+    const fail = (e: { message?: string } | null) => tg('answerCallbackQuery', { callback_query_id: cq.id, text: e?.message ?? 'Xatolik', show_alert: true })
+    const edit = (text: string, reply_markup?: unknown) => tg('editMessageText', { chat_id: chat, message_id: mid, text, reply_markup: reply_markup ?? { inline_keyboard: [] } })
+    if (act === 'ok') {
+      const { data, error } = await admin.rpc('expense_confirm', { p_tg: cq.from.id, p_id: id })
+      if (error) await fail(error)
+      else {
+        await tg('answerCallbackQuery', { callback_query_id: cq.id, text: 'Yozildi' })
+        await edit(`✅ Yozildi: ${fmtSum(Number(data.amount))} so‘m · ${data.category}${data.employee ? ` · ${data.employee}` : ''}${data.note ? `\n«${data.note}»` : ''}`, {
+          inline_keyboard: [[{ text: '↩ Bekor qilish', callback_data: `ex:undo:${data.expense_id}` }]],
+        })
+      }
+    } else if (act === 'cat') {
+      const { data: cats } = await admin.from('expense_categories').select('id, name').eq('is_active', true).order('name')
+      const rows = []
+      for (let i = 0; i < (cats ?? []).length; i += 2) rows.push((cats ?? []).slice(i, i + 2).map((c: { id: number; name: string }) => ({ text: c.name, callback_data: `ex:set:${id}:${c.id}` })))
+      await tg('answerCallbackQuery', { callback_query_id: cq.id })
+      await tg('editMessageReplyMarkup', { chat_id: chat, message_id: mid, reply_markup: { inline_keyboard: rows } })
+    } else if (act === 'set') {
+      const { data, error } = await admin.rpc('expense_draft_set', { p_tg: cq.from.id, p_id: id, p_category: Number(extra) })
+      if (error) await fail(error)
+      else {
+        const c = draftCard(data as Draft)
+        await tg('answerCallbackQuery', { callback_query_id: cq.id })
+        await edit(c.text, c.reply_markup)
+      }
+    } else if (act === 'no') {
+      await admin.rpc('expense_discard', { p_tg: cq.from.id, p_id: id })
+      await tg('answerCallbackQuery', { callback_query_id: cq.id })
+      await edit('❌ Bekor qilindi')
+    } else if (act === 'undo') {
+      const { error } = await admin.rpc('expense_undo', { p_tg: cq.from.id, p_expense: id })
+      if (error) await fail(error)
+      else {
+        await tg('answerCallbackQuery', { callback_query_id: cq.id, text: 'Bekor qilindi' })
+        await edit(`${cq.message?.text ?? ''}\n\n↩ Bekor qilindi`)
+      }
+    }
+    return new Response('ok')
+  }
+
   const msg = update.message
   if (msg?.text?.startsWith('/start')) {
     const { data: emp } = await admin.from('employees').select('full_name, is_active').eq('telegram_id', msg.chat.id).maybeSingle()
@@ -105,7 +173,29 @@ Deno.serve(async (req) => {
   } else if (msg?.text && msg.from) {
     // причина после «Yetmaydi/Brak» (если бот её ждёт)
     const { data: r } = await admin.rpc('shop_reason', { p_tg: msg.from.id, p_text: msg.text })
-    if (r?.ok) await tg('sendMessage', { chat_id: msg.chat.id, text: `Rahmat! №${r.order_no} bo‘yicha rahbarga yuborildi.` })
+    if (r?.ok) {
+      await tg('sendMessage', { chat_id: msg.chat.id, text: `Rahmat! №${r.order_no} bo‘yicha rahbarga yuborildi.` })
+      return new Response('ok')
+    }
+    // расход от Rahbar: «obed 150000» → черновик с кнопками (запись — только после «Tasdiqlash»)
+    const { data: boss } = await admin.from('employees').select('id').eq('telegram_id', msg.from.id).eq('role', 'rahbar').eq('is_active', true).maybeSingle()
+    if (boss) {
+      const [{ data: cats }, { data: people }] = await Promise.all([
+        admin.from('expense_categories').select('id, name').eq('is_active', true),
+        admin.from('employees').select('id, full_name').eq('is_active', true),
+      ])
+      const p = parseExpense(msg.text, cats ?? [], people ?? [])
+      if (!p.amount) {
+        await tg('sendMessage', { chat_id: msg.chat.id, text: 'Summani topa olmadim. Masalan: «obed 150000», «benzin 200 000», «remont 1,5 mln».' })
+        return new Response('ok')
+      }
+      const { data: d, error } = await admin.rpc('expense_draft_create', { p_tg: msg.from.id, p_amount: p.amount, p_category: p.categoryId, p_note: p.note, p_for: p.employeeId })
+      if (error) await tg('sendMessage', { chat_id: msg.chat.id, text: `Xatolik: ${error.message}` })
+      else {
+        const c = draftCard(d as Draft)
+        await tg('sendMessage', { chat_id: msg.chat.id, text: c.text, reply_markup: c.reply_markup })
+      }
+    }
   }
   return new Response('ok')
 })

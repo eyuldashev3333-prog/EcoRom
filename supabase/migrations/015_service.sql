@@ -42,7 +42,7 @@ create or replace function public.order_warranty(p_order uuid) returns date
 language sql stable security definer set search_path = public as $$
   select coalesce(o.warranty_until,
                   case when o.install_date is not null then o.install_date + make_interval(years => coalesce((select (value #>> '{}')::int from app_settings where key = 'warranty_years'), 5)) end)
-  from orders o where o.id = p_order
+  from orders o where o.id = p_order and (public.is_rahbar() or auth.role() = 'service_role' or auth.uid() is null)
 $$;
 revoke all on function public.order_warranty(uuid) from public, anon;
 grant execute on function public.order_warranty(uuid) to authenticated;

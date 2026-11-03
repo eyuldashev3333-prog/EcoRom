@@ -1,6 +1,6 @@
 // Деплой Edge Function через Management API (CLI Supabase не нужен).
 // Запуск: node scripts/deploy-function.mjs admin-users
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 const ROOT = new URL('..', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1').replace(/%20/g, ' ')
@@ -11,10 +11,13 @@ const slug = process.argv[2]
 if (!slug) throw new Error('укажите имя функции')
 const verifyJwt = process.argv[3] !== '--no-verify-jwt'
 
-const code = readFileSync(join(ROOT, 'supabase', 'functions', slug, 'index.ts'))
+// index.ts + соседние .ts-файлы функции (например, parse-expense.ts)
+const dir = join(ROOT, 'supabase', 'functions', slug)
 const form = new FormData()
 form.append('metadata', JSON.stringify({ entrypoint_path: 'index.ts', name: slug, verify_jwt: verifyJwt }))
-form.append('file', new Blob([code], { type: 'application/typescript' }), 'index.ts')
+for (const f of readdirSync(dir).filter((x) => x.endsWith('.ts'))) {
+  form.append('file', new Blob([readFileSync(join(dir, f))], { type: 'application/typescript' }), f)
+}
 
 const r = await fetch(`https://api.supabase.com/v1/projects/${env.SUPABASE_PROJECT_REF}/functions/deploy?slug=${slug}`, {
   method: 'POST',
