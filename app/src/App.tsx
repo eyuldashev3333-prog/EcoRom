@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react'
 import { Link, Navigate, Route, Routes } from 'react-router-dom'
 import { useAuth } from './auth'
 import { uz } from './uz'
@@ -9,6 +10,8 @@ import Password from './pages/Password'
 import Designer from './pages/Designer'
 import Orders from './pages/Orders'
 import OrderEdit from './pages/OrderEdit'
+// PDF-библиотеки тяжёлые — грузятся только при открытии печати
+const OrderPrint = lazy(() => import('./pages/OrderPrint'))
 
 export default function App() {
   const { session, me, loading, signOut } = useAuth()
@@ -48,6 +51,18 @@ export default function App() {
           <Route path="/orders" element={me.role === 'rahbar' ? <Orders /> : <Navigate to="/" />} />
           <Route path="/orders/new" element={me.role === 'rahbar' ? <OrderEdit /> : <Navigate to="/" />} />
           <Route path="/orders/:id" element={me.role === 'rahbar' ? <OrderEdit /> : <Navigate to="/" />} />
+          <Route
+            path="/orders/:id/print"
+            element={
+              me.role === 'rahbar' ? (
+                <Suspense fallback={<p className="muted">{uz.loading}</p>}>
+                  <OrderPrint />
+                </Suspense>
+              ) : (
+                <Navigate to="/" />
+              )
+            }
+          />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </main>

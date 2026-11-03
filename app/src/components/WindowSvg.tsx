@@ -9,6 +9,7 @@ interface Props {
   onPartClick?: (splitId: string, index: number, current: number) => void
   onSizeClick?: (axis: 'w' | 'h', current: number) => void
   maxHeight?: number
+  fontScale?: number // крупнее подписи для печатного листа
 }
 
 const FRAME = 60 // видимая ширина рамы на чертеже, мм
@@ -47,7 +48,7 @@ function openingLines(o: Opening, g: Rect) {
   }
 }
 
-export default function WindowSvg({ design, frameColor = '#f4f4f2', selectedId, onSelect, onPartClick, onSizeClick, maxHeight = 420 }: Props) {
+export default function WindowSvg({ design, frameColor = '#f4f4f2', selectedId, onSelect, onPartClick, onSizeClick, maxHeight = 420, fontScale = 1 }: Props) {
   // свой id на каждый чертёж: на одной странице (PDF заказа) их несколько
   const uidRaw = useId().replace(/[^a-zA-Z0-9]/g, '')
   const clipId = `clip${uidRaw}`
@@ -55,8 +56,8 @@ export default function WindowSvg({ design, frameColor = '#f4f4f2', selectedId, 
   const { width: W, height: H } = design
   const { cells } = layout(design)
   const splits = splitBoxes(design)
-  const pad = Math.max(W, H) * 0.14
-  const font = Math.max(W, H) * 0.035
+  const pad = Math.max(W, H) * 0.14 * Math.max(1, fontScale * 0.8)
+  const font = Math.max(W, H) * 0.035 * fontScale
   const rise = design.shape === 'arch' ? Math.min(design.archRise ?? 0, W / 2, H) : 0
 
   // контур: прямоугольник или арка

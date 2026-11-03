@@ -166,6 +166,13 @@ export default function OrderEdit() {
         {orderNo ? `${t.order} #${orderNo}` : t.new} {orderNo && <span className={`status s-${status}`}>{t.statuses[status]}</span>}
       </h1>
       {msg && <div className={msg.ok ? 'card note ok' : 'card note bad'}>{msg.text}</div>}
+      {id && (
+        <p>
+          <Link to={`/orders/${id}/print`} className="btn-link">
+            🖨 {uz.print.open}
+          </Link>
+        </p>
+      )}
 
       {/* клиент и заказ */}
       <div className="card form">
