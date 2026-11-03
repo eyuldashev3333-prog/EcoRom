@@ -6,6 +6,7 @@ import Home from './pages/Home'
 import Catalog from './pages/Catalog'
 import Employees from './pages/Employees'
 import Password from './pages/Password'
+import Designer from './pages/Designer'
 
 export default function App() {
   const { session, me, loading, signOut } = useAuth()
@@ -41,6 +42,7 @@ export default function App() {
           <Route path="/catalog" element={me.role === 'rahbar' ? <Catalog /> : <Navigate to="/" />} />
           <Route path="/employees" element={me.role === 'rahbar' ? <Employees /> : <Navigate to="/" />} />
           <Route path="/password" element={<Password />} />
+          <Route path="/designer" element={me.role === 'rahbar' ? <Designer /> : <Navigate to="/" />} />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </main>

@@ -38,6 +38,9 @@ function RahbarHome() {
         <Link to="/catalog" className="card tile">
           {uz.home.catalog}
         </Link>
+        <Link to="/designer" className="card tile">
+          {uz.home.designer}
+        </Link>
         <Link to="/employees" className="card tile">
           {uz.home.employees}
         </Link>

@@ -71,3 +71,16 @@ small { color: var(--muted); }
 .row.off { opacity: .55; }
 .spacer { flex: 1; }
 code { background: var(--bg); padding: 2px 6px; border-radius: 6px; }
+.designer { display: grid; gap: 12px; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); align-items: start; }
+@media (max-width: 760px) { .designer { grid-template-columns: 1fr; } }
+.designer .side { display: grid; gap: 12px; }
+.designer .side .form { margin: 0; }
+.designer svg { background: #fff; border-radius: 10px; }
+.hint { font-size: .85rem; margin: 8px 0 0; }
+.inline.wrap { flex-wrap: wrap; }
+.openings { display: flex; flex-wrap: wrap; gap: 6px; }
+.openings .tab { padding: 6px 10px; font-size: .85rem; }
+.kv { width: 100%; border-collapse: collapse; }
+.kv td { padding: 4px 0; border-bottom: 1px solid var(--line); }
+.kv td:last-child { text-align: right; font-weight: 600; }
+.panes { margin: 0; padding-left: 18px; }
