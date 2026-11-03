@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import { supabase } from '../supabase'
 import InstallParts, { type InstallItem } from '../components/InstallParts'
 import GlassStatus from '../components/GlassStatus'
+import BreakageForm from '../components/BreakageForm'
 import { uz } from '../uz'
 
 const t = uz.install
@@ -66,6 +67,7 @@ export default function InstallOrder() {
       </div>
       {id && <InstallParts orderId={id} items={items} status={order.status} drawings onChanged={loadOrder} />}
       {id && <GlassStatus orderId={id} locked />}
+      {id && ['in_production', 'ready', 'installing', 'installed'].includes(order.status) && <BreakageForm orderId={id} items={items} />}
     </>
   )
 }

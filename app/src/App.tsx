@@ -12,6 +12,7 @@ import Orders from './pages/Orders'
 import OrderEdit from './pages/OrderEdit'
 import ShopOrder from './pages/ShopOrder'
 import InstallOrder from './pages/InstallOrder'
+import Breakages from './pages/Breakages'
 import Stock from './pages/Stock'
 import Purchases from './pages/Purchases'
 import Suppliers from './pages/Suppliers'
@@ -53,6 +54,7 @@ export default function App() {
           <Route path="/employees" element={me.role === 'rahbar' ? <Employees /> : <Navigate to="/" />} />
           <Route path="/password" element={<Password />} />
           <Route path="/install/:id" element={me.role === 'montajchi' ? <InstallOrder /> : <Navigate to="/" />} />
+          <Route path="/breakages" element={me.role === 'rahbar' ? <Breakages /> : <Navigate to="/" />} />
           <Route path="/stock" element={me.role === 'rahbar' ? <Stock /> : <Navigate to="/" />} />
           <Route path="/purchases" element={me.role === 'rahbar' ? <Purchases /> : <Navigate to="/" />} />
           <Route path="/suppliers" element={me.role === 'rahbar' ? <Suppliers /> : <Navigate to="/" />} />

@@ -82,6 +82,9 @@ function RahbarHome() {
         <Link to="/stock" className="card tile">
           {uz.home.stock}
         </Link>
+        <Link to="/breakages" className="card tile">
+          {uz.home.breakage}
+        </Link>
         <Link to="/purchases" className="card tile">
           {uz.home.purchases}
         </Link>
