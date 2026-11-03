@@ -153,6 +153,56 @@ function ShopHome() {
   )
 }
 
+interface JobRow {
+  id: string
+  order_id: string
+  plan_date: string | null
+  status: string
+  order_no: number
+  client_name: string | null
+  address: string | null
+  order_status: string
+}
+
+// монтажник: «что сегодня» и ближайшие назначения
+function InstallHome() {
+  const [rows, setRows] = useState<JobRow[] | null>(null)
+  useEffect(() => {
+    ;(async () => {
+      const { data: js } = await supabase.from('w_install_jobs').select('id, order_id, plan_date, status').in('status', ['planned', 'in_progress', 'postponed']).order('plan_date')
+      const jobs = (js as Omit<JobRow, 'order_no' | 'client_name' | 'address' | 'order_status'>[]) ?? []
+      if (!jobs.length) return setRows([])
+      const { data: os } = await supabase.from('w_orders').select('id, order_no, client_name, address, status').in('id', jobs.map((j) => j.order_id))
+      const by = new Map(((os as { id: string; order_no: number; client_name: string | null; address: string | null; status: string }[]) ?? []).map((o) => [o.id, o]))
+      setRows(jobs.flatMap((j) => { const o = by.get(j.order_id); return o ? [{ ...j, order_no: o.order_no, client_name: o.client_name, address: o.address, order_status: o.status }] : [] }))
+    })()
+  }, [])
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Tashkent' })
+  const fmt = (d: string | null) => (d ? d.split('-').reverse().join('.') : '')
+  const card = (j: JobRow) => (
+    <Link key={j.id} to={`/install/${j.order_id}`} className={`card row order-row job-row ${j.plan_date === today ? 'today' : ''}`}>
+      <b>№{j.order_no}</b>
+      <span>{j.client_name}</span>
+      <span className="muted">{j.address}</span>
+      <span className="spacer" />
+      <span className="muted">{fmt(j.plan_date)}</span>
+      <span className={`status s-${j.order_status}`}>{uz.order.statuses[j.order_status]}</span>
+    </Link>
+  )
+  const now = (rows ?? []).filter((j) => j.plan_date !== null && j.plan_date <= today)
+  const next = (rows ?? []).filter((j) => j.plan_date === null || j.plan_date > today)
+  return (
+    <>
+      <h2>{uz.install.today}</h2>
+      {rows === null && <p className="muted">{uz.loading}</p>}
+      {rows?.length === 0 && <p className="muted">{uz.install.noJobs}</p>}
+      {now.map(card)}
+      {next.length > 0 && <h2>{uz.install.next}</h2>}
+      {next.map(card)}
+    </>
+  )
+}
+
 function WorkerHome() {
   const [rows, setRows] = useState<WOrder[] | null>(null)
   useEffect(() => {
@@ -192,7 +242,7 @@ export default function Home() {
       <h1>
         {uz.hello}, {me?.full_name}
       </h1>
-      {me?.role === 'rahbar' ? <RahbarHome /> : me?.role === 'ishlab' ? <ShopHome /> : <WorkerHome />}
+      {me?.role === 'rahbar' ? <RahbarHome /> : me?.role === 'ishlab' ? <ShopHome /> : me?.role === 'montajchi' ? <InstallHome /> : <WorkerHome />}
       <p>
         <Link to="/password">{uz.home.password}</Link>
       </p>

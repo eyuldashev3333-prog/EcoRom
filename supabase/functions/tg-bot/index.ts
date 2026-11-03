@@ -28,6 +28,8 @@ function keyboard(role: string | null, payload: Record<string, string>) {
     }
   if (role === 'rahbar' && payload.order_id)
     return { inline_keyboard: [[{ text: 'Buyurtmani ochish', web_app: { url: `${APP_URL}#/orders/${payload.order_id}` } }]] }
+  if (role === 'montajchi' && payload.order_id)
+    return { inline_keyboard: [[{ text: 'Montajni ochish', web_app: { url: `${APP_URL}#/install/${payload.order_id}` } }]] }
   return openButton
 }
 

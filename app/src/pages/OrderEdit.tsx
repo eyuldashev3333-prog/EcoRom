@@ -9,6 +9,8 @@ import ShopCheck from '../components/ShopCheck'
 import StageGrid from '../components/StageGrid'
 import StockHint from '../components/StockHint'
 import GlassStatus from '../components/GlassStatus'
+import InstallPlan from '../components/InstallPlan'
+import InstallParts from '../components/InstallParts'
 import { colorHex, useCatalog } from '../lib/catalog'
 import { formatSum, profit, suggestedPrice } from '../lib/pricing'
 import { quoteItem, type ItemOptions } from '../lib/quote'
@@ -398,6 +400,20 @@ export default function OrderEdit() {
         <StageGrid
           status={status}
           items={items.flatMap((it, i) => (it.id ? [{ id: it.id, pos: i + 1, title: it.title || null, width_mm: it.design.width, height_mm: it.design.height, qty: it.qty, note: it.note }] : []))}
+          onChanged={async () => {
+            const { data } = await supabase.from('orders').select('status').eq('id', id).maybeSingle()
+            if (data) setStatus(data.status)
+          }}
+        />
+      )}
+
+      {id && loaded && !imported && ['in_production', 'ready', 'installing', 'installed', 'closed'].includes(status) && <InstallPlan orderId={id} status={status} />}
+
+      {id && loaded && !imported && ['ready', 'installing', 'installed', 'closed'].includes(status) && (
+        <InstallParts
+          orderId={id}
+          status={status}
+          items={items.flatMap((it, i) => (it.id ? [{ id: it.id, pos: i + 1, title: it.title || null, width_mm: it.design.width, height_mm: it.design.height, qty: it.qty, options: it.options, note: it.note }] : []))}
           onChanged={async () => {
             const { data } = await supabase.from('orders').select('status').eq('id', id).maybeSingle()
             if (data) setStatus(data.status)
