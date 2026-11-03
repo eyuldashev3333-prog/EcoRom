@@ -61,3 +61,13 @@ button.ghost { background: transparent; color: var(--muted); border: 1px solid v
 .check { display: flex; align-items: center; gap: 8px; }
 .check input { width: 18px; height: 18px; }
 small { color: var(--muted); }
+.form { display: grid; gap: 12px; margin-bottom: 16px; }
+.form h2 { margin: 0; }
+.inline { display: flex; gap: 8px; }
+.inline input { flex: 1; }
+.note { margin-bottom: 12px; font-weight: 600; word-break: break-word; }
+.note.ok { border-color: var(--green); color: var(--green); }
+.note.bad { border-color: var(--danger); color: var(--danger); }
+.row.off { opacity: .55; }
+.spacer { flex: 1; }
+code { background: var(--bg); padding: 2px 6px; border-radius: 6px; }

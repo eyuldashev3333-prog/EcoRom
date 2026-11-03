@@ -38,6 +38,9 @@ function RahbarHome() {
         <Link to="/catalog" className="card tile">
           {uz.home.catalog}
         </Link>
+        <Link to="/employees" className="card tile">
+          {uz.home.employees}
+        </Link>
         <div className="card tile off">
           {uz.home.orders} · {uz.home.soon}
         </div>
@@ -86,6 +89,9 @@ export default function Home() {
         {uz.hello}, {me?.full_name}
       </h1>
       {me?.role === 'rahbar' ? <RahbarHome /> : <WorkerHome />}
+      <p>
+        <Link to="/password">{uz.home.password}</Link>
+      </p>
     </>
   )
 }

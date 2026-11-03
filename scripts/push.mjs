@@ -43,8 +43,13 @@ for (const f of files) {
   const blob = await api('POST', '/git/blobs', { content: buf.toString('base64'), encoding: 'base64' })
   tree.push({ path: relative(ROOT, f).split(sep).join('/'), mode: '100644', type: 'blob', sha: blob.sha })
 }
-// убрать старую заглушку
-for (const old of ['index.html']) if (!tree.some((t) => t.path === old)) tree.push({ path: old, mode: '100644', type: 'blob', sha: null })
+// синхронизация удалений: что есть в репозитории (в публикуемых путях или старая заглушка), но нет локально — удалить
+const base = await api('GET', `/git/trees/${head.tree.sha}?recursive=1`)
+const local = new Set(tree.map((t) => t.path))
+const published = (p) => INCLUDE.some((i) => p === i || p.startsWith(`${i}/`)) || p === 'index.html'
+for (const entry of base.tree) {
+  if (entry.type === 'blob' && published(entry.path) && !local.has(entry.path)) tree.push({ path: entry.path, mode: '100644', type: 'blob', sha: null })
+}
 
 const newTree = await api('POST', '/git/trees', { base_tree: head.tree.sha, tree })
 const commit = await api('POST', '/git/commits', { message, tree: newTree.sha, parents: [headSha] })
