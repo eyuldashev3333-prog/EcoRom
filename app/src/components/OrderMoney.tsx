@@ -15,7 +15,7 @@ interface Payment {
 }
 const NEXT: Record<string, string[]> = {
   unknown: [],
-  new: ['in_production', 'cancelled'],
+  new: ['cancelled'], // в производство — только кнопкой «Sexga yuborish» (цех получает заказ)
   in_production: ['ready', 'cancelled'],
   ready: ['installing', 'installed'],
   installing: ['installed'],

@@ -130,6 +130,13 @@ button.link { background: none; color: var(--green); padding: 0; text-decoration
 .debt-tag { color: var(--danger); font-size: .85rem; font-weight: 600; }
 .btn-link { display: inline-block; padding: 9px 14px; border: 1px solid var(--green); border-radius: 10px; font-weight: 600; }
 .actions { margin: 8px 0 12px; }
+.shop-state { font-weight: 700; padding: 8px 12px; border-radius: 10px; border: 1px solid var(--line); }
+.shop-state.enough { border-color: var(--green); color: var(--green); }
+.shop-state.not_enough, .shop-state.defect { border-color: var(--danger); color: var(--danger); }
+.checks td:first-child { white-space: nowrap; padding-right: 8px; color: var(--muted); }
+.checks td.not_enough, .checks td.defect { color: var(--danger); }
+.checks td.enough { color: var(--green); }
+.checks tr.old td { color: var(--muted); text-decoration: line-through; }
 
 /* печатный лист A4: 794×1123 px (96 dpi) */
 .sheets { display: grid; gap: 16px; justify-content: center; overflow-x: auto; padding-bottom: 16px; }

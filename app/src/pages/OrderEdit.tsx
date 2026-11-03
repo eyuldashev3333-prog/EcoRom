@@ -5,6 +5,7 @@ import WindowEditor, { PRESETS } from '../components/WindowEditor'
 import WindowSvg from '../components/WindowSvg'
 import ItemOptionsForm from '../components/ItemOptionsForm'
 import OrderMoney from '../components/OrderMoney'
+import ShopCheck from '../components/ShopCheck'
 import { colorHex, useCatalog } from '../lib/catalog'
 import { formatSum, profit, suggestedPrice } from '../lib/pricing'
 import { quoteItem, type ItemOptions } from '../lib/quote'
@@ -373,6 +374,18 @@ export default function OrderEdit() {
         </button>
       </div>
       </>
+      )}
+
+      {id && loaded && !imported && (
+        <ShopCheck
+          orderId={id}
+          status={status}
+          hasItems={items.some((x) => x.id)}
+          onChanged={async () => {
+            const { data } = await supabase.from('orders').select('status').eq('id', id).maybeSingle()
+            if (data) setStatus(data.status)
+          }}
+        />
       )}
 
       {id && loaded && (
