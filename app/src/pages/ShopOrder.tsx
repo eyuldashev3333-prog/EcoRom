@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { supabase } from '../supabase'
 import StageGrid, { type StageItem } from '../components/StageGrid'
+import GlassStatus from '../components/GlassStatus'
 import type { WindowDesign } from '../lib/window'
 import { uz } from '../uz'
 
@@ -65,6 +66,8 @@ export default function ShopOrder() {
       {order.notes && <div className="card note">{order.notes}</div>}
 
       <StageGrid items={items} status={order.status} drawings onChanged={loadOrder} />
+
+      {id && <GlassStatus orderId={id} />}
 
       {total.size > 0 && (
         <div className="card">

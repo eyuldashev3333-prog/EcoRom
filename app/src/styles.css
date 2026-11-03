@@ -147,6 +147,12 @@ button.link { background: none; color: var(--green); padding: 0; text-decoration
 .stage.done { border-color: var(--green); }
 .stage.off { opacity: .55; cursor: default; }
 .stage small { display: block; color: var(--muted); }
+.seg { display: flex; flex-wrap: wrap; gap: 4px; }
+.seg button { padding: 5px 10px; font-size: .82rem; background: var(--bg); color: var(--ink); border: 1px solid var(--line); }
+.seg button.on { background: var(--green); color: #fff; border-color: var(--green); }
+.seg button.on.g-ordered { background: #c88a12; border-color: #c88a12; }
+.seg button.on:disabled { opacity: 1; }
+.glass-row { border-top: 1px solid var(--line); padding-top: 8px; display: grid; gap: 6px; }
 .tbl { width: 100%; border-collapse: collapse; font-size: .9rem; }
 .tbl th { text-align: left; font-weight: 600; color: var(--muted); font-size: .8rem; padding: 4px 6px; border-bottom: 1px solid var(--line); }
 .tbl td { padding: 6px; border-bottom: 1px solid var(--line); vertical-align: middle; }

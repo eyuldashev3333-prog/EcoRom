@@ -209,6 +209,13 @@ export const uz = {
     panes: "Oyna paket o'lchamlari",
     back: 'Buyurtmalar',
   },
+  glass: {
+    title: 'Oyna paketlar (shisha)',
+    statuses: { none: "Buyurtma qilinmagan", ordered: 'Buyurtma qilindi', arrived: 'Keldi', installed: "O'rnatildi" } as Record<string, string>,
+    all: 'Hammasi',
+    summary: 'paket',
+    noPanes: "O'lcham yo'q",
+  },
   stock: {
     title: 'Ombor',
     search: 'Qidirish: material nomi',

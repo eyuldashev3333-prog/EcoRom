@@ -8,6 +8,7 @@ import OrderMoney from '../components/OrderMoney'
 import ShopCheck from '../components/ShopCheck'
 import StageGrid from '../components/StageGrid'
 import StockHint from '../components/StockHint'
+import GlassStatus from '../components/GlassStatus'
 import { colorHex, useCatalog } from '../lib/catalog'
 import { formatSum, profit, suggestedPrice } from '../lib/pricing'
 import { quoteItem, type ItemOptions } from '../lib/quote'
@@ -403,6 +404,8 @@ export default function OrderEdit() {
           }}
         />
       )}
+
+      {id && loaded && !imported && status !== 'unknown' && <GlassStatus key={items.filter((x) => x.id).length} orderId={id} locked={['closed', 'cancelled'].includes(status)} />}
 
       {id && loaded && (
         <OrderMoney
