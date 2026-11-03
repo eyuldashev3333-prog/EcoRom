@@ -147,6 +147,20 @@ button.link { background: none; color: var(--green); padding: 0; text-decoration
 .stage.done { border-color: var(--green); }
 .stage.off { opacity: .55; cursor: default; }
 .stage small { display: block; color: var(--muted); }
+.tbl { width: 100%; border-collapse: collapse; font-size: .9rem; }
+.tbl th { text-align: left; font-weight: 600; color: var(--muted); font-size: .8rem; padding: 4px 6px; border-bottom: 1px solid var(--line); }
+.tbl td { padding: 6px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+.tbl td.num, .tbl th.num { text-align: right; white-space: nowrap; }
+.tbl tr.neg td { color: var(--danger); }
+.tbl tr.struck td { text-decoration: line-through; color: var(--muted); }
+.tbl input { width: 100%; min-width: 70px; text-align: right; }
+.tbl-wrap { overflow-x: auto; }
+.line-row { display: grid; grid-template-columns: 1fr 110px 130px auto; gap: 6px; align-items: end; border-bottom: 1px solid var(--line); padding-bottom: 8px; }
+.line-row .grid-tight { display: grid; gap: 4px; }
+.line-row .sum { white-space: nowrap; font-weight: 600; padding-bottom: 10px; }
+@media (max-width: 600px) { .line-row { grid-template-columns: 1fr 1fr; } }
+.filters { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 8px 0; }
+.filters input[type=search] { flex: 1; min-width: 180px; }
 .checks tr.old td { color: var(--muted); text-decoration: line-through; }
 
 /* печатный лист A4: 794×1123 px (96 dpi) */

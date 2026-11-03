@@ -21,7 +21,12 @@ function RahbarHome() {
   const [since, setSince] = useState('')
   const [orders, setOrders] = useState<number | null>(null)
   const [debt, setDebt] = useState<number | null>(null)
+  const [supDebt, setSupDebt] = useState<number | null>(null)
   useEffect(() => {
+    supabase
+      .from('v_supplier_debt')
+      .select('debt')
+      .then(({ data }) => setSupDebt(((data as { debt: string }[]) ?? []).reduce((s, x) => s + Math.max(0, Number(x.debt)), 0)))
     // долг клиентов: только по активным заказам (без отменённых)
     Promise.all([supabase.from('v_order_paid').select('order_id, debt'), supabase.from('orders').select('id').neq('status', 'cancelled')]).then(([d, o]) => {
       const active = new Set(((o.data as { id: string }[]) ?? []).map((x) => x.id))
@@ -56,6 +61,10 @@ function RahbarHome() {
           <small>{uz.home.clientDebt}</small>
           <b>{debt === null ? '…' : `${sum(debt)} so‘m`}</b>
         </div>
+        <div className="card stat">
+          <small>{uz.home.supplierDebt}</small>
+          <b>{supDebt === null ? '…' : `${sum(supDebt)} so‘m`}</b>
+        </div>
       </div>
       <div className="grid">
         <Link to="/catalog" className="card tile">
@@ -69,6 +78,15 @@ function RahbarHome() {
         </Link>
         <Link to="/orders" className="card tile">
           {uz.home.orders}
+        </Link>
+        <Link to="/stock" className="card tile">
+          {uz.home.stock}
+        </Link>
+        <Link to="/purchases" className="card tile">
+          {uz.home.purchases}
+        </Link>
+        <Link to="/suppliers" className="card tile">
+          {uz.home.suppliers}
         </Link>
       </div>
     </>

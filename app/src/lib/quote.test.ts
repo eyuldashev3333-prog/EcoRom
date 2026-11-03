@@ -53,6 +53,10 @@ describe('quoteItem', () => {
   it('расход материалов без работ и цветов', () => {
     expect(q.materials.find((x) => x.name === 'Монтаж (Пласт)')).toBeUndefined()
     expect(q.materials.find((x) => x.name === '6000-Куатро (Ок) — rama')?.qty).toBe(5.64)
+    // склад: часть позиции и её единица
+    expect(q.materials.find((x) => x.name === '6000-Куатро (Ок) — rama')).toMatchObject({ item_id: 'sys', part: 'rama', unit: 'm' })
+    expect(q.materials.find((x) => x.part === 'zaglushka')).toMatchObject({ item_id: 'ebb', unit: 'pcs', qty: 2 })
+    expect(q.materials.find((x) => x.item_id === 'gl')?.part).toBe('')
   })
   it('дверь получает дверную фурнитуру', () => {
     const b = newDesign(800, 2100)

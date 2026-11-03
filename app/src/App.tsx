@@ -11,6 +11,9 @@ import Designer from './pages/Designer'
 import Orders from './pages/Orders'
 import OrderEdit from './pages/OrderEdit'
 import ShopOrder from './pages/ShopOrder'
+import Stock from './pages/Stock'
+import Purchases from './pages/Purchases'
+import Suppliers from './pages/Suppliers'
 // PDF-библиотеки тяжёлые — грузятся только при открытии печати
 const OrderPrint = lazy(() => import('./pages/OrderPrint'))
 
@@ -48,6 +51,9 @@ export default function App() {
           <Route path="/catalog" element={me.role === 'rahbar' ? <Catalog /> : <Navigate to="/" />} />
           <Route path="/employees" element={me.role === 'rahbar' ? <Employees /> : <Navigate to="/" />} />
           <Route path="/password" element={<Password />} />
+          <Route path="/stock" element={me.role === 'rahbar' ? <Stock /> : <Navigate to="/" />} />
+          <Route path="/purchases" element={me.role === 'rahbar' ? <Purchases /> : <Navigate to="/" />} />
+          <Route path="/suppliers" element={me.role === 'rahbar' ? <Suppliers /> : <Navigate to="/" />} />
           <Route path="/shop/:id" element={me.role === 'ishlab' ? <ShopOrder /> : <Navigate to="/" />} />
           <Route path="/designer" element={me.role === 'rahbar' ? <Designer /> : <Navigate to="/" />} />
           <Route path="/orders" element={me.role === 'rahbar' ? <Orders /> : <Navigate to="/" />} />

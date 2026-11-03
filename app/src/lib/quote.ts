@@ -30,6 +30,7 @@ export interface ItemOptions {
 
 export interface QuoteLine {
   item_id: string
+  part: string // часть позиции на складе: rama/impost/… у системы, '' — сама позиция
   kind: string
   name: string
   qty: number
@@ -37,12 +38,22 @@ export interface QuoteLine {
   price: number
   sum: number
 }
+export interface Material {
+  item_id: string
+  part: string
+  name: string
+  qty: number
+  unit: Unit
+}
 export interface Quote {
   lines: QuoteLine[]
   cost: number // за 1 изделие
-  materials: { item_id: string; name: string; qty: number; unit: Unit }[] // за 1 изделие, без цен (видно цеху)
+  materials: Material[] // за 1 изделие, без цен (видно цеху, списывается со склада)
   missing: string[] // выбранные позиции без цены (0) — подсказка Rahbar
 }
+
+/** единица части на складе: заглушки — штуки, профиль/резина сетки — метры */
+export const partUnit = (unit: Unit, part: string): Unit => (part === 'zaglushka' ? 'pcs' : ['profil', 'rezina'].includes(part) ? 'm' : unit)
 
 const SYS_PARTS: { key: string; label: string; m: (x: Measure) => number }[] = [
   { key: 'frame', label: 'rama', m: (x) => x.frame_m },
@@ -68,7 +79,7 @@ export function quoteItem(m: Measure, opt: ItemOptions, catalog: Map<string, Cat
     if (!it || qty <= 0) return
     const p = price ?? (Number(it.price) || 0)
     if (!p) missing.push(label ? `${it.name} (${label})` : it.name)
-    lines.push({ item_id: it.id, kind: it.kind, name: label ? `${it.name} — ${label}` : it.name, qty: r3(qty), unit: it.unit, price: p, sum: round2(qty * p) })
+    lines.push({ item_id: it.id, part: label ?? '', kind: it.kind, name: label ? `${it.name} — ${label}` : it.name, qty: r3(qty), unit: partUnit(it.unit, label ?? ''), price: p, sum: round2(qty * p) })
   }
 
   const sys = opt.system ? catalog.get(opt.system) : undefined
@@ -106,13 +117,13 @@ export function quoteItem(m: Measure, opt: ItemOptions, catalog: Map<string, Cat
   }
 
   // расход материалов: суммы по позиции каталога (без цен) — для цеха/склада
-  const mat = new Map<string, { item_id: string; name: string; qty: number; unit: Unit }>()
+  const mat = new Map<string, Material>()
   for (const l of lines) {
     const it = catalog.get(l.item_id)!
     if (it.kind === 'work' || it.kind === 'color') continue
     const key = l.name
     const prev = mat.get(key)
-    mat.set(key, { item_id: l.item_id, name: l.name, unit: l.unit, qty: r3((prev?.qty ?? 0) + l.qty) })
+    mat.set(key, { item_id: l.item_id, part: l.part, name: l.name, unit: l.unit, qty: r3((prev?.qty ?? 0) + l.qty) })
   }
 
   return { lines, cost: round2(lines.reduce((s, l) => s + l.sum, 0)), materials: [...mat.values()], missing: [...new Set(missing)] }

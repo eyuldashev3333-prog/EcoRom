@@ -7,6 +7,7 @@ import ItemOptionsForm from '../components/ItemOptionsForm'
 import OrderMoney from '../components/OrderMoney'
 import ShopCheck from '../components/ShopCheck'
 import StageGrid from '../components/StageGrid'
+import StockHint from '../components/StockHint'
 import { colorHex, useCatalog } from '../lib/catalog'
 import { formatSum, profit, suggestedPrice } from '../lib/pricing'
 import { quoteItem, type ItemOptions } from '../lib/quote'
@@ -328,6 +329,9 @@ export default function OrderEdit() {
           </div>
         </div>
       )}
+
+      {/* склад: пока заказ не ушёл в цех (после — материалы уже списаны) */}
+      {status === 'new' && items.length > 0 && <StockHint items={items.map((it, i) => ({ qty: it.qty, materials: calc[i].q.materials }))} />}
 
       {/* итог */}
       <div className="card totals">
