@@ -1,0 +1,13 @@
+{
+  "name": "ecorom-scripts",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "backup": "node backup.mjs",
+    "restore": "node restore.mjs"
+  },
+  "dependencies": {
+    "exceljs": "^4.4.0",
+    "libsodium-wrappers": "^0.8.4"
+  }
+}

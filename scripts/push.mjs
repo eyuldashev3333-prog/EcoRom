@@ -18,7 +18,7 @@ const api = async (method, path, body) => {
 
 // что публикуем (остальное — секреты, материалы клиента, план — остаётся локально)
 const INCLUDE = ['.github', 'app', 'supabase', 'scripts', '.gitignore', 'README.md']
-const SKIP_DIRS = new Set(['node_modules', 'dist', '.git'])
+const SKIP_DIRS = new Set(['node_modules', 'dist', '.git', 'out']) // out = бэкапы с данными, никогда не публиковать
 const SKIP_FILES = new Set(['config.local.ts'])
 
 const files = []

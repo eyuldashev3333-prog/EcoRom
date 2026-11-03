@@ -9,3 +9,5 @@ eco-rom/
 PLAN.md
 app/node_modules/
 app/dist/
+scripts/node_modules/
+scripts/out/
