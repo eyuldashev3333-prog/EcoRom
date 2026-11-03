@@ -156,6 +156,9 @@ button.link { background: none; color: var(--green); padding: 0; text-decoration
 label.btn { display: block; background: var(--green); color: #fff; border-radius: 10px; font-weight: 600; cursor: pointer; }
 .crew { display: flex; flex-wrap: wrap; gap: 8px 16px; }
 .job-row.today { border-color: var(--green); }
+.photo-stage { position: relative; margin: 8px 0; }
+.photo-canvas { width: 100%; height: auto; max-height: 78vh; object-fit: contain; border-radius: 12px; touch-action: none; background: #dfe5ea; }
+.swatch { display: inline-block; width: 12px; height: 12px; border-radius: 3px; border: 1px solid rgba(0,0,0,.35); vertical-align: -1px; }
 .shop3d { position: relative; width: 100%; height: min(72vh, 640px); border-radius: 14px; overflow: hidden; border: 1px solid var(--line); background: #dfe5ea; touch-action: none; }
 .shop3d canvas { display: block; }
 .shop3d-card { position: absolute; left: 10px; right: 10px; bottom: 10px; display: grid; gap: 4px; max-width: 420px; }

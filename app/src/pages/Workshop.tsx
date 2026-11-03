@@ -28,6 +28,25 @@ interface State {
   stages: { code: string; name: string }[]
 }
 
+// образец для показа, пока в цехе нет живых заказов (не из базы)
+const mk = (n: number, client: string, station: string, percent: number, extra: Partial<WOrder> = {}): WOrder => ({
+  order_id: `demo-${n}`, order_no: n, client, deadline: null, status: 'in_production', windows: 3, items: 3, station, done: { cut: 3, assemble: 0, glass_fit: 0 }, percent, late: false, material: false, stuck: false, ...extra,
+})
+const DEMO: State = {
+  stages: [{ code: 'cut', name: 'Kesish' }, { code: 'assemble', name: "Yig'ish" }, { code: 'glass_fit', name: 'Shisha / furnitura' }],
+  orders: [
+    mk(2501, 'Karimov A.', 'new', 0, { status: 'new', done: { cut: 0, assemble: 0, glass_fit: 0 } }),
+    mk(2502, 'Rahimov B.', 'cut', 12, { done: { cut: 1, assemble: 0, glass_fit: 0 } }),
+    mk(2503, 'Sodiqov T.', 'cut', 5, { late: true, deadline: '2026-10-30', done: { cut: 0, assemble: 0, glass_fit: 0 } }),
+    mk(2504, 'Yusupov M.', 'cut', 0, { material: true, done: { cut: 0, assemble: 0, glass_fit: 0 } }),
+    mk(2505, 'Aliyev S.', 'assemble', 25, { done: { cut: 3, assemble: 1, glass_fit: 0 } }),
+    mk(2506, 'Hasanov D.', 'assemble', 33, { stuck: true, done: { cut: 3, assemble: 1, glass_fit: 0 } }),
+    mk(2507, 'Ergashev N.', 'glass_fit', 58, { done: { cut: 3, assemble: 3, glass_fit: 1 } }),
+    mk(2508, 'Nazarov O.', 'ready', 75, { status: 'ready', done: { cut: 3, assemble: 3, glass_fit: 3 } }),
+    mk(2509, 'Qosimov R.', 'install', 83, { status: 'installing', done: { cut: 3, assemble: 3, glass_fit: 3 } }),
+  ],
+}
+
 const COLORS = { late: '#c0392b', material: '#d68910', stuck: '#7d3c98', ready: '#1e8449', new: '#5d6d7e', normal: '#1f5fbf' }
 const kind = (o: WOrder): keyof typeof COLORS => (o.late ? 'late' : o.material ? 'material' : o.stuck ? 'stuck' : o.station === 'ready' || o.station === 'install' ? 'ready' : o.station === 'new' ? 'new' : 'normal')
 const STATIONS: Station[] = ['new', 'cut', 'assemble', 'glass_fit', 'ready', 'install']
@@ -42,6 +61,7 @@ export default function Workshop() {
   const [sel, setSel] = useState<WOrder | null>(null)
   const [err, setErr] = useState('')
   const [at, setAt] = useState('')
+  const [demo, setDemo] = useState(false)
 
   // сцена — один раз
   useEffect(() => {
@@ -124,6 +144,11 @@ export default function Workshop() {
 
   // данные — сразу и каждые 30 с
   useEffect(() => {
+    setSel(null)
+    if (demo) {
+      setData(DEMO)
+      return
+    }
     const load = () =>
       supabase.rpc('workshop_state').then(({ data, error }) => {
         if (error) return setErr(error.message)
@@ -133,7 +158,7 @@ export default function Workshop() {
     load()
     const id = setInterval(load, 30000)
     return () => clearInterval(id)
-  }, [])
+  }, [demo])
 
   // карточки заказов над участками
   useEffect(() => {
@@ -173,13 +198,19 @@ export default function Workshop() {
       </p>
       <div className="inline head">
         <h1>{t.title}</h1>
-        {at && (
+        {at && !demo && (
           <small className="muted">
             {t.refreshed} {at}
           </small>
         )}
       </div>
       <p className="muted small">{t.hint}</p>
+      <div className="inline wrap" style={{ marginBottom: 8 }}>
+        <button className="ghost small-btn" onClick={() => setDemo(!demo)}>
+          {demo ? t.demoOff : t.demoOn}
+        </button>
+        {demo && <span className="warn">{t.demoNote}</span>}
+      </div>
       {err && <div className="card note bad">{err}</div>}
       <div className="shop3d" ref={host}>
         {sel && (
@@ -216,7 +247,7 @@ export default function Workshop() {
           </span>
         ))}
       </div>
-      {data && data.orders.length === 0 && <p className="muted">{t.empty}</p>}
+      {data && data.orders.length === 0 && !demo && <p className="muted">{t.empty}</p>}
     </>
   )
 }
