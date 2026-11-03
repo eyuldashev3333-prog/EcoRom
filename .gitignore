@@ -1,0 +1,11 @@
+.env
+.env.*
+*.local
+.secrets/
+node_modules/
+dist/
+eco-rom/
+
+PLAN.md
+app/node_modules/
+app/dist/
