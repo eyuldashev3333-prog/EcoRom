@@ -20,6 +20,7 @@ const t = uz.order
 export default function Orders() {
   const [rows, setRows] = useState<Row[] | null>(null)
   const [debts, setDebts] = useState<Map<string, number>>(new Map())
+  const [pct, setPct] = useState<Map<string, number>>(new Map())
   const [q, setQ] = useState('')
   const nav = useNavigate()
   useEffect(() => {
@@ -33,6 +34,11 @@ export default function Orders() {
       .from('v_order_paid')
       .select('order_id, debt')
       .then(({ data }) => setDebts(new Map(((data as { order_id: string; debt: string }[]) ?? []).map((d) => [d.order_id, Number(d.debt)]))))
+    supabase
+      .from('v_order_progress')
+      .select('order_id, percent')
+      .gt('percent', 0)
+      .then(({ data }) => setPct(new Map(((data as { order_id: string; percent: string }[]) ?? []).map((d) => [d.order_id, Number(d.percent)]))))
   }, [])
   const s = q.trim().toLowerCase()
   const shown = (rows ?? []).filter((r) => !s || String(r.order_no).includes(s) || r.clients?.full_name.toLowerCase().includes(s) || (r.clients?.phone ?? '').includes(s))
@@ -64,6 +70,7 @@ export default function Orders() {
               {uz.money.debt}: {formatSum(debts.get(r.id) ?? 0)}
             </span>
           )}
+          {['in_production', 'ready', 'installing'].includes(r.status) && <span className="pct">{pct.get(r.id) ?? 0}%</span>}
           <span className={`status s-${r.status}`}>{t.statuses[r.status]}</span>
         </Link>
       ))}

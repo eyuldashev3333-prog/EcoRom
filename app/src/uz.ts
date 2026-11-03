@@ -193,6 +193,18 @@ export const uz = {
     state: { enough: 'Material yetadi', not_enough: 'Material yetmaydi', defect: 'Materialda brak' } as Record<string, string>,
     old: 'oldingi yuborish',
   },
+  stages: {
+    title: 'Bosqichlar (har oyna)',
+    ready: 'tayyor',
+    notYours: 'Bu bosqich boshqa xodimniki',
+    locked: 'Bu holatda belgilab bo‘lmaydi',
+    undoConfirm: 'Belgini olib tashlaysizmi?',
+    shopList: 'Sexdagi buyurtmalar',
+    noShop: 'Hozircha sexda buyurtma yo‘q',
+    materials: 'Materiallar (jami)',
+    panes: "Oyna paket o'lchamlari",
+    back: 'Buyurtmalar',
+  },
   print: {
     title: 'Buyurtma',
     open: 'Chop etish / PDF',

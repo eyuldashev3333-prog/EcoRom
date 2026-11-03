@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../auth'
 import { supabase } from '../supabase'
+import { progressPct } from '../components/StageGrid'
 import { uz } from '../uz'
 
 interface WOrder {
@@ -74,6 +75,66 @@ function RahbarHome() {
   )
 }
 
+interface ShopRow {
+  id: string
+  order_no: number
+  status: string
+  deadline: string | null
+  client_name: string | null
+  windows_count: number
+  pct: number
+}
+
+// цех: заказы в работе с % готовности → экран заказа с галочками
+function ShopHome() {
+  const [rows, setRows] = useState<ShopRow[] | null>(null)
+  useEffect(() => {
+    ;(async () => {
+      const { data: os } = await supabase
+        .from('w_orders')
+        .select('id, order_no, status, deadline, client_name, windows_count')
+        .in('status', ['in_production', 'ready'])
+        .order('deadline', { ascending: true, nullsFirst: false })
+      const orders = (os as Omit<ShopRow, 'pct'>[]) ?? []
+      if (!orders.length) return setRows([])
+      const [its, st] = await Promise.all([
+        supabase.from('w_order_items').select('id, order_id, qty').in('order_id', orders.map((o) => o.id)),
+        supabase.from('stages').select('id', { count: 'exact', head: true }).eq('is_active', true),
+      ])
+      const items = (its.data as { id: string; order_id: string; qty: number }[]) ?? []
+      const { data: ms } = await supabase.from('w_stage_marks').select('order_item_id').in('order_item_id', items.map((i) => i.id))
+      const marks = (ms as { order_item_id: string }[]) ?? []
+      setRows(
+        orders.map((o) => {
+          const mine = items.filter((i) => i.order_id === o.id)
+          const ids = new Set(mine.map((i) => i.id))
+          return { ...o, pct: progressPct(mine, marks.filter((m) => ids.has(m.order_item_id)), st.count ?? 0) }
+        }),
+      )
+    })()
+  }, [])
+  return (
+    <>
+      <h2>{uz.stages.shopList}</h2>
+      {rows === null && <p className="muted">{uz.loading}</p>}
+      {rows?.length === 0 && <p className="muted">{uz.stages.noShop}</p>}
+      {rows?.map((o) => (
+        <Link key={o.id} to={`/shop/${o.id}`} className="card row order-row">
+          <b>№{o.order_no}</b>
+          <span>{o.client_name}</span>
+          <span className="muted">
+            {o.windows_count} {uz.home.windows}
+            {o.deadline && ` · ${uz.home.deadline}: ${o.deadline.split('-').reverse().join('.')}`}
+          </span>
+          <span className="spacer" />
+          <span className="pct">{o.pct}%</span>
+          <span className={`status s-${o.status}`}>{uz.order.statuses[o.status]}</span>
+        </Link>
+      ))}
+    </>
+  )
+}
+
 function WorkerHome() {
   const [rows, setRows] = useState<WOrder[] | null>(null)
   useEffect(() => {
@@ -113,7 +174,7 @@ export default function Home() {
       <h1>
         {uz.hello}, {me?.full_name}
       </h1>
-      {me?.role === 'rahbar' ? <RahbarHome /> : <WorkerHome />}
+      {me?.role === 'rahbar' ? <RahbarHome /> : me?.role === 'ishlab' ? <ShopHome /> : <WorkerHome />}
       <p>
         <Link to="/password">{uz.home.password}</Link>
       </p>

@@ -136,6 +136,17 @@ button.link { background: none; color: var(--green); padding: 0; text-decoration
 .checks td:first-child { white-space: nowrap; padding-right: 8px; color: var(--muted); }
 .checks td.not_enough, .checks td.defect { color: var(--danger); }
 .checks td.enough { color: var(--green); }
+.progress { height: 10px; border-radius: 999px; background: var(--bg); border: 1px solid var(--line); overflow: hidden; }
+.progress > i { display: block; height: 100%; background: var(--green); }
+.pct { font-weight: 700; white-space: nowrap; }
+.stage-item { border-top: 1px solid var(--line); padding-top: 10px; display: grid; gap: 8px; }
+.stage-item .draw { max-width: 260px; }
+.stage-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 6px; }
+.stage { display: flex; gap: 8px; align-items: center; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; cursor: pointer; }
+.stage input { width: 22px; height: 22px; accent-color: var(--green); flex: none; }
+.stage.done { border-color: var(--green); }
+.stage.off { opacity: .55; cursor: default; }
+.stage small { display: block; color: var(--muted); }
 .checks tr.old td { color: var(--muted); text-decoration: line-through; }
 
 /* печатный лист A4: 794×1123 px (96 dpi) */
