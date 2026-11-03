@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { useAuth } from '../auth'
+import { telegramInitData, useAuth } from '../auth'
 import { uz } from '../uz'
 
 export default function Login() {
@@ -28,6 +28,7 @@ export default function Login() {
           {uz.password}
           <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" required />
         </label>
+        {telegramInitData() && <p className="muted">{uz.tgHint}</p>}
         {error && <p className="error">{error}</p>}
         <button disabled={busy}>{uz.signIn}</button>
       </form>

@@ -6,6 +6,7 @@ export const uz = {
   signIn: 'Kirish',
   signOut: 'Chiqish',
   wrongLogin: "Login yoki parol noto'g'ri",
+  tgHint: "Bir marta login va parol bilan kiring — keyingi safar Telegram orqali avtomatik kirasiz.",
   noProfile: "Profil topilmadi yoki o'chirilgan. Rahbarga murojaat qiling.",
   loading: 'Yuklanmoqda…',
   hello: 'Salom',

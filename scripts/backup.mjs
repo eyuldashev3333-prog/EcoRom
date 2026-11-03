@@ -9,6 +9,7 @@ import { ROOT, TABLES, env } from './env.mjs'
 const URL_ = env('SUPABASE_URL')
 const KEY = env('SUPABASE_SERVICE_ROLE_KEY')
 const BOT = env('TELEGRAM_BOT_TOKEN')
+// получатели: из BACKUP_CHAT_IDS + все активные Rahbar с привязанным Telegram (добавляются сами)
 const CHATS = env('BACKUP_CHAT_IDS').split(',').map((s) => s.trim()).filter(Boolean)
 const send = !process.argv.includes('--no-send')
 
@@ -46,6 +47,10 @@ try {
     const cols = rows.length ? Object.keys(rows[0]) : []
     sheet.addRow(cols)
     for (const row of rows) sheet.addRow(cols.map((c) => (row[c] !== null && typeof row[c] === 'object' ? JSON.stringify(row[c]) : row[c])))
+  }
+
+  for (const e of dump.tables.employees ?? []) {
+    if (e.role === 'rahbar' && e.is_active && e.telegram_id && !CHATS.includes(String(e.telegram_id))) CHATS.push(String(e.telegram_id))
   }
 
   const outDir = join(ROOT, 'scripts', 'out')
