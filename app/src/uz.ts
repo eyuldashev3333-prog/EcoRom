@@ -255,6 +255,7 @@ export const uz = {
     profit: 'Foyda',
     vs: 'oldingi oyga nisbatan',
     incomplete: "Bu oy uchun xarajat va ish haqi ma'lumoti to'liq emas (tizim keyin boshlangan) — foyda bo'rttirilgan bo'lishi mumkin.",
+    historical: "Tizim ishga tushguncha bo'lgan oy: xarajatlar va ish haqi (ISH HAQI (tarix)) SAVDO jadvalidan olingan — «Ish haqi» qatori bu oyda 0, u «Xarajatlar» ichida. Jadvaldagi «SOF-FOYDA» bilan kichik farq buyurtmalar oylarga boshqacha taqsimlanganidan bo'lishi mumkin.",
     sales: 'Savdo',
     orders: 'Buyurtmalar',
     windows: 'Oynalar',

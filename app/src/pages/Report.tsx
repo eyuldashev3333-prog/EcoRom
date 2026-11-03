@@ -9,6 +9,7 @@ const t = uz.report
 interface Rep {
   month: string
   incomplete: boolean
+  historical?: boolean
   orders: { count: number; windows: number; area_m2: number; revenue: number; by_series: Record<string, number> }
   cost: { calc_cost: number; works: number }
   margin: number
@@ -82,6 +83,7 @@ export default function Report() {
       {r && (
         <>
           {r.incomplete && <div className="card note bad">{t.incomplete}</div>}
+          {r.historical && !r.incomplete && <div className="card note">{t.historical}</div>}
           <div className={`card stat ${r.profit < 0 ? 'debt' : 'ok'}`}>
             <small>
               {t.profit} · {r.month}
