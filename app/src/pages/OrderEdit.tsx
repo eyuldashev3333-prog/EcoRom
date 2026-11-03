@@ -9,6 +9,7 @@ import ShopCheck from '../components/ShopCheck'
 import StageGrid from '../components/StageGrid'
 import StockHint from '../components/StockHint'
 import GlassStatus from '../components/GlassStatus'
+import ServicePanel from '../components/ServicePanel'
 import BreakageForm from '../components/BreakageForm'
 import BreakageList from '../components/BreakageList'
 import InstallPlan from '../components/InstallPlan'
@@ -425,6 +426,14 @@ export default function OrderEdit() {
       )}
 
       {id && loaded && !imported && status !== 'unknown' && <GlassStatus key={items.filter((x) => x.id).length} orderId={id} locked={['closed', 'cancelled'].includes(status)} />}
+
+      {id && loaded && ((imported && status !== 'cancelled') || ['installed', 'closed'].includes(status)) && (
+        <ServicePanel
+          orderId={id}
+          clientId={client.id}
+          items={items.flatMap((it, i) => (it.id ? [{ id: it.id, pos: i + 1, title: it.title || null, width_mm: it.design.width, height_mm: it.design.height }] : []))}
+        />
+      )}
 
       {id && loaded && !imported && ['in_production', 'ready', 'installing', 'installed'].includes(status) && (
         <BreakageForm key={`b${bkTick}`} orderId={id} onDone={() => setBkTick((n) => n + 1)} items={items.flatMap((it, i) => (it.id ? [{ id: it.id, pos: i + 1, title: it.title || null, width_mm: it.design.width, height_mm: it.design.height, qty: it.qty }] : []))} />

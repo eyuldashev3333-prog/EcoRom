@@ -26,6 +26,9 @@ function keyboard(role: string | null, payload: Record<string, string>) {
         openButton.inline_keyboard[0],
       ],
     }
+  if (payload.service_id && role === 'montajchi')
+    return { inline_keyboard: [[{ text: 'Zayavkani ochish', web_app: { url: `${APP_URL}#/servis/${payload.service_id}` } }]] }
+  if (payload.service_id && role === 'rahbar') return { inline_keyboard: [[{ text: 'Servis zayavkalari', web_app: { url: `${APP_URL}#/service` } }]] }
   if (role === 'rahbar' && payload.order_id)
     return { inline_keyboard: [[{ text: 'Buyurtmani ochish', web_app: { url: `${APP_URL}#/orders/${payload.order_id}` } }]] }
   if (role === 'montajchi' && payload.order_id)

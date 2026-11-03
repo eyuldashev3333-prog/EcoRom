@@ -22,7 +22,9 @@ function RahbarHome() {
   const [orders, setOrders] = useState<number | null>(null)
   const [debt, setDebt] = useState<number | null>(null)
   const [supDebt, setSupDebt] = useState<number | null>(null)
+  const [openService, setOpenService] = useState<number | null>(null)
   useEffect(() => {
+    supabase.from('service_tickets').select('id', { count: 'exact', head: true }).neq('status', 'closed').then(({ count }) => setOpenService(count ?? 0))
     supabase
       .from('v_supplier_debt')
       .select('debt')
@@ -81,6 +83,10 @@ function RahbarHome() {
         </Link>
         <Link to="/stock" className="card tile">
           {uz.home.stock}
+        </Link>
+        <Link to="/service" className="card tile">
+          {uz.home.service}
+          {openService !== null && openService > 0 && <small className="debt-tag"> · {openService} {uz.service.openCount}</small>}
         </Link>
         <Link to="/breakages" className="card tile">
           {uz.home.breakage}
@@ -170,7 +176,9 @@ interface JobRow {
 // монтажник: «что сегодня» и ближайшие назначения
 function InstallHome() {
   const [rows, setRows] = useState<JobRow[] | null>(null)
+  const [svc, setSvc] = useState<{ id: string; order_no: number; client_name: string | null; address: string | null; due_date: string | null; description: string; work_done_at: string | null }[]>([])
   useEffect(() => {
+    supabase.from('w_service_tickets').select('id, order_no, client_name, address, due_date, description, work_done_at').order('due_date', { nullsFirst: false }).then(({ data }) => setSvc((data as typeof svc) ?? []))
     ;(async () => {
       const { data: js } = await supabase.from('w_install_jobs').select('id, order_id, plan_date, status').in('status', ['planned', 'in_progress', 'postponed']).order('plan_date')
       const jobs = (js as Omit<JobRow, 'order_no' | 'client_name' | 'address' | 'order_status'>[]) ?? []
@@ -202,6 +210,17 @@ function InstallHome() {
       {now.map(card)}
       {next.length > 0 && <h2>{uz.install.next}</h2>}
       {next.map(card)}
+      {svc.length > 0 && <h2>🛠 {uz.service.mine}</h2>}
+      {svc.map((s) => (
+        <Link key={s.id} to={`/servis/${s.id}`} className="card row order-row">
+          <b>№{s.order_no}</b>
+          <span>{s.client_name}</span>
+          <span className="muted">{s.address}</span>
+          <span className="spacer" />
+          {s.due_date && <span className="muted">{s.due_date.split('-').reverse().join('.')}</span>}
+          <span className="muted small">{s.work_done_at ? `✔ ${uz.service.done}` : s.description.slice(0, 40)}</span>
+        </Link>
+      ))}
     </>
   )
 }
