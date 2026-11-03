@@ -46,6 +46,8 @@ export default function OrderEdit() {
   const [status, setStatus] = useState('new')
   const [savedContract, setSavedContract] = useState(0) // договор из базы (оплаты считаются от него)
   const [loaded, setLoaded] = useState(!id) // блок оплат — только после загрузки заказа (иначе % от нуля)
+  const [imported, setImported] = useState(false) // заказ из истории (таблица): без чертежей
+  const [head, setHead] = useState({ windows: 0, area: 0, cost: 0 }) // итоги заказа из базы (для истории)
   const [client, setClient] = useState<ClientDraft>({ full_name: '', phone: '', address: '' })
   const [clients, setClients] = useState<ClientRow[]>([])
   const [address, setAddress] = useState('')
@@ -76,6 +78,8 @@ export default function OrderEdit() {
       setDiscount(Number(o.discount_pct))
       setContract(String(Number(o.contract_price) || ''))
       setSavedContract(Number(o.contract_price))
+      setImported(!!o.is_imported)
+      setHead({ windows: o.windows_count, area: Number(o.area_m2), cost: Number(o.calc_cost) })
       const { data: its } = await supabase.from('order_items').select('id, pos, title, qty, design, options, note').eq('order_id', id).order('pos')
       setItems(((its as { id: string; title: string | null; qty: number; design: WindowDesign; options: ItemOptions; note: string | null }[]) ?? []).map((x) => ({ id: x.id, key: newKey(), title: x.title ?? '', qty: x.qty, design: x.design, options: x.options ?? {}, note: x.note ?? '' })))
       setLoaded(true)
@@ -220,6 +224,22 @@ export default function OrderEdit() {
         </label>
       </div>
 
+      {imported && items.length === 0 ? (
+        // заказ из таблицы: чертежей нет — только итоги
+        <div className="card">
+          <h2>{t.imported}</h2>
+          <p className="muted">{t.importedHint}</p>
+          <table className="kv">
+            <tbody>
+              <tr><td>{t.windows}</td><td>{head.windows} · {head.area} m²</td></tr>
+              <tr><td>{t.cost}</td><td>{formatSum(head.cost)}</td></tr>
+              <tr><td>{t.contract}</td><td>{formatSum(savedContract)}</td></tr>
+              <tr><td>{t.profit}</td><td>{formatSum(savedContract - head.cost)} ({profit(savedContract, head.cost).marginPct}%)</td></tr>
+            </tbody>
+          </table>
+        </div>
+      ) : (
+      <>
       {/* позиции */}
       <h2>{t.items}</h2>
       {items.map((it, i) => (
@@ -352,12 +372,15 @@ export default function OrderEdit() {
           {t.save}
         </button>
       </div>
+      </>
+      )}
 
       {id && loaded && (
         <OrderMoney
           orderId={id}
           contract={savedContract}
           status={status}
+          imported={imported}
           onChanged={async () => {
             const { data } = await supabase.from('orders').select('status').eq('id', id).maybeSingle()
             if (data) setStatus(data.status)

@@ -27,7 +27,7 @@ export default function Orders() {
       .from('orders')
       .select('id, order_no, created_at, status, windows_count, area_m2, contract_price, deadline, clients(full_name, phone)')
       .order('order_no', { ascending: false })
-      .limit(300)
+      .limit(5000) // вся история (сотни заказов) — поиск работает по всем
       .then(({ data }) => setRows((data as unknown as Row[]) ?? []))
     supabase
       .from('v_order_paid')

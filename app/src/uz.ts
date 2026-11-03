@@ -144,7 +144,11 @@ export const uz = {
     profit: 'Foyda',
     save: 'Saqlash',
     saved: 'Saqlandi',
+    imported: 'Tarixdan (jadvaldan import)',
+    importedHint: "Jadvaldan ko'chirilgan buyurtma: chizma yo'q, faqat summalar.",
+    closedSwitch: 'Yopildi',
     statuses: {
+      unknown: 'Holat belgilanmagan',
       new: 'Yangi',
       in_production: 'Ishlab chiqarishda',
       ready: 'Tayyor',

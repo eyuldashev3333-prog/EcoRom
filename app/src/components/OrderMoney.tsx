@@ -14,6 +14,7 @@ interface Payment {
   employees: { full_name: string } | null
 }
 const NEXT: Record<string, string[]> = {
+  unknown: [],
   new: ['in_production', 'cancelled'],
   in_production: ['ready', 'cancelled'],
   ready: ['installing', 'installed'],
@@ -24,7 +25,7 @@ const NEXT: Record<string, string[]> = {
 }
 
 // оплаты (журнал: только добавление и отмена встречной записью) + смена статуса заказа
-export default function OrderMoney({ orderId, contract, status, onChanged }: { orderId: string; contract: number; status: string; onChanged: () => void }) {
+export default function OrderMoney({ orderId, contract, status, imported = false, onChanged }: { orderId: string; contract: number; status: string; imported?: boolean; onChanged: () => void }) {
   const [payments, setPayments] = useState<Payment[]>([])
   const [amount, setAmount] = useState('')
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10))
@@ -143,6 +144,18 @@ export default function OrderMoney({ orderId, contract, status, onChanged }: { o
       )}
 
       <h2>{t.status}</h2>
+      {/* история без статуса: переключатель «Yopildi» вкл/выкл (закрыть — только без долга) */}
+      {imported && (status === 'unknown' || status === 'closed') && (
+        <label className="check switch">
+          <input
+            type="checkbox"
+            checked={status === 'closed'}
+            disabled={busy || (status === 'unknown' && debt > 0)}
+            onChange={(e) => call('set_order_status', { p_order: orderId, p_status: e.target.checked ? 'closed' : 'unknown' }, uz.order.statuses[e.target.checked ? 'closed' : 'unknown'])}
+          />
+          {uz.order.closedSwitch}
+        </label>
+      )}
       <div className="inline wrap">
         <span className={`status s-${status}`}>{uz.order.statuses[status]}</span>
         {NEXT[status]?.map((s) => (

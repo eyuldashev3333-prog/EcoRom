@@ -17,6 +17,7 @@ const sum = (n: number) => new Intl.NumberFormat('ru-RU').format(n)
 
 function RahbarHome() {
   const [cash, setCash] = useState<number | null>(null)
+  const [since, setSince] = useState('')
   const [orders, setOrders] = useState<number | null>(null)
   const [debt, setDebt] = useState<number | null>(null)
   useEffect(() => {
@@ -25,14 +26,25 @@ function RahbarHome() {
       const active = new Set(((o.data as { id: string }[]) ?? []).map((x) => x.id))
       setDebt(((d.data as { order_id: string; debt: string }[]) ?? []).filter((x) => active.has(x.order_id)).reduce((s, x) => s + Math.max(0, Number(x.debt)), 0))
     })
-    supabase.from('v_cash_balance').select('cash').maybeSingle().then(({ data }) => setCash(Number((data as { cash: string } | null)?.cash ?? 0)))
+    supabase
+      .from('v_cash_balance')
+      .select('cash, since')
+      .maybeSingle()
+      .then(({ data }) => {
+        const d = data as { cash: string; since: string } | null
+        setCash(Number(d?.cash ?? 0))
+        setSince(d?.since ?? '')
+      })
     supabase.from('orders').select('id', { count: 'exact', head: true }).then(({ count }) => setOrders(count ?? 0))
   }, [])
   return (
     <>
       <div className="grid">
         <div className="card stat">
-          <small>{uz.home.cash}</small>
+          <small>
+            {uz.home.cash}
+            {since && ` (${since.split('-').reverse().join('.')} dan)`}
+          </small>
           <b>{cash === null ? '…' : `${sum(cash)} so‘m`}</b>
         </div>
         <div className="card stat">

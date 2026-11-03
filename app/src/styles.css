@@ -96,6 +96,9 @@ textarea { font: inherit; padding: 10px 12px; border: 1px solid var(--line); bor
 .s-ready, .s-installed { border-color: var(--green); color: var(--green); }
 .s-closed { background: var(--green); color: #fff; border-color: var(--green); }
 .s-cancelled { color: var(--muted); }
+.s-unknown { color: var(--muted); border-style: dashed; }
+.switch { font-weight: 700; font-size: 1.05rem; }
+.switch input { width: 22px; height: 22px; accent-color: var(--green); }
 .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
 .small { font-size: .85rem; }
 button.link { background: none; color: var(--green); padding: 0; text-decoration: underline; font-weight: 600; }
