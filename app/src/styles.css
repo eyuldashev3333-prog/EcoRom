@@ -84,3 +84,35 @@ code { background: var(--bg); padding: 2px 6px; border-radius: 6px; }
 .kv td { padding: 4px 0; border-bottom: 1px solid var(--line); }
 .kv td:last-child { text-align: right; font-weight: 600; }
 .panes { margin: 0; padding-left: 18px; }
+textarea { font: inherit; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); color: var(--ink); resize: vertical; }
+.head { justify-content: space-between; align-items: center; }
+.head h1 { margin: 0; }
+.search { width: 100%; margin: 12px 0; }
+.order-row { color: var(--ink); }
+.order-row:hover { border-color: var(--green); }
+.status { font-size: .78rem; padding: 3px 8px; border-radius: 999px; background: var(--bg); border: 1px solid var(--line); white-space: nowrap; }
+.s-new { border-color: #2f6fdb; color: #2f6fdb; }
+.s-in_production, .s-installing { border-color: #c88a12; color: #c88a12; }
+.s-ready, .s-installed { border-color: var(--green); color: var(--green); }
+.s-closed { background: var(--green); color: #fff; border-color: var(--green); }
+.s-cancelled { color: var(--muted); }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+.small { font-size: .85rem; }
+button.link { background: none; color: var(--green); padding: 0; text-decoration: underline; font-weight: 600; }
+.item-row { display: flex; gap: 12px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
+.item-row.on { border-color: var(--green); }
+.item-row .thumb { width: 110px; flex: none; }
+.item-info { display: grid; gap: 2px; flex: 1; min-width: 180px; }
+.item-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.editor-block { margin: 16px 0; padding: 12px; border: 2px solid var(--green); border-radius: 16px; display: grid; gap: 12px; }
+.editor-block h2 { margin: 0; }
+.multi { border: 1px solid var(--line); border-radius: 10px; display: grid; gap: 6px; padding: 8px 12px; }
+.multi legend { font-size: .9rem; padding: 0 4px; }
+.narrow { max-width: 130px; }
+.lines td { font-size: .85rem; }
+.lines td:nth-child(2) { color: var(--muted); text-align: right; white-space: nowrap; padding: 0 8px; }
+.lines tr.zero td { color: var(--danger); }
+.totals { margin-top: 16px; display: grid; gap: 10px; }
+.totals select, .totals .money { width: 100%; text-align: right; }
+.totals tr.bad td { color: var(--danger); font-weight: 700; }
+.warn { color: #b06a00; margin: 0; font-size: .9rem; }

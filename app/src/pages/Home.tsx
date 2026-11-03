@@ -44,9 +44,9 @@ function RahbarHome() {
         <Link to="/employees" className="card tile">
           {uz.home.employees}
         </Link>
-        <div className="card tile off">
-          {uz.home.orders} · {uz.home.soon}
-        </div>
+        <Link to="/orders" className="card tile">
+          {uz.home.orders}
+        </Link>
       </div>
     </>
   )

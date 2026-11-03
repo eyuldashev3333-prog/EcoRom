@@ -142,6 +142,7 @@ export interface Measure {
   sashes: number
   doors: number
   nets_m2: number
+  nets_m: number // периметр створок с сеткой (профиль сетки)
   panes: Pane[]
 }
 
@@ -171,6 +172,7 @@ export function measure(d: WindowDesign, dims: Dims = DEFAULT_DIMS): Measure {
   let sashes = 0
   let doors = 0
   let nets = 0
+  let netsPerim = 0
   for (const { leaf: lf, rect } of cells) {
     const cut = (touchesFrame: boolean) => (touchesFrame ? dims.frameCut : 0)
     const cw = rect.w - cut(rect.x <= 0) - cut(rect.x + rect.w >= W)
@@ -184,7 +186,10 @@ export function measure(d: WindowDesign, dims: Dims = DEFAULT_DIMS): Measure {
       bead += 2 * (gw + gh)
       panes.push({ leafId: lf.id, w: gw, h: gh, sash: true })
       sashes += 1
-      if (lf.net) nets += (sw * sh) / 1e6
+      if (lf.net) {
+        nets += (sw * sh) / 1e6
+        netsPerim += 2 * (sw + sh)
+      }
     } else {
       bead += 2 * (cw + ch)
       panes.push({ leafId: lf.id, w: cw, h: ch, sash: false })
@@ -203,6 +208,7 @@ export function measure(d: WindowDesign, dims: Dims = DEFAULT_DIMS): Measure {
     sashes,
     doors,
     nets_m2: r3(nets),
+    nets_m: r2(netsPerim / 1000),
     panes,
   }
 }
