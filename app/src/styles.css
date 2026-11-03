@@ -116,6 +116,15 @@ button.link { background: none; color: var(--green); padding: 0; text-decoration
 .totals select, .totals .money { width: 100%; text-align: right; }
 .totals tr.bad td { color: var(--danger); font-weight: 700; }
 .warn { color: #b06a00; margin: 0; font-size: .9rem; }
+.grid3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; }
+.stat.debt b { color: var(--danger); }
+.stat.ok b { color: var(--green); }
+.pays tr.struck td { text-decoration: line-through; color: var(--muted); }
+.pays td:first-child { white-space: nowrap; padding-right: 8px; }
+.pays td:nth-child(3) { text-align: right; font-weight: 600; white-space: nowrap; }
+.small-btn { padding: 5px 10px; font-size: .85rem; }
+.pay-form { display: grid; gap: 8px; border-top: 1px solid var(--line); padding-top: 10px; }
+.debt-tag { color: var(--danger); font-size: .85rem; font-weight: 600; }
 .btn-link { display: inline-block; padding: 9px 14px; border: 1px solid var(--green); border-radius: 10px; font-weight: 600; }
 .actions { margin: 8px 0 12px; }
 

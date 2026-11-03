@@ -19,6 +19,7 @@ const t = uz.order
 
 export default function Orders() {
   const [rows, setRows] = useState<Row[] | null>(null)
+  const [debts, setDebts] = useState<Map<string, number>>(new Map())
   const [q, setQ] = useState('')
   const nav = useNavigate()
   useEffect(() => {
@@ -28,6 +29,10 @@ export default function Orders() {
       .order('order_no', { ascending: false })
       .limit(300)
       .then(({ data }) => setRows((data as unknown as Row[]) ?? []))
+    supabase
+      .from('v_order_paid')
+      .select('order_id, debt')
+      .then(({ data }) => setDebts(new Map(((data as { order_id: string; debt: string }[]) ?? []).map((d) => [d.order_id, Number(d.debt)]))))
   }, [])
   const s = q.trim().toLowerCase()
   const shown = (rows ?? []).filter((r) => !s || String(r.order_no).includes(s) || r.clients?.full_name.toLowerCase().includes(s) || (r.clients?.phone ?? '').includes(s))
@@ -54,6 +59,11 @@ export default function Orders() {
           </span>
           <span className="spacer" />
           <b>{formatSum(Number(r.contract_price))}</b>
+          {r.status !== 'cancelled' && (debts.get(r.id) ?? 0) > 0 && (
+            <span className="debt-tag">
+              {uz.money.debt}: {formatSum(debts.get(r.id) ?? 0)}
+            </span>
+          )}
           <span className={`status s-${r.status}`}>{t.statuses[r.status]}</span>
         </Link>
       ))}

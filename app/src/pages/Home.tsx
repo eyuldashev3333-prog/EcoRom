@@ -18,7 +18,13 @@ const sum = (n: number) => new Intl.NumberFormat('ru-RU').format(n)
 function RahbarHome() {
   const [cash, setCash] = useState<number | null>(null)
   const [orders, setOrders] = useState<number | null>(null)
+  const [debt, setDebt] = useState<number | null>(null)
   useEffect(() => {
+    // долг клиентов: только по активным заказам (без отменённых)
+    Promise.all([supabase.from('v_order_paid').select('order_id, debt'), supabase.from('orders').select('id').neq('status', 'cancelled')]).then(([d, o]) => {
+      const active = new Set(((o.data as { id: string }[]) ?? []).map((x) => x.id))
+      setDebt(((d.data as { order_id: string; debt: string }[]) ?? []).filter((x) => active.has(x.order_id)).reduce((s, x) => s + Math.max(0, Number(x.debt)), 0))
+    })
     supabase.from('v_cash_balance').select('cash').maybeSingle().then(({ data }) => setCash(Number((data as { cash: string } | null)?.cash ?? 0)))
     supabase.from('orders').select('id', { count: 'exact', head: true }).then(({ count }) => setOrders(count ?? 0))
   }, [])
@@ -32,6 +38,10 @@ function RahbarHome() {
         <div className="card stat">
           <small>{uz.home.orders}</small>
           <b>{orders === null ? '…' : orders}</b>
+        </div>
+        <div className="card stat">
+          <small>{uz.home.clientDebt}</small>
+          <b>{debt === null ? '…' : `${sum(debt)} so‘m`}</b>
         </div>
       </div>
       <div className="grid">

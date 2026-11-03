@@ -4,6 +4,7 @@ import { supabase } from '../supabase'
 import WindowEditor, { PRESETS } from '../components/WindowEditor'
 import WindowSvg from '../components/WindowSvg'
 import ItemOptionsForm from '../components/ItemOptionsForm'
+import OrderMoney from '../components/OrderMoney'
 import { colorHex, useCatalog } from '../lib/catalog'
 import { formatSum, profit, suggestedPrice } from '../lib/pricing'
 import { quoteItem, type ItemOptions } from '../lib/quote'
@@ -43,6 +44,8 @@ export default function OrderEdit() {
   const catalog = useCatalog()
   const [orderNo, setOrderNo] = useState<number | null>(null)
   const [status, setStatus] = useState('new')
+  const [savedContract, setSavedContract] = useState(0) // договор из базы (оплаты считаются от него)
+  const [loaded, setLoaded] = useState(!id) // блок оплат — только после загрузки заказа (иначе % от нуля)
   const [client, setClient] = useState<ClientDraft>({ full_name: '', phone: '', address: '' })
   const [clients, setClients] = useState<ClientRow[]>([])
   const [address, setAddress] = useState('')
@@ -72,8 +75,10 @@ export default function OrderEdit() {
       setNotes(o.notes ?? '')
       setDiscount(Number(o.discount_pct))
       setContract(String(Number(o.contract_price) || ''))
+      setSavedContract(Number(o.contract_price))
       const { data: its } = await supabase.from('order_items').select('id, pos, title, qty, design, options, note').eq('order_id', id).order('pos')
       setItems(((its as { id: string; title: string | null; qty: number; design: WindowDesign; options: ItemOptions; note: string | null }[]) ?? []).map((x) => ({ id: x.id, key: newKey(), title: x.title ?? '', qty: x.qty, design: x.design, options: x.options ?? {}, note: x.note ?? '' })))
+      setLoaded(true)
     })()
   }, [id])
 
@@ -151,6 +156,7 @@ export default function OrderEdit() {
     if (error) return setMsg({ ok: false, text: error.message })
     setMsg({ ok: true, text: `${t.saved} #${data.order_no}` })
     setOrderNo(data.order_no)
+    setSavedContract(contractNum)
     if (!id) nav(`/orders/${data.id}`, { replace: true })
   }
 
@@ -346,6 +352,18 @@ export default function OrderEdit() {
           {t.save}
         </button>
       </div>
+
+      {id && loaded && (
+        <OrderMoney
+          orderId={id}
+          contract={savedContract}
+          status={status}
+          onChanged={async () => {
+            const { data } = await supabase.from('orders').select('status').eq('id', id).maybeSingle()
+            if (data) setStatus(data.status)
+          }}
+        />
+      )}
     </>
   )
 }
