@@ -37,6 +37,7 @@ export default function InstallParts({ orderId, items, status, drawings = false,
   const rahbar = me?.role === 'rahbar'
   const [marks, setMarks] = useState<Mark[]>([])
   const [urls, setUrls] = useState<Record<string, string>>({})
+  const [itemPhotos, setItemPhotos] = useState<Record<string, string>>({}) // order_item_id → путь фото окна
   const [busy, setBusy] = useState('')
   const [err, setErr] = useState('')
   const ids = items.map((i) => i.id).join(',')
@@ -49,7 +50,10 @@ export default function InstallParts({ orderId, items, status, drawings = false,
       : await supabase.from('w_install_marks').select('order_item_id, part, done_by, done_at, photo_path, done_by_name').in('order_item_id', list)
     const ms = ((data as unknown as (Mark & { employees?: { full_name: string }; done_by_name?: string })[]) ?? []).map((x) => ({ ...x, name: x.employees?.full_name ?? x.done_by_name ?? '' }))
     setMarks(ms)
-    const paths = ms.map((m) => m.photo_path).filter((p): p is string => !!p)
+    const { data: ph } = await supabase.from('install_item_photos').select('order_item_id, photo_path').in('order_item_id', list)
+    const byItem = Object.fromEntries(((ph as { order_item_id: string; photo_path: string }[]) ?? []).map((x) => [x.order_item_id, x.photo_path]))
+    setItemPhotos(byItem)
+    const paths = [...ms.map((m) => m.photo_path), ...Object.values(byItem)].filter((p): p is string => !!p)
     if (paths.length) {
       const { data: signed } = await supabase.storage.from('install-photos').createSignedUrls(paths, 3600)
       setUrls(Object.fromEntries((signed ?? []).flatMap((s) => (s.signedUrl && s.path ? [[s.path, s.signedUrl]] : []))))
@@ -66,17 +70,22 @@ export default function InstallParts({ orderId, items, status, drawings = false,
     if (!error) onChanged?.()
     return !error
   }
-  const withPhoto = async (item: InstallItem, part: string, file: File) => {
-    const key = `${item.id}:${part}`
+  // одно фото на окно (вместо фото на каждую часть)
+  const itemPhoto = async (item: InstallItem, file: File) => {
+    const key = `${item.id}:photo`
     setBusy(key)
     setErr('')
     try {
       const blob = await compressPhoto(file)
-      const path = `${orderId}/${item.id}_${part}_${Date.now()}.jpg`
+      const path = `${orderId}/${item.id}_${Date.now()}.jpg`
       const up = await supabase.storage.from('install-photos').upload(path, blob, { contentType: 'image/jpeg' })
       if (up.error) throw up.error
-      const ok = await call(item, part, true, path)
-      if (!ok) await supabase.storage.from('install-photos').remove([path]) // не получилось отметить — не копим мусор (если есть право)
+      const { error } = await supabase.rpc('set_install_photo', { p_item: item.id, p_photo: path })
+      if (error) {
+        await supabase.storage.from('install-photos').remove([path]) // не записалось — не копим мусор (если есть право)
+        throw error
+      }
+      await load()
     } catch (e) {
       setErr((e as Error).message)
     }
@@ -120,6 +129,32 @@ export default function InstallParts({ orderId, items, status, drawings = false,
             </div>
           )}
           {it.note && <p className="muted small">{it.note}</p>}
+          <div className="part photo-one">
+            <b>{t.itemPhoto}</b>
+            {itemPhotos[it.id] && urls[itemPhotos[it.id]] && (
+              <a href={urls[itemPhotos[it.id]]} target="_blank" rel="noreferrer" title={t.open}>
+                <img src={urls[itemPhotos[it.id]]} alt={t.itemPhoto} />
+              </a>
+            )}
+            {(open || (rahbar && status === 'installed')) && (
+              <label className="btn">
+                {busy === `${it.id}:photo` ? t.uploading : `📷 ${itemPhotos[it.id] ? t.photoRetake : t.photoTake}`}
+                <input
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  hidden
+                  disabled={!!busy}
+                  onChange={(e) => {
+                    const f = e.target.files?.[0]
+                    e.target.value = ''
+                    if (f) itemPhoto(it, f)
+                  }}
+                />
+              </label>
+            )}
+            {open && !itemPhotos[it.id] && <small className="muted">{t.photoHint}</small>}
+          </div>
           <div className="part-grid">
             {partsOf(it).map((part) => {
               const m = marks.find((x) => x.order_item_id === it.id && x.part === part)
@@ -147,26 +182,9 @@ export default function InstallParts({ orderId, items, status, drawings = false,
                   ) : (
                     open && (
                       <>
-                        <label className="btn">
-                          {busy === key ? t.uploading : `📷 ${t.photoMark}`}
-                          <input
-                            type="file"
-                            accept="image/*"
-                            capture="environment"
-                            hidden
-                            disabled={!!busy}
-                            onChange={(e) => {
-                              const f = e.target.files?.[0]
-                              e.target.value = ''
-                              if (f) withPhoto(it, part, f)
-                            }}
-                          />
-                        </label>
-                        {rahbar && (
-                          <button type="button" className="ghost" disabled={!!busy} onClick={() => plain(it, part, true)}>
-                            {t.markNoPhoto}
-                          </button>
-                        )}
+                        <button type="button" disabled={!!busy} onClick={() => plain(it, part, true)}>
+                          {busy === key ? t.uploading : `✔ ${t.mark}`}
+                        </button>
                       </>
                     )
                   )}
