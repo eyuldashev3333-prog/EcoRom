@@ -211,14 +211,21 @@ export default function PhotoWindow() {
   }
 
   // ---- перетаскивание углов ----
+  // холст стилизован object-fit: contain: на ПК (ограничение высоты) картинка вписана с полями — координаты считаем по видимой области, а не по всему элементу
+  const view = () => {
+    const c = cv.current!
+    const r = c.getBoundingClientRect()
+    const k = Math.min(r.width / c.width, r.height / c.height) // пикселей экрана на пиксель холста
+    return { left: r.left + (r.width - c.width * k) / 2, top: r.top + (r.height - c.height * k) / 2, k }
+  }
   const toCanvas = (e: React.PointerEvent) => {
-    const r = cv.current!.getBoundingClientRect()
-    return { x: ((e.clientX - r.left) / r.width) * cv.current!.width, y: ((e.clientY - r.top) / r.height) * cv.current!.height }
+    const v = view()
+    return { x: (e.clientX - v.left) / v.k, y: (e.clientY - v.top) / v.k }
   }
   const onDown = (e: React.PointerEvent) => {
     if (!size) return
     const p = toCanvas(e)
-    const scale = cv.current!.width / cv.current!.getBoundingClientRect().width
+    const scale = 1 / view().k
     let best = -1
     let bd = 34 * scale // зона захвата крупная: пальцем попасть трудно
     pts.forEach((q, i) => {
