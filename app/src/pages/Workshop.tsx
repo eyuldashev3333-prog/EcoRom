@@ -51,6 +51,18 @@ const COLORS = { late: '#c0392b', material: '#d68910', stuck: '#7d3c98', ready: 
 const kind = (o: WOrder): keyof typeof COLORS => (o.late ? 'late' : o.material ? 'material' : o.stuck ? 'stuck' : o.station === 'ready' || o.station === 'install' ? 'ready' : o.station === 'new' ? 'new' : 'normal')
 const STATIONS: Station[] = ['new', 'cut', 'assemble', 'glass_fit', 'ready', 'install']
 const PER_STATION = 9
+const stationOf = (o: WOrder): Station => (STATIONS.includes(o.station as Station) ? (o.station as Station) : 'glass_fit')
+
+// узкое место — рабочий участок цеха (резка/сборка/стекло), где больше всего окон ждёт; нужен перевес хотя бы в 2 окна над следующим
+export function bottleneck(orders: WOrder[]): { station: Station; windows: number } | null {
+  const loads = (['cut', 'assemble', 'glass_fit'] as Station[]).map((s) => ({
+    station: s,
+    windows: orders.filter((o) => stationOf(o) === s).reduce((n, o) => n + Number(o.windows || 0), 0),
+  }))
+  loads.sort((a, b) => b.windows - a.windows)
+  if (!loads[0] || loads[0].windows === 0) return null
+  return loads[0].windows - loads[1].windows >= 2 ? loads[0] : null
+}
 
 // «Virtual sex»: 3D-цех, над каждым участком — карточки заказов, которые сейчас там (живые данные, обновление каждые 30 с)
 export default function Workshop() {
@@ -62,6 +74,26 @@ export default function Workshop() {
   const [err, setErr] = useState('')
   const [at, setAt] = useState('')
   const [demo, setDemo] = useState(false)
+  const [tv, setTv] = useState(false)
+  const controlsRef = useRef<OrbitControls | null>(null)
+
+  // режим ТВ: полный экран + медленное вращение; выход из полного экрана (Esc) выключает режим
+  useEffect(() => {
+    const el = host.current
+    if (controlsRef.current) {
+      controlsRef.current.autoRotate = tv
+      controlsRef.current.autoRotateSpeed = 0.7
+    }
+    if (tv && el && !document.fullscreenElement) el.requestFullscreen?.().catch(() => undefined)
+    if (!tv && document.fullscreenElement) document.exitFullscreen?.().catch(() => undefined)
+  }, [tv])
+  useEffect(() => {
+    const onFs = () => {
+      if (!document.fullscreenElement) setTv(false)
+    }
+    document.addEventListener('fullscreenchange', onFs)
+    return () => document.removeEventListener('fullscreenchange', onFs)
+  }, [])
 
   // сцена — один раз
   useEffect(() => {
@@ -89,6 +121,7 @@ export default function Workshop() {
     controls.minDistance = 6
     controls.maxDistance = 48
     controls.enableDamping = true
+    controlsRef.current = controls
     anchors.current = buildShop(scene)
     // таблички участков
     for (const s of STATIONS) {
@@ -170,9 +203,23 @@ export default function Workshop() {
       const s = c as THREE.Sprite
       s.material.map?.dispose()
       s.material.dispose()
+      ;(c as unknown as THREE.Mesh).geometry?.dispose()
     }
+    const neck = bottleneck(data.orders)
     for (const st of STATIONS) {
-      const list = data.orders.filter((o) => (STATIONS.includes(o.station as Station) ? o.station : 'glass_fit') === st)
+      const list = data.orders.filter((o) => stationOf(o) === st)
+      if (list.length) {
+        const n = list.reduce((s, o) => s + Number(o.windows || 0), 0)
+        const l = label(`${n} ${t.windows}`, { bg: neck?.station === st ? '#d35400' : '#566573', fg: '#fff', w: 2.2 })
+        l.position.set(a[st].x, 1.1, a[st].z + 1.4)
+        g.add(l)
+      }
+      if (neck?.station === st) {
+        const ring = new THREE.Mesh(new THREE.RingGeometry(3.0, 3.6, 48), new THREE.MeshBasicMaterial({ color: 0xe67e22, transparent: true, opacity: 0.75, side: THREE.DoubleSide }))
+        ring.rotation.x = -Math.PI / 2
+        ring.position.set(a[st].x, 0.06, a[st].z)
+        g.add(ring)
+      }
       list.slice(0, PER_STATION).forEach((o, i) => {
         const s = label(`№${o.order_no} ${o.client.slice(0, 12)}`, { bg: COLORS[kind(o)], sub: `${Math.round(Number(o.percent))}% · ${o.windows} ${t.windows}`, w: 3.3 })
         const col = i % 3
@@ -189,7 +236,8 @@ export default function Workshop() {
     }
   }, [data])
 
-  const stageLine = (o: WOrder) => (data?.stages ?? []).map((s) => `${s.name} ${o.done?.[s.code] ?? 0}/${o.items}`).join(' · ')
+  const neck = data ? bottleneck(data.orders) : null
+  const stageLine =(o: WOrder) => (data?.stages ?? []).map((s) => `${s.name} ${o.done?.[s.code] ?? 0}/${o.items}`).join(' · ')
 
   return (
     <>
@@ -213,6 +261,14 @@ export default function Workshop() {
       </div>
       {err && <div className="card note bad">{err}</div>}
       <div className="shop3d" ref={host}>
+        <button className="ghost small-btn shop3d-fs" onClick={() => setTv(!tv)}>
+          {tv ? t.tvOff : t.tvOn}
+        </button>
+        {neck && (
+          <div className="shop3d-tv">
+            🟠 {t.neck}: {t.stations[neck.station]} · {neck.windows} {t.windows}
+          </div>
+        )}
         {sel && (
           <div className="shop3d-card card">
             <b>

@@ -17,6 +17,10 @@ export interface RenderOpts {
   glassOpacity: number
   sill: boolean
   px: number // длинная сторона текстуры, px
+  /** москитная сетка на открывающихся створках */
+  net?: boolean
+  /** отлив (внешний, под подоконником) */
+  drip?: boolean
 }
 export interface Rendered {
   canvas: HTMLCanvasElement
@@ -140,12 +144,14 @@ export function renderWindow(design: WindowDesign, o: RenderOpts): Rendered {
   const { cells } = layout(design)
   const tint = TINTS[o.tint]
   const glassRects: Rect[] = []
+  const netRects: Rect[] = []
   for (const { leaf, rect } of cells) {
     const c = clearRect(rect, W, H)
     const sash = leaf.opening !== 'fixed'
     profile(ctx, rect, color, bevel)
     if (sash) profile(ctx, c, color, bevel * 1.2)
     glassRects.push(sash ? inset(c, SASH) : c)
+    if (sash && !leaf.door) netRects.push(inset(c, SASH))
   }
   // стекло: сначала «вырезаем» дырку (сквозь неё видно фото), затем оттенок
   for (const gr of glassRects) ctx.clearRect(gr.x, gr.y, gr.w, gr.h)
@@ -178,6 +184,24 @@ export function renderWindow(design: WindowDesign, o: RenderOpts): Rendered {
     ctx.lineWidth = Math.max(3, bevel * 0.5)
     ctx.strokeRect(gr.x, gr.y, gr.w, gr.h)
   }
+  // москитная сетка: частая тёмная сетка поверх стекла створки
+  if (o.net) {
+    for (const gr of netRects) {
+      ctx.save()
+      ctx.beginPath()
+      ctx.rect(gr.x, gr.y, gr.w, gr.h)
+      ctx.clip()
+      ctx.fillStyle = 'rgba(40,44,48,0.10)'
+      ctx.fillRect(gr.x, gr.y, gr.w, gr.h)
+      ctx.strokeStyle = 'rgba(30,34,38,0.26)'
+      ctx.lineWidth = 1.3
+      ctx.beginPath()
+      for (let x = gr.x; x <= gr.x + gr.w; x += 14) { ctx.moveTo(x, gr.y); ctx.lineTo(x, gr.y + gr.h) }
+      for (let y = gr.y; y <= gr.y + gr.h; y += 14) { ctx.moveTo(gr.x, y); ctx.lineTo(gr.x + gr.w, y) }
+      ctx.stroke()
+      ctx.restore()
+    }
+  }
   // ручки
   const handleColor = shade(color === '#f4f4f2' ? '#d8d8d4' : '#cfcfcf', 1)
   for (const { leaf, rect } of cells) {
@@ -201,6 +225,23 @@ export function renderWindow(design: WindowDesign, o: RenderOpts): Rendered {
     ctx.fillRect(sx, top, sw, 9)
     ctx.fillStyle = '#d2d2cc'
     ctx.fillRect(sx, top + 30, sw, 8)
+  }
+  // отлив: серая полоса под подоконником (или прямо под рамой), чуть шире него, с загнутым краем
+  if (o.drip) {
+    const top = H + (o.sill ? 38 : 0)
+    const sx = -W * 0.05
+    const sw = W * 1.1
+    ctx.save()
+    ctx.shadowColor = 'rgba(0,0,0,0.35)'
+    ctx.shadowBlur = H * 0.012
+    ctx.shadowOffsetY = H * 0.008
+    ctx.fillStyle = '#9aa0a5'
+    ctx.fillRect(sx, top, sw, 26)
+    ctx.restore()
+    ctx.fillStyle = '#b9bec2'
+    ctx.fillRect(sx, top, sw, 7)
+    ctx.fillStyle = '#7b8186'
+    ctx.fillRect(sx, top + 20, sw, 6)
   }
 
   return { canvas, range: { u0: -mx / W, u1: 1 + mx / W, v0: -mt / H, v1: 1 + mb / H } }

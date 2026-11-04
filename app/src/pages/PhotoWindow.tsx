@@ -54,6 +54,10 @@ export default function PhotoWindow() {
   const [opacity, setOpacity] = useState(0.28)
   const [sill, setSill] = useState(true)
   const [handles, setHandles] = useState(true)
+  const [net, setNet] = useState(false)
+  const [drip, setDrip] = useState(false)
+  const [autoLight, setAutoLight] = useState(true)
+  const [light, setLight] = useState(1) // множитель яркости окна по средней яркости фото
   const [orders, setOrders] = useState<OrderOpt[]>([])
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
   const [busy, setBusy] = useState(false)
@@ -69,12 +73,57 @@ export default function PhotoWindow() {
   }, [])
 
   // текстура окна (прозрачный фон, стекло — «дырка» с оттенком) → растр с предумноженной альфой для точного наложения
-  const prep = (r: Rendered): { raster: Raster; range: Range } => ({
-    raster: premultiply({ width: r.canvas.width, height: r.canvas.height, data: r.canvas.getContext('2d')!.getImageData(0, 0, r.canvas.width, r.canvas.height).data }),
-    range: r.range,
-  })
-  const tex = useMemo(() => prep(renderWindow(design, { frameColor: color, tint, glassOpacity: opacity, sill, px: 1100 })), [design, color, tint, opacity, sill])
+  const k = autoLight ? light : 1
+  const prep = (r: Rendered): { raster: Raster; range: Range } => {
+    const img = r.canvas.getContext('2d')!.getImageData(0, 0, r.canvas.width, r.canvas.height)
+    if (Math.abs(k - 1) > 0.01) {
+      const d = img.data
+      for (let i = 0; i < d.length; i += 4) {
+        d[i] = Math.min(255, d[i] * k)
+        d[i + 1] = Math.min(255, d[i + 1] * k)
+        d[i + 2] = Math.min(255, d[i + 2] * k)
+      }
+    }
+    return { raster: premultiply({ width: r.canvas.width, height: r.canvas.height, data: img.data }), range: r.range }
+  }
+  const tex = useMemo(
+    () => prep(renderWindow(design, { frameColor: color, tint, glassOpacity: opacity, sill, net, drip, px: 1100 })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [design, color, tint, opacity, sill, net, drip, k],
+  )
   const convex = pts.length === 4 && isConvexQuad(pts)
+
+  // лупа: при перетаскивании угла — увеличенный участок фото в свободном верхнем углу (палец закрывает точку)
+  const drawLoupe = (ctx: CanvasRenderingContext2D) => {
+    if (drag === null || !photo.current || !pts[drag]) return
+    const p = pts[drag]
+    const R = Math.round(Math.min(ctx.canvas.width, ctx.canvas.height) * 0.14)
+    const src = R * 0.55 // радиус захвата: увеличение ≈ ×1.8
+    const left = p.x > ctx.canvas.width / 2 // угол справа → лупа слева
+    const cx = left ? R + 12 : ctx.canvas.width - R - 12
+    const cy = R + 12
+    ctx.save()
+    ctx.beginPath()
+    ctx.arc(cx, cy, R, 0, Math.PI * 2)
+    ctx.clip()
+    ctx.fillStyle = '#fff'
+    ctx.fillRect(cx - R, cy - R, 2 * R, 2 * R)
+    ctx.drawImage(ctx.canvas, p.x - src, p.y - src, 2 * src, 2 * src, cx - R, cy - R, 2 * R, 2 * R)
+    ctx.restore()
+    ctx.lineWidth = 3
+    ctx.strokeStyle = '#0e9a2f'
+    ctx.beginPath()
+    ctx.arc(cx, cy, R, 0, Math.PI * 2)
+    ctx.stroke()
+    ctx.lineWidth = 1.5
+    ctx.strokeStyle = 'rgba(192,57,43,0.95)'
+    ctx.beginPath()
+    ctx.moveTo(cx - 12, cy)
+    ctx.lineTo(cx + 12, cy)
+    ctx.moveTo(cx, cy - 12)
+    ctx.lineTo(cx, cy + 12)
+    ctx.stroke()
+  }
 
   const compose = (ctx: CanvasRenderingContext2D, withHandles: boolean, texture = tex, ss = drag === null ? 2 : 1) => {
     if (!photo.current) return
@@ -94,6 +143,7 @@ export default function PhotoWindow() {
       }
     }
     if (!withHandles) return
+    drawLoupe(ctx)
     ctx.lineWidth = 2
     ctx.strokeStyle = convex ? 'rgba(14,154,47,0.9)' : 'rgba(192,57,43,0.95)'
     ctx.setLineDash([8, 6])
@@ -138,6 +188,17 @@ export default function PhotoWindow() {
       c.getContext('2d')!.drawImage(bmp, 0, 0, c.width, c.height)
       bmp.close()
       photo.current = c
+      // средняя яркость фото (по сетке точек) → множитель яркости окна: тёмное фото — окно темнее, яркое — чуть светлее
+      const small = document.createElement('canvas')
+      small.width = 32
+      small.height = 32
+      const sctx = small.getContext('2d')!
+      sctx.drawImage(c, 0, 0, 32, 32)
+      const px = sctx.getImageData(0, 0, 32, 32).data
+      let sum = 0
+      for (let i = 0; i < px.length; i += 4) sum += 0.2126 * px[i] + 0.7152 * px[i + 1] + 0.0722 * px[i + 2]
+      const lum = sum / (px.length / 4)
+      setLight(Math.max(0.7, Math.min(1.1, 0.6 + (lum / 255) * 0.8)))
       if (cv.current) {
         cv.current.width = c.width
         cv.current.height = c.height
@@ -185,7 +246,7 @@ export default function PhotoWindow() {
     const out = document.createElement('canvas')
     out.width = photo.current.width
     out.height = photo.current.height
-    const hq = prep(renderWindow(design, { frameColor: color, tint, glassOpacity: opacity, sill, px: 2000 }))
+    const hq = prep(renderWindow(design, { frameColor: color, tint, glassOpacity: opacity, sill, net, drip, px: 2000 }))
     compose(out.getContext('2d')!, false, hq, 3)
     return new Promise((res) => out.toBlob((b) => res(b), 'image/png'))
   }
@@ -303,6 +364,15 @@ export default function PhotoWindow() {
             </label>
             <label className="check">
               <input type="checkbox" checked={sill} onChange={(e) => setSill(e.target.checked)} /> {t.sill}
+            </label>
+            <label className="check">
+              <input type="checkbox" checked={drip} onChange={(e) => setDrip(e.target.checked)} /> {t.drip}
+            </label>
+            <label className="check">
+              <input type="checkbox" checked={net} onChange={(e) => setNet(e.target.checked)} /> {t.net}
+            </label>
+            <label className="check">
+              <input type="checkbox" checked={autoLight} onChange={(e) => setAutoLight(e.target.checked)} /> {t.autoLight} ({Math.round(light * 100)}%)
             </label>
             <label className="check">
               <input type="checkbox" checked={handles} onChange={(e) => setHandles(e.target.checked)} /> {t.showHandles}

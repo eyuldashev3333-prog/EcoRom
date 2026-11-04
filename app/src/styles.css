@@ -161,6 +161,9 @@ label.btn { display: block; background: var(--green); color: #fff; border-radius
 .swatch { display: inline-block; width: 12px; height: 12px; border-radius: 3px; border: 1px solid rgba(0,0,0,.35); vertical-align: -1px; }
 .shop3d { position: relative; width: 100%; height: min(72vh, 640px); border-radius: 14px; overflow: hidden; border: 1px solid var(--line); background: #dfe5ea; touch-action: none; }
 .shop3d canvas { display: block; }
+.shop3d:fullscreen { height: 100vh; border-radius: 0; border: 0; }
+.shop3d-tv { position: absolute; left: 14px; top: 12px; padding: 8px 14px; border-radius: 10px; background: rgba(255,255,255,0.9); font-weight: 600; pointer-events: none; }
+.shop3d-fs { position: absolute; right: 10px; top: 10px; }
 .shop3d-card { position: absolute; left: 10px; right: 10px; bottom: 10px; display: grid; gap: 4px; max-width: 420px; }
 .legend { margin: 8px 0; gap: 12px; }
 .legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -1px; }
