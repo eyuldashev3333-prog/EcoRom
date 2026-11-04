@@ -21,6 +21,7 @@ const FIELDS: Field[] = [
   { key: 'leak_window_days', kind: 'number', def: 60, min: 1 },
   { key: 'warranty_years', kind: 'number', def: 5, min: 0 },
   { key: 'install_photo_required', kind: 'bool', def: true },
+  { key: 'expense_reminder_on', kind: 'bool', def: true },
 ]
 
 // «Sozlamalar»: числа, которые раньше менялись только в базе. Сохранение — по каждой строке отдельно.

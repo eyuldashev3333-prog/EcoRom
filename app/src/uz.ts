@@ -53,6 +53,7 @@ export const uz = {
       leak_stuck_days: { label: "Sexda «harakatsiz» deb hisoblash", unit: 'kun', hint: "Buyurtmada shuncha kun hech qanday belgi bo'lmasa — «sexda qotib qoldi»." },
       leak_window_days: { label: "Marja va xaridlarni tekshirish davri", unit: 'kun', hint: "«Teshiklar» da past marja va qimmat xaridlar oxirgi shuncha kun bo'yicha ko'rsatiladi." },
       warranty_years: { label: 'Kafolat muddati', unit: 'yil', hint: "Yopilgan buyurtma uchun: montaj sanasidan shuncha yil." },
+      expense_reminder_on: { label: 'Kechqurun xarajat eslatmasi (21:00)', unit: '', hint: "Kun davomida bitta ham xarajat yozilmagan bo'lsa, soat 21:00 da (Toshkent) rahbarga Telegramda eslatma keladi." },
       install_photo_required: { label: 'Montajchi har bir oynaning 1 ta fotosini yuklashi shart', unit: '', hint: "Yoqilgan bo'lsa, montajchi oynaning oxirgi qismini belgilashdan oldin 1 ta foto yuklashi kerak (qismlar uchun alohida emas)." },
     } as Record<string, { label: string; unit: string; hint: string }>,
   },
@@ -72,6 +73,9 @@ export const uz = {
     activate: 'Faollashtirish',
     deactivateConfirm: "kirish bloklanadi, tarix saqlanadi. Davom etilsinmi?",
     left: 'ketgan:',
+    hired: 'Qabul sanasi',
+    hiredHint: "Oylik shu sanadan boshlab kunlar bo'yicha hisoblanadi. Tizimga kiritilgan kun emas, haqiqiy ish boshlagan kunni qo'ying.",
+    hiredSaved: 'qabul sanasi saqlandi',
   },
   designer: {
     title: 'Oyna konstruktori',

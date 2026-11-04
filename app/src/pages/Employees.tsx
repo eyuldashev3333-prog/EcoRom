@@ -13,6 +13,7 @@ interface Emp {
   phone: string | null
   is_active: boolean
   left_at: string | null
+  hired_at: string | null
 }
 const t = uz.employees
 
@@ -25,7 +26,7 @@ export default function Employees() {
   const load = useCallback(async () => {
     const { data } = await supabase
       .from('employees')
-      .select('id, full_name, role, login, phone, is_active, left_at')
+      .select('id, full_name, role, login, phone, is_active, left_at, hired_at')
       .order('is_active', { ascending: false })
       .order('full_name')
     setList((data as Emp[]) ?? [])
@@ -50,6 +51,14 @@ export default function Employees() {
     if (!window.confirm(`${emp.full_name}: ${t.resetConfirm}`)) return
     const r = await callAdmin({ action: 'set_password', employee_id: emp.id, password: pw })
     setMsg(r.error ? { ok: false, text: r.error } : { ok: true, text: `${t.newPassword} ${emp.login}: ${pw}` })
+  }
+
+  // дата приёма нужна для зарплаты по дням: по умолчанию — день создания в системе, поэтому её можно поправить
+  const setHired = async (emp: Emp, date: string) => {
+    if (!date) return
+    const { error } = await supabase.from('employees').update({ hired_at: date }).eq('id', emp.id)
+    setMsg(error ? { ok: false, text: error.message } : { ok: true, text: `${emp.full_name}: ${t.hiredSaved}` })
+    load()
   }
 
   const toggle = async (emp: Emp) => {
@@ -111,6 +120,10 @@ export default function Employees() {
           <span className="muted">{uz.roles[emp.role]}</span>
           {emp.login && <code>{emp.login}</code>}
           {!emp.is_active && <span className="muted">{t.left} {emp.left_at}</span>}
+          <label className="inline small" title={t.hiredHint}>
+            <small className="muted">{t.hired}</small>
+            <input type="date" defaultValue={emp.hired_at ?? ''} onBlur={(e) => e.target.value !== (emp.hired_at ?? '') && setHired(emp, e.target.value)} />
+          </label>
           <span className="spacer" />
           {emp.is_active && (
             <button className="ghost" onClick={() => resetPassword(emp)}>
