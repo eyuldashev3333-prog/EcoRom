@@ -108,7 +108,7 @@ export default function BreakageList({ orderId, since, onChanged }: { orderId?: 
             <div>{r.reason}</div>
             {r.photo_path && urls[r.photo_path] && (
               <a href={urls[r.photo_path]} target="_blank" rel="noreferrer">
-                📷 {t.photoOpen}
+                {t.photoOpen}
               </a>
             )}
             <div className="grid3">

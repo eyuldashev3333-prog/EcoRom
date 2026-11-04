@@ -60,7 +60,7 @@ export default function BreakageForm({ orderId, items, onDone }: { orderId: stri
       {msg && <div className={msg.ok ? 'note ok' : 'note bad'}>{msg.text}</div>}
       {!open ? (
         <button type="button" className="ghost" onClick={() => setOpen(true)}>
-          🪟 {t.report}
+          {t.report}
         </button>
       ) : (
         <>

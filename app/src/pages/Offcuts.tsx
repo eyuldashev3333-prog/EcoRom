@@ -77,8 +77,8 @@ export default function Offcuts() {
 
   return (
     <>
-      <p>
-        <Link to="/">←</Link> · <Link to="/stock">{uz.stock.title}</Link>
+      <p className="crumbs">
+        <Link to="/stock">{uz.stock.title}</Link>
       </p>
       <h1>{t.listTitle}</h1>
       <p className="muted small">{t.listHint}</p>

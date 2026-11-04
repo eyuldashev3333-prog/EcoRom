@@ -71,9 +71,6 @@ export default function Report() {
 
   return (
     <>
-      <p>
-        <Link to="/">←</Link>
-      </p>
       <div className="inline head">
         <h1>{t.title}</h1>
         <input type="month" value={month} onChange={(e) => e.target.value && setMonth(e.target.value)} style={{ width: 'auto' }} />

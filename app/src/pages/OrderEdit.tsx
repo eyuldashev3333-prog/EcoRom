@@ -197,7 +197,7 @@ export default function OrderEdit() {
       {id && (
         <p>
           <Link to={`/orders/${id}/print`} className="btn-link">
-            🖨 {uz.print.open}
+            {uz.print.open}
           </Link>
         </p>
       )}

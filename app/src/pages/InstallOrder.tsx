@@ -55,11 +55,11 @@ export default function InstallOrder() {
             {t.date}: {plan.split('-').reverse().join('.')}
           </p>
         )}
-        {order.address && <p>📍 {order.address}</p>}
+        {order.address && <p>{order.address}</p>}
         {order.contact_phone && (
           <p>
             <a className="btn-link" href={`tel:${order.contact_phone.replace(/[^\d+]/g, '')}`}>
-              📞 {order.contact_phone}
+              {order.contact_phone}
             </a>
           </p>
         )}

@@ -96,7 +96,7 @@ export default function ServicePanel({ orderId, clientId, items }: { orderId: st
         {msg && <div className={msg.ok ? 'note ok' : 'note bad'}>{msg.text}</div>}
         {!open ? (
           <button type="button" className="ghost" onClick={() => setOpen(true)}>
-            🛠 {t.new}
+            {t.new}
           </button>
         ) : (
           <div className="form">

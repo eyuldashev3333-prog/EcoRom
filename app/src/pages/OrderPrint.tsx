@@ -84,7 +84,7 @@ export default function OrderPrint() {
   for (let i = 0; i < Math.max(items.length, 1); i += PER_PAGE) pages.push(items.slice(i, i + PER_PAGE))
   const name = (idv?: string) => (idv ? catalog.byId.get(idv)?.name : undefined)
   const date = new Date(order.created_at).toLocaleDateString('ru-RU')
-  const fileBase = `ECOROM-${order.order_no}${mode === 'shop' ? '-sex' : ''}`
+  const fileBase = `ECOROM-${order.order_no}${mode === 'shop' ? '-zavod' : ''}`
 
   const pageEls = () => Array.from(pagesRef.current?.querySelectorAll<HTMLElement>('.sheet') ?? [])
   const run = async (label: string, fn: () => Promise<void>) => {

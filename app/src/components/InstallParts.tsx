@@ -138,7 +138,7 @@ export default function InstallParts({ orderId, items, status, drawings = false,
             )}
             {(open || (rahbar && status === 'installed')) && (
               <label className="btn">
-                {busy === `${it.id}:photo` ? t.uploading : `📷 ${itemPhotos[it.id] ? t.photoRetake : t.photoTake}`}
+                {busy === `${it.id}:photo` ? t.uploading : `${itemPhotos[it.id] ? t.photoRetake : t.photoTake}`}
                 <input
                   type="file"
                   accept="image/*"

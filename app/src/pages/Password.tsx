@@ -24,9 +24,6 @@ export default function Password() {
 
   return (
     <>
-      <p>
-        <Link to="/">←</Link>
-      </p>
       <h1>{t.title}</h1>
       {msg && <div className={msg.ok ? 'card note ok' : 'card note bad'}>{msg.text}</div>}
       <form className="card form" onSubmit={submit}>

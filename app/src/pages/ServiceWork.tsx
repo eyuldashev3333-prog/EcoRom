@@ -87,11 +87,11 @@ export default function ServiceWork() {
       <div className="card">
         <b>{tk.client_name}</b>
         {tk.due_date && <p className="muted">{t.due}: {tk.due_date.split('-').reverse().join('.')}</p>}
-        {tk.address && <p>📍 {tk.address}</p>}
+        {tk.address && <p>{tk.address}</p>}
         {tk.contact_phone && (
           <p>
             <a className="btn-link" href={`tel:${tk.contact_phone.replace(/[^\d+]/g, '')}`}>
-              📞 {tk.contact_phone}
+              {tk.contact_phone}
             </a>
           </p>
         )}

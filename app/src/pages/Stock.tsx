@@ -54,9 +54,6 @@ export default function Stock() {
 
   return (
     <>
-      <p>
-        <Link to="/">←</Link>
-      </p>
       <div className="inline head">
         <h1>{t.title}</h1>
         {!counting && <button onClick={() => setCounting(true)}>{t.count}</button>}

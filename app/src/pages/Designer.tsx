@@ -9,9 +9,6 @@ export default function Designer() {
   const [design, setDesign] = useState<WindowDesign>(PRESETS[1].build())
   return (
     <>
-      <p>
-        <Link to="/">←</Link>
-      </p>
       <h1>{uz.designer.title}</h1>
       <WindowEditor value={design} onChange={setDesign} />
     </>

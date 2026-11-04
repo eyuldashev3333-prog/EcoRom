@@ -21,7 +21,7 @@ export default function Orders() {
   const [rows, setRows] = useState<Row[] | null>(null)
   const [debts, setDebts] = useState<Map<string, number>>(new Map())
   const [pct, setPct] = useState<Map<string, number>>(new Map())
-  const [q, setQ] = useState('')
+  const [q, setQ] = useState(() => new URLSearchParams(window.location.hash.split('?')[1] ?? '').get('q') ?? '') // глобальный поиск из шапки
   const nav = useNavigate()
   useEffect(() => {
     supabase
@@ -45,9 +45,6 @@ export default function Orders() {
 
   return (
     <>
-      <p>
-        <Link to="/">←</Link>
-      </p>
       <div className="inline head">
         <h1>{t.list}</h1>
         <button onClick={() => nav('/orders/new')}>+ {t.new}</button>

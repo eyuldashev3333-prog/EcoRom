@@ -88,7 +88,7 @@ export default function ServiceTickets({ orderId, onlyOpen = false, reloadKey = 
       <div className="inline wrap">
         {paths.map((p) => (
           <a key={p} href={urls[p]} target="_blank" rel="noreferrer">
-            📷
+            
           </a>
         ))}
       </div>

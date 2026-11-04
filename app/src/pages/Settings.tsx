@@ -68,9 +68,6 @@ export default function Settings() {
 
   return (
     <>
-      <p>
-        <Link to="/">←</Link>
-      </p>
       <h1>{t.title}</h1>
       <p className="muted small">{t.hint}</p>
       {msg && <div className={msg.ok ? 'card note ok' : 'card note bad'}>{msg.text}</div>}

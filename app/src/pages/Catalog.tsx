@@ -51,9 +51,6 @@ export default function Catalog() {
 
   return (
     <>
-      <p>
-        <Link to="/">←</Link>
-      </p>
       <h1>{uz.catalog.title}</h1>
       <div className="tabs">
         {KINDS.map((k) => (

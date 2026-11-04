@@ -1,5 +1,8 @@
-import { lazy, Suspense } from 'react'
-import { Link, Navigate, Route, Routes } from 'react-router-dom'
+import { lazy, Suspense, useEffect } from 'react'
+import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
+import TopBar from './shell/TopBar'
+import Sidebar from './shell/Sidebar'
+import BottomNav from './shell/BottomNav'
 import { useAuth } from './auth'
 import { uz } from './uz'
 import Login from './pages/Login'
@@ -29,11 +32,31 @@ import Purchases from './pages/Purchases'
 import Suppliers from './pages/Suppliers'
 // PDF-библиотеки тяжёлые — грузятся только при открытии печати
 const OrderPrint = lazy(() => import('./pages/OrderPrint'))
-// three.js тяжёлый — грузится только при открытии 3D-цеха
+// экран «Zavod» — отдельный чанк
 const Workshop = lazy(() => import('./pages/Workshop'))
+// таблицы (REGISTRATSIYA, SAVDO BOLIMI) — отдельный чанк
+const Registratsiya = lazy(() => import('./pages/Registratsiya'))
+const Savdo = lazy(() => import('./pages/Savdo'))
 
 export default function App() {
   const { session, me, loading, signOut } = useAuth()
+
+  const loc = useLocation()
+  const home = loc.pathname === '/'
+  const immersive = loc.pathname === '/zavod' // 3D-режим: завод на весь экран, без меню
+  const nav = useNavigate()
+  // Rahbar открывает систему — сначала 3D-завод (один раз за сеанс; дальше переключатель 3D/ERP)
+  useEffect(() => {
+    if (me?.role !== 'rahbar') return
+    try {
+      if (sessionStorage.getItem('ecorom.landed')) return
+      sessionStorage.setItem('ecorom.landed', '1')
+    } catch {
+      return
+    }
+    if (loc.pathname === '/') nav('/zavod', { replace: true })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [me?.role])
 
   if (loading) return <div className="center muted">{uz.loading}</div>
   if (!session) return <Login />
@@ -46,30 +69,22 @@ export default function App() {
     )
 
   return (
-    <div className="shell">
-      <header className="top">
-        <Link to="/" className="brand">
-          <img src={`${import.meta.env.BASE_URL}logo.jpg`} alt="" />
-          <span>{uz.app}</span>
-        </Link>
-        <div className="who">
-          <b>{me.full_name}</b>
-          <small>{uz.roles[me.role]}</small>
-        </div>
-        <button className="ghost" onClick={signOut}>
-          {uz.signOut}
-        </button>
-      </header>
-      <main className="page">
+    <div className={immersive ? 'app is-3d' : home ? 'app is-home' : 'app'}>
+      {!immersive && <Sidebar />}
+      <div className="main">
+      <TopBar />
+      {home ? (
+        <Home />
+      ) : (
+      <main className={loc.pathname.startsWith('/jadval') ? 'page wide' : 'page'} key={loc.pathname}>
         <Routes>
-          <Route path="/" element={<Home />} />
           <Route path="/catalog" element={me.role === 'rahbar' ? <Catalog /> : <Navigate to="/" />} />
           <Route path="/employees" element={me.role === 'rahbar' ? <Employees /> : <Navigate to="/" />} />
           <Route path="/password" element={<Password />} />
           <Route path="/install/:id" element={me.role === 'montajchi' ? <InstallOrder /> : <Navigate to="/" />} />
           <Route path="/breakages" element={me.role === 'rahbar' ? <Breakages /> : <Navigate to="/" />} />
           <Route
-            path="/workshop"
+            path="/zavod"
             element={
               me.role === 'rahbar' ? (
                 <Suspense fallback={<p className="muted">{uz.loading}</p>}>
@@ -111,9 +126,15 @@ export default function App() {
               )
             }
           />
+          <Route path="/workshop" element={<Navigate to="/zavod" replace />} />
+          <Route path="/jadval/registratsiya" element={me.role === 'rahbar' ? <Suspense fallback={<p className="muted">{uz.loading}</p>}><Registratsiya /></Suspense> : <Navigate to="/" />} />
+          <Route path="/jadval/savdo" element={me.role === 'rahbar' ? <Suspense fallback={<p className="muted">{uz.loading}</p>}><Savdo /></Suspense> : <Navigate to="/" />} />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </main>
+      )}
+      </div>
+      {!immersive && <BottomNav />}
     </div>
   )
 }

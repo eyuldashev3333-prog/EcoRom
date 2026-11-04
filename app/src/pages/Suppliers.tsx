@@ -95,8 +95,8 @@ export default function Suppliers() {
 
   return (
     <>
-      <p>
-        <Link to="/">←</Link> · <Link to="/purchases">{uz.purchase.title}</Link> · <Link to="/stock">{uz.stock.title}</Link>
+      <p className="crumbs">
+        <Link to="/purchases">{uz.purchase.title}</Link> · <Link to="/stock">{uz.stock.title}</Link>
       </p>
       <h1>{t.title}</h1>
       {msg && <div className={msg.ok ? 'card note ok' : 'card note bad'}>{msg.text}</div>}

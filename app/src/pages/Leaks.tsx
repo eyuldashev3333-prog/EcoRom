@@ -43,9 +43,6 @@ export default function Leaks() {
 
   return (
     <>
-      <p>
-        <Link to="/">←</Link>
-      </p>
       <h1>{t.title}</h1>
       <p className="muted small">{t.hint}</p>
       <div className={`card note ${n ? 'bad' : 'ok'}`}>{n ? `${t.action}: ${n}` : t.ok}</div>

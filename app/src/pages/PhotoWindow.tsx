@@ -276,16 +276,13 @@ export default function PhotoWindow() {
 
   return (
     <>
-      <p>
-        <Link to="/">←</Link>
-      </p>
       <h1>{t.title}</h1>
       <p className="muted small">{t.privacy}</p>
       {msg && <div className={msg.ok ? 'card note ok' : 'card note bad'}>{msg.text}</div>}
 
       <div className="card form">
         <label className="btn">
-          📷 {size ? t.change : t.pick}
+          {size ? t.change : t.pick}
           <input
             type="file"
             accept="image/*"

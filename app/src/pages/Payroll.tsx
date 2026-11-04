@@ -91,8 +91,8 @@ export default function Payroll() {
 
   return (
     <>
-      <p>
-        <Link to="/">←</Link> · <Link to="/pay-rules">{t.rules}</Link>
+      <p className="crumbs">
+        <Link to="/pay-rules">{t.rules}</Link>
       </p>
       <div className="inline head">
         <h1>{t.title}</h1>

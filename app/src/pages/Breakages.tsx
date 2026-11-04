@@ -18,9 +18,6 @@ export default function Breakages() {
 
   return (
     <>
-      <p>
-        <Link to="/">←</Link>
-      </p>
       <div className="inline head">
         <h1>{t.title}</h1>
         <label className="check">
