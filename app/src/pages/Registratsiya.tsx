@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Download } from 'lucide-react'
+import { Download, Plus } from 'lucide-react'
 import { supabase } from '../supabase'
 import Sheet, { type Col } from '../ui/Sheet'
 import { exportXlsx, monthName, type XCol } from '../lib/xlsx'
@@ -43,6 +43,9 @@ export default function Registratsiya() {
   const [month, setMonth] = useState('')
   const [q, setQ] = useState('')
   const [msg, setMsg] = useState('')
+  const [adding, setAdding] = useState(false)
+  const [form, setForm] = useState<Record<string, string>>({})
+  const [busy, setBusy] = useState(false)
 
   const load = useCallback(async () => {
     const { data, error } = await supabase.from('v_registratsiya').select('*').order('raqami', { ascending: true })
@@ -96,6 +99,22 @@ export default function Registratsiya() {
     },
   ]
 
+  const setF = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }))
+  const addRow = async () => {
+    if (!form.full_name?.trim()) return setMsg(t.needName)
+    setBusy(true)
+    const { data, error } = await supabase.rpc('registratsiya_add', { p: form })
+    setBusy(false)
+    if (error) return setMsg(error.message)
+    setMsg('')
+    setForm({})
+    setAdding(false)
+    setQ('')
+    await load()
+    const no = (data as { order_no: number }).order_no
+    setMsg(`${t.added} №${no}`)
+  }
+
   const exportAll = async () => {
     const xc: XCol[] = cols.map((c) => ({ header: c.label, key: c.key, width: Math.round((c.width ?? 100) / 7), type: c.type === 'select' ? 'text' : (c.type as XCol['type']), total: c.total }))
     const sheets = [...months].reverse().map((m) => ({
@@ -115,12 +134,33 @@ export default function Registratsiya() {
         </div>
         <div className="inline">
           <input type="search" className="xl-search" placeholder={t.search} value={q} onChange={(e) => setQ(e.target.value)} />
+          <button type="button" onClick={() => setAdding(!adding)}>
+            <Plus size={16} strokeWidth={2} /> {t.newRow}
+          </button>
           <button type="button" className="ghost" onClick={exportAll} disabled={!rows}>
             <Download size={16} strokeWidth={1.7} /> Excel
           </button>
         </div>
       </div>
-      {msg && <div className="note bad">{msg}</div>}
+      {msg && <div className={`note ${msg.startsWith(t.added) ? 'ok' : 'bad'}`}>{msg}</div>}
+      {adding && (
+        <form className="card form addrow" onSubmit={(e) => { e.preventDefault(); addRow() }}>
+          <h2>{t.newRow}</h2>
+          <div className="addgrid">
+            {([['full_name', 'ISMI *'], ['phone', 'KONTAKT'], ['address', 'MANZIL'], ['rangi', 'RANGI'], ['alyumin', 'ALYUMIN-M2'], ['plast', 'PLAST-M2'], ['termo', 'TERMO-M2'], ['soni', 'SONI'], ['dogovor', 'DOGOVOR'], ['berdi', 'BERDI (avans)'], ['mahsulot', 'MAHSULOT'], ['sbor', 'SBOR-USLUG']] as const).map(([k, l]) => (
+              <label key={k}>
+                {l}
+                <input value={form[k] ?? ''} onChange={(e) => setF(k, e.target.value)} inputMode={['full_name', 'phone', 'address', 'rangi'].includes(k) ? undefined : 'decimal'} required={k === 'full_name'} />
+              </label>
+            ))}
+          </div>
+          <div className="inline">
+            <button disabled={busy}>{t.save}</button>
+            <button type="button" className="ghost" onClick={() => setAdding(false)}>{t.cancel}</button>
+            <small className="muted">{t.newRowHint}</small>
+          </div>
+        </form>
+      )}
       {!q && (
         <div className="tabs">
           {months.map((m) => (

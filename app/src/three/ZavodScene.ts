@@ -40,6 +40,7 @@ export class ZavodScene {
   private dragging = false
   private homePose = 'zavod'
   private frameCbs = new Set<() => void>()
+  private progressCbs = new Set<(p: number) => void>()
   private ro: ResizeObserver
   private io: IntersectionObserver
 
@@ -94,7 +95,9 @@ export class ZavodScene {
       fetch(`${base}meta.json`).then((r) => r.json() as Promise<ZavodMeta>),
       (() => {
         const draco = new DRACOLoader().setDecoderPath(`${import.meta.env.BASE_URL}draco/`)
-        return new GLTFLoader().setDRACOLoader(draco).loadAsync(`${base}zavod.glb`)
+        return new GLTFLoader().setDRACOLoader(draco).loadAsync(`${base}zavod.glb`, (e) => {
+          if (e.total) this.progressCbs.forEach((f) => f(Math.min(1, e.loaded / e.total)))
+        })
       })(),
     ])
     this.meta = meta
@@ -218,6 +221,11 @@ export class ZavodScene {
     const w = this.host.clientWidth
     const h = this.host.clientHeight
     return { x: ((v.x + 1) / 2) * w, y: ((1 - v.y) / 2) * h, on: v.z < 1 && Math.abs(v.x) < 1.1 && Math.abs(v.y) < 1.1 }
+  }
+
+  onProgress(cb: (p: number) => void) {
+    this.progressCbs.add(cb)
+    return () => this.progressCbs.delete(cb)
   }
 
   onFrame(cb: () => void) {

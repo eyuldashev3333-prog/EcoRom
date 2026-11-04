@@ -31,6 +31,7 @@ export default function Savdo() {
   const [month, setMonth] = useState(() => new Date().toISOString().slice(0, 7))
   const [d, setD] = useState<Month | null>(null)
   const [msg, setMsg] = useState('')
+  const [legacy, setLegacy] = useState<{ hizmat: number | null; faqat_rasxod: number | null; sof_foyda: number | null; prixod: number | null } | null>(null)
 
   const load = useCallback(async () => {
     const { data, error } = await supabase.rpc('savdo_month', { p_month: `${month}-01` })
@@ -41,6 +42,11 @@ export default function Savdo() {
   useEffect(() => {
     load()
   }, [load])
+  // итоги этого месяца из таблицы владельца (для сверки)
+  useEffect(() => {
+    setLegacy(null)
+    supabase.from('legacy_savdo').select('hizmat, faqat_rasxod, sof_foyda, prixod').eq('month', month).maybeSingle().then(({ data }) => setLegacy((data as typeof legacy) ?? null))
+  }, [month])
 
   const fix = (fn: string) => async (r: { id: string }, key: string, value: string) => {
     const field = key === 'category_id' ? 'category' : key
@@ -154,6 +160,24 @@ export default function Savdo() {
               </div>
             ))}
           </div>
+          {legacy && (
+            <div className="recon">
+              <div className="recon-title">{t.reconTitle}</div>
+              <table className="recon-t">
+                <thead><tr><th></th><th>HIZMAT</th><th>FAQAT-RASXOD</th><th>SOF-FOYDA</th><th>PRIXOD</th></tr></thead>
+                <tbody>
+                  {([['reconSheet', legacy.hizmat, legacy.faqat_rasxod, legacy.sof_foyda, legacy.prixod], ['reconSystem', d.itog.hizmat, d.itog.faqat_rasxod, d.itog.sof_foyda, d.itog.prixod]] as const).map(([k, a, b, c, e]) => (
+                    <tr key={k}><td>{t[k]}</td>{[a, b, c, e].map((v, i) => <td key={i} className="num">{v === null ? '—' : fmt(Number(v))}</td>)}</tr>
+                  ))}
+                  <tr className="diff"><td>{t.reconDiff}</td>{[[legacy.hizmat, d.itog.hizmat], [legacy.faqat_rasxod, d.itog.faqat_rasxod], [legacy.sof_foyda, d.itog.sof_foyda], [legacy.prixod, d.itog.prixod]].map(([a, b], i) => {
+                    const x = a === null ? null : Number(b) - Number(a)
+                    return <td key={i} className={`num ${x !== null && Math.abs(x) > 1000 ? 'neg' : ''}`}>{x === null ? '—' : (x > 0 ? '+' : '') + fmt(x)}</td>
+                  })}</tr>
+                </tbody>
+              </table>
+              <p className="muted small" style={{ margin: '8px 0 0' }}>{t.reconNote}</p>
+            </div>
+          )}
           <p className="muted small" style={{ margin: '0 0 14px' }}>{t.hintSavdo}</p>
           <section className="xl-block">
             <h2>Buyurtmalar ({d.orders.length})</h2>

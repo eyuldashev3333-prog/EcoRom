@@ -15,16 +15,23 @@ export function poseOf(section: string): Pose {
 /** живое 3D в контейнере: возвращает ссылку на сцену (null — пока нет / не поддерживается) */
 export function useZavod3D(host: React.RefObject<HTMLDivElement>, interactive = true) {
   const [scene, setScene] = useState<ZavodScene | null>(null)
+  const [progress, setProgress] = useState<number | null>(null) // 0..1 пока качается; null — не качается / готово
   useEffect(() => {
     let alive = true
     let s: ZavodScene | null = null
     import('../three/ZavodScene').then(async (m) => {
       if (!alive || !host.current || !m.canRun3D()) return
       s = new m.ZavodScene(host.current, `${BASE}3d/`, { interactive })
+      setProgress(0)
+      s.onProgress((p) => alive && setProgress(p))
       try {
         await s.ready
-        if (alive) setScene(s)
+        if (alive) {
+          setScene(s)
+          setProgress(null)
+        }
       } catch {
+        setProgress(null)
         s.dispose()
         s = null
       }
@@ -34,13 +41,13 @@ export function useZavod3D(host: React.RefObject<HTMLDivElement>, interactive = 
       s?.dispose()
     }
   }, [host, interactive])
-  return scene
+  return { scene, progress }
 }
 
 export default function ZavodView({ section, className = '' }: { section: string; className?: string }) {
   const pose = poseOf(section)
   const host = useRef<HTMLDivElement>(null)
-  const scene = useZavod3D(host)
+  const { scene, progress } = useZavod3D(host)
   const [loaded, setLoaded] = useState<Set<Pose>>(() => new Set([pose]))
   useEffect(() => {
     setLoaded((s) => (s.has(pose) ? s : new Set(s).add(pose)))
@@ -58,6 +65,7 @@ export default function ZavodView({ section, className = '' }: { section: string
       ))}
       <div className="zv-3d" ref={host} />
       {scene && <span className="zv-hint">3D</span>}
+      {!scene && progress !== null && <span className="zv-hint">3D {Math.round(progress * 100)}%</span>}
     </div>
   )
 }

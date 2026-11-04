@@ -53,7 +53,7 @@ export default function Workshop() {
   const [box, setBox] = useState({ w: 0, h: 0 })
   // живое 3D: карточки следуют за участками при вращении камеры (обновление ~15 раз/с)
   const host = useRef<HTMLDivElement>(null)
-  const scene = useZavod3D(host)
+  const { scene, progress } = useZavod3D(host)
   const [, setTick] = useState(0)
   useEffect(() => {
     if (!scene) return
@@ -149,6 +149,21 @@ export default function Workshop() {
     return [...m.entries()]
   }, [data])
 
+  // участки рядом друг с другом → карточки не должны налезать: раздвигаем по горизонтали (слева направо, потом обратно от края)
+  const spots = (() => {
+    if (!place) return new Map<string, { x: number; y: number }>()
+    const w = box.w < 700 ? 92 : 124
+    const list = groups.flatMap(([st]) => { const q = place(st); return q ? [{ st, x: q.x, y: q.y }] : [] }).sort((a, b) => a.x - b.x)
+    const near = (a: { y: number }, b: { y: number }) => Math.abs(a.y - b.y) < 190
+    for (let i = 0; i < list.length; i++) for (let j = 0; j < i; j++) if (near(list[i], list[j])) list[i].x = Math.max(list[i].x, list[j].x + w)
+    for (let i = list.length - 1; i >= 0; i--) {
+      list[i].x = Math.min(list[i].x, box.w - w / 2 - 8)
+      for (let j = i + 1; j < list.length; j++) if (near(list[i], list[j])) list[i].x = Math.min(list[i].x, list[j].x - w)
+      list[i].x = Math.max(list[i].x, w / 2 + 8)
+    }
+    return new Map(list.map((s) => [s.st as string, { x: s.x, y: s.y }]))
+  })()
+
   const stageLine = (o: WOrder) => (data?.stages ?? []).map((s) => `${s.name} ${o.done?.[s.code] ?? 0}/${o.items}`).join(' · ')
 
   return (
@@ -162,7 +177,7 @@ export default function Workshop() {
           <div className="zv-3d" ref={host} />
           {place &&
             groups.map(([st, list]) => {
-              const pt = place(st)
+              const pt = spots.get(st)
               if (!pt) return null
               return (
                 <div key={st} className={`zpin-stack ${neck?.station === st ? 'neck' : ''}`} style={{ left: pt.x, top: pt.y }}>
@@ -190,6 +205,7 @@ export default function Workshop() {
             })}
         </div>
 
+        {!scene && progress !== null && <div className="zavod-loading">{uz.shell.loading3d} {Math.round(progress * 100)}%</div>}
         <div className="zavod-fade" />
         <ZavodKpis />
         <div className="zavod-top">
