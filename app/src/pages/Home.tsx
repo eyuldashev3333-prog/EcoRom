@@ -119,6 +119,9 @@ function RahbarHome() {
         <Link to="/suppliers" className="card tile">
           {uz.home.suppliers}
         </Link>
+        <Link to="/offcuts" className="card tile">
+          {uz.cutting.listTitle}
+        </Link>
         <Link to="/settings" className="card tile">
           {uz.home.settings}
         </Link>

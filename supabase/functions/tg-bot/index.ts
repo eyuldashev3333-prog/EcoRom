@@ -75,8 +75,17 @@ Deno.serve(async (req) => {
     q = n.employee_id ? q.eq('id', n.employee_id) : q.eq('role', n.target_role)
     const { data: people } = await q
     const errors: string[] = []
+    // фото установленных окон: временные ссылки на закрытые файлы → альбом (подпись — текст уведомления)
+    const photos: string[] = Array.isArray(n.payload?.photos) ? n.payload.photos.slice(0, 10) : []
+    const urls: string[] = []
+    for (const path of photos) {
+      const { data: s } = await admin.storage.from('install-photos').createSignedUrl(path, 600)
+      if (s?.signedUrl) urls.push(s.signedUrl)
+    }
     for (const p of people ?? []) {
-      const r = await tg('sendMessage', { chat_id: p.telegram_id, text: n.text, reply_markup: keyboard(p.role, n.payload ?? {}) })
+      const r = urls.length
+        ? await tg('sendMediaGroup', { chat_id: p.telegram_id, media: urls.map((u, i) => ({ type: 'photo', media: u, ...(i === 0 ? { caption: n.text } : {}) })) })
+        : await tg('sendMessage', { chat_id: p.telegram_id, text: n.text, reply_markup: keyboard(p.role, n.payload ?? {}) })
       if (!r.ok) errors.push(`${p.telegram_id}: ${r.description}`)
     }
     await admin

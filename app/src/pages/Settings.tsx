@@ -17,6 +17,8 @@ const FIELDS: Field[] = [
   { key: 'margin_alert_pct', kind: 'number', def: 15, min: 0 },
   { key: 'cash_opening_balance', kind: 'number', def: 0 },
   { key: 'bar_length_m', kind: 'number', def: 6, min: 0.1 },
+  { key: 'saw_kerf_mm', kind: 'number', def: 4, min: 0 },
+  { key: 'offcut_min_mm', kind: 'number', def: 300, min: 1 },
   { key: 'leak_stuck_days', kind: 'number', def: 3, min: 1 },
   { key: 'leak_window_days', kind: 'number', def: 60, min: 1 },
   { key: 'warranty_years', kind: 'number', def: 5, min: 0 },

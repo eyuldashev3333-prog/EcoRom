@@ -14,6 +14,7 @@ import BreakageForm from '../components/BreakageForm'
 import BreakageList from '../components/BreakageList'
 import InstallPlan from '../components/InstallPlan'
 import InstallParts from '../components/InstallParts'
+import CuttingPlan from '../components/CuttingPlan'
 import { colorHex, useCatalog } from '../lib/catalog'
 import { formatSum, profit, suggestedPrice } from '../lib/pricing'
 import { quoteItem, type ItemOptions } from '../lib/quote'
@@ -430,6 +431,10 @@ export default function OrderEdit() {
             if (data) setStatus(data.status)
           }}
         />
+      )}
+
+      {id && loaded && !imported && ['new', 'in_production', 'ready'].includes(status) && items.some((it) => it.id) && (
+        <CuttingPlan orderId={id} items={items.filter((it) => it.id).map((it) => ({ design: it.design, qty: it.qty, options: it.options }))} />
       )}
 
       {id && loaded && !imported && status !== 'unknown' && <GlassStatus key={items.filter((x) => x.id).length} orderId={id} locked={['closed', 'cancelled'].includes(status)} />}
