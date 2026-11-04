@@ -6,7 +6,7 @@ import { fmtQty, loadStock, stockKey, unitLabel, type StockRow } from '../lib/st
 import { uz } from '../uz'
 
 const t = uz.purchase
-const WHIP_M = 6 // длина хлыста профиля, м
+const WHIP_DEFAULT_M = 6 // если в app_settings.bar_length_m ничего нет
 
 interface Supplier {
   id: string
@@ -47,6 +47,8 @@ export default function Purchases() {
   const [note, setNote] = useState('')
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
   const [busy, setBusy] = useState(false)
+  const [barLen, setBarLen] = useState(String(WHIP_DEFAULT_M)) // длина хлыста для помощника «хлысты × метры»; у каждой строки своя
+  const [bars, setBars] = useState<Record<string, { n: string; len: string }>>({})
 
   const loadList = useCallback(async () => {
     const { data } = await supabase
@@ -60,6 +62,9 @@ export default function Purchases() {
     loadStock().then(setStock)
     supabase.from('suppliers').select('id, name, city').eq('is_active', true).order('name').then(({ data }) => setSuppliers((data as Supplier[]) ?? []))
     loadList()
+    supabase.from('app_settings').select('value').eq('key', 'bar_length_m').maybeSingle().then(({ data }) => {
+      if (Number(data?.value) > 0) setBarLen(String(data!.value))
+    })
   }, [loadList])
 
   const byKey = useMemo(() => new Map(stock.map((r) => [stockKey(r.item_id, r.part), r])), [stock])
@@ -167,11 +172,29 @@ export default function Purchases() {
                 <input inputMode="decimal" value={l.qty} onChange={(e) => patch(i, { qty: e.target.value })} />
                 {r?.unit === 'm' && (
                   <>
-                    <input
-                      inputMode="numeric"
-                      placeholder={t.whips}
-                      onChange={(e) => patch(i, { qty: e.target.value ? fmtQty(num(e.target.value) * WHIP_M) : '' })}
-                    />
+                    <div className="inline">
+                      <input
+                        inputMode="numeric"
+                        placeholder={t.barsCount}
+                        value={bars[l.id]?.n ?? ''}
+                        onChange={(e) => {
+                          const b = { n: e.target.value, len: bars[l.id]?.len ?? barLen }
+                          setBars((x) => ({ ...x, [l.id]: b }))
+                          patch(i, { qty: b.n ? fmtQty(num(b.n) * num(b.len)) : '' })
+                        }}
+                      />
+                      <span>×</span>
+                      <input
+                        inputMode="decimal"
+                        placeholder={t.barLen}
+                        value={bars[l.id]?.len ?? barLen}
+                        onChange={(e) => {
+                          const b = { n: bars[l.id]?.n ?? '', len: e.target.value }
+                          setBars((x) => ({ ...x, [l.id]: b }))
+                          if (b.n) patch(i, { qty: fmtQty(num(b.n) * num(b.len)) })
+                        }}
+                      />
+                    </div>
                     <small className="muted">{t.whips}</small>
                   </>
                 )}

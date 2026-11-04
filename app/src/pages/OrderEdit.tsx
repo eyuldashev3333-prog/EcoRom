@@ -51,6 +51,13 @@ export default function OrderEdit() {
   const { id } = useParams()
   const nav = useNavigate()
   const catalog = useCatalog()
+  const [marginAlert, setMarginAlert] = useState(15) // порог низкой маржи, % (app_settings.margin_alert_pct)
+  useEffect(() => {
+    supabase.from('app_settings').select('value').eq('key', 'margin_alert_pct').maybeSingle().then(({ data }) => {
+      const n = Number(data?.value)
+      if (Number.isFinite(n) && data?.value !== undefined) setMarginAlert(n)
+    })
+  }, [])
   const [orderNo, setOrderNo] = useState<number | null>(null)
   const [status, setStatus] = useState('new')
   const [savedContract, setSavedContract] = useState(0) // договор из базы (оплаты считаются от него)
@@ -373,7 +380,7 @@ export default function OrderEdit() {
                 <input className="money" inputMode="numeric" placeholder={formatSum(roundDown1000(suggested))} value={contract} onChange={(e) => setContract(e.target.value.replace(/\D/g, ''))} />
               </td>
             </tr>
-            <tr className={pr.marginPct < 15 ? 'bad' : ''}>
+            <tr className={pr.marginPct < marginAlert ? 'bad' : ''}>
               <td>{t.profit}</td>
               <td>
                 {formatSum(pr.profit)} ({pr.marginPct}%)

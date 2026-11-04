@@ -15,6 +15,7 @@ import InstallOrder from './pages/InstallOrder'
 import Breakages from './pages/Breakages'
 import Expenses from './pages/Expenses'
 import Leaks from './pages/Leaks'
+import Settings from './pages/Settings'
 import PhotoWindow from './pages/PhotoWindow'
 import Report from './pages/Report'
 import Payroll from './pages/Payroll'
@@ -79,6 +80,7 @@ export default function App() {
             }
           />
           <Route path="/photo" element={me.role === 'rahbar' ? <PhotoWindow /> : <Navigate to="/" />} />
+          <Route path="/settings" element={me.role === 'rahbar' ? <Settings /> : <Navigate to="/" />} />
           <Route path="/leaks" element={me.role === 'rahbar' ? <Leaks /> : <Navigate to="/" />} />
           <Route path="/report" element={me.role === 'rahbar' ? <Report /> : <Navigate to="/" />} />
           <Route path="/payroll" element={me.role === 'rahbar' ? <Payroll /> : <Navigate to="/" />} />

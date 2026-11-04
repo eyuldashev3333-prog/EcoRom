@@ -71,8 +71,16 @@ export default function OrderMoney({ orderId, contract, status, imported = false
     if (reason === null) return
     call('reverse_payment', { p_payment: p.id, p_note: reason }, t.reversedOk)
   }
+  // отменённый заказ: вернуть клиенту всё или часть предоплаты (остаток остаётся заводу)
+  const refund = (p: Payment) => {
+    const v = window.prompt(`${formatSum(p.amount)} — ${t.refundAsk}`, String(p.amount))
+    if (v === null) return
+    const n = Number(v.replace(/\D/g, ''))
+    if (!n || n > p.amount) return setMsg({ ok: false, text: t.badAmount })
+    call('refund_payment', { p_payment: p.id, p_amount: n, p_note: 'Qaytarildi' }, t.refundedOk)
+  }
   const setStatus = (s: string) => {
-    if (s === 'cancelled' && !window.confirm(t.cancelConfirm)) return
+    if (s === 'cancelled' && !window.confirm(paid > 0 ? t.cancelPaidConfirm : t.cancelConfirm)) return
     call('set_order_status', { p_order: orderId, p_status: s }, uz.order.statuses[s])
   }
 
@@ -98,8 +106,8 @@ export default function OrderMoney({ orderId, contract, status, imported = false
                 <td>{formatSum(p.amount)}</td>
                 <td>
                   {!p.reverses_id && !reversed.has(p.id) && (
-                    <button type="button" className="ghost small-btn" onClick={() => reverse(p)} disabled={busy}>
-                      {t.reverse}
+                    <button type="button" className="ghost small-btn" onClick={() => (status === 'cancelled' ? refund(p) : reverse(p))} disabled={busy}>
+                      {status === 'cancelled' ? t.refund : t.reverse}
                     </button>
                   )}
                 </td>
@@ -164,6 +172,7 @@ export default function OrderMoney({ orderId, contract, status, imported = false
           </button>
         ))}
       </div>
+      {status === 'cancelled' && paid > 0 && <p className="warn">{t.refundHint}</p>}
       {status === 'installed' && debt > 0 && <p className="warn">{t.closeHint}</p>}
     </div>
   )
