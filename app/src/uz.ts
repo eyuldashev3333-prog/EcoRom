@@ -442,6 +442,11 @@ export const uz = {
   payroll: {
     title: 'Ish haqi',
     my: 'Ish haqim',
+    done: 'Bu oy bajarilgan',
+    doneM2: 'm²',
+    doneWindows: 'oyna',
+    doneOrders: 'buyurtma',
+    doneNone: 'Bu oyda hali belgilangan ish yo‘q',
     month: 'Oy',
     accrued: 'Hisoblangan',
     paid: "To'langan",

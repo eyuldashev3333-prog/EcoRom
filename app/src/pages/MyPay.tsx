@@ -13,11 +13,14 @@ export default function MyPay() {
   const [lines, setLines] = useState<PayLine[] | null>(null)
   const [payouts, setPayouts] = useState<PayOut[]>([])
   const [sum, setSum] = useState<{ accrued: number; paid: number; remaining: number; closed: boolean } | null>(null)
+  const [output, setOutput] = useState<{ stage_code: string; stage_name: string; windows: number; m2: number; orders: number }[] | null>(null)
 
   useEffect(() => {
     setLines(null)
+    setOutput(null)
     const m = `${month}-01`
-    Promise.all([supabase.rpc('payroll_month', { p_month: m }), supabase.rpc('payroll_payouts', { p_month: m }), supabase.rpc('payroll_summary', { p_month: m })]).then(([l, p, s]) => {
+    Promise.all([supabase.rpc('payroll_month', { p_month: m }), supabase.rpc('payroll_payouts', { p_month: m }), supabase.rpc('payroll_summary', { p_month: m }), supabase.rpc('my_output', { p_month: m })]).then(([l, p, s, o]) => {
+      setOutput(((o.data as typeof output) ?? []).map((x) => ({ ...x, windows: Number(x.windows), m2: Number(x.m2), orders: Number(x.orders) })))
       setLines((l.data as PayLine[]) ?? [])
       setPayouts((p.data as PayOut[]) ?? [])
       const row = ((s.data as { accrued: number; paid: number; remaining: number; closed: boolean }[]) ?? [])[0]
@@ -49,6 +52,24 @@ export default function MyPay() {
           </div>
           <p className="muted small">{sum.closed ? t.closedTag : t.openTag}</p>
         </>
+      )}
+      {output && (
+        <div className="card">
+          <h3>{t.done}</h3>
+          {output.length === 0 && <p className="muted">{t.doneNone}</p>}
+          {output.length > 0 && (
+            <table className="tbl">
+              <tbody>
+                {output.map((x) => (
+                  <tr key={x.stage_code}>
+                    <td>{x.stage_name}<br /><small className="muted">{x.windows} {t.doneWindows} · {x.orders} {t.doneOrders}</small></td>
+                    <td className="num">{String(Math.round(x.m2 * 100) / 100).replace('.', ',')} {t.doneM2}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
       )}
       {lines === null ? <p className="muted">{uz.loading}</p> : <div className="card"><PayrollView lines={lines} payouts={payouts} /></div>}
     </>

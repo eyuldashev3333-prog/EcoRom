@@ -289,6 +289,27 @@ function SozlamalarPane({ sec }: { sec: SectionDef }) {
   )
 }
 
+// ============ мои деньги за текущий месяц (цех и монтажник) ============
+function MyMoney() {
+  const [r, setR] = useState<{ accrued: number; paid: number; remaining: number } | null>(null)
+  useEffect(() => {
+    const m = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Tashkent' }).slice(0, 7) + '-01'
+    supabase.rpc('payroll_summary', { p_month: m }).then(({ data }) => {
+      const x = ((data as { accrued: number; paid: number; remaining: number }[]) ?? [])[0]
+      setR(x ? { accrued: Number(x.accrued), paid: Number(x.paid), remaining: Number(x.remaining) } : { accrued: 0, paid: 0, remaining: 0 })
+    })
+  }, [])
+  return (
+    <Panel title={uz.payroll.my} action={{ to: '/my-pay', label: s.open }}>
+      <Kpis items={[
+        { label: uz.payroll.accrued, value: sum(r?.accrued ?? null) },
+        { label: uz.payroll.paid, value: sum(r?.paid ?? null) },
+        { label: uz.payroll.remaining, value: sum(r?.remaining ?? null), tone: r && r.remaining > 0 ? 'green' : undefined },
+      ]} />
+    </Panel>
+  )
+}
+
 // ============ цех ============
 interface ShopRow {
   id: string
@@ -329,6 +350,7 @@ function ShopPane({ sec }: { sec: SectionDef }) {
   return (
     <>
       <SectionHead sec={sec} />
+      <MyMoney />
       <Panel title={uz.stages.shopList}>
         {rows === null && <Empty text={uz.loading} />}
         {rows?.length === 0 && <Empty text={uz.stages.noShop} />}
@@ -380,6 +402,7 @@ function InstallPane({ sec }: { sec: SectionDef }) {
   return (
     <>
       <SectionHead sec={sec} />
+      <MyMoney />
       <Panel title={uz.install.today}>
         {rows === null && <Empty text={uz.loading} />}
         {rows !== null && now.length === 0 && <Empty text={uz.install.noJobs} />}
