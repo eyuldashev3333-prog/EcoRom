@@ -191,7 +191,7 @@ Deno.serve(async (req) => {
     const { data: boss } = await admin.from('employees').select('id').eq('telegram_id', msg.from.id).eq('role', 'rahbar').eq('is_active', true).maybeSingle()
     if (boss) {
       const [{ data: cats }, { data: people }] = await Promise.all([
-        admin.from('expense_categories').select('id, name').eq('is_active', true),
+        admin.from('expense_categories').select('id, name, keywords').eq('is_active', true),
         admin.from('employees').select('id, full_name').eq('is_active', true),
       ])
       const p = parseExpense(msg.text, cats ?? [], people ?? [])

@@ -70,6 +70,7 @@ label.btn { width: 100%; }
 .inline { display: flex; gap: 10px; align-items: center; }
 .inline input { flex: 1; }
 .inline.wrap { flex-wrap: wrap; }
+.inline input[type=month], .inline input[type=date] { flex: none; }
 .head { justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; row-gap: 10px; }
 .head h1 { margin: 0; }
 .row { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; margin-bottom: 8px; }
@@ -90,14 +91,28 @@ label.btn { width: 100%; }
 .stat b { font-size: 22px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.2; }
 .stat.debt b { color: var(--red); }
 .stat.ok b { color: var(--accent); }
+.rep-grid { display: grid; gap: 14px; margin-top: 14px; }
+.rep-grid > .card { margin: 0; }
+/* цветные карточки-цифры: мягкая прозрачная заливка */
+.card.stat.t-green { background: color-mix(in srgb, var(--accent) 8%, #fff); border-color: color-mix(in srgb, var(--accent) 22%, #fff); }
+.card.stat.t-green b { color: var(--accent); }
+.card.stat.t-red, .card.stat.debt { background: color-mix(in srgb, var(--red) 8%, #fff); border-color: color-mix(in srgb, var(--red) 22%, #fff); }
+.card.stat.t-orange { background: color-mix(in srgb, var(--orange) 9%, #fff); border-color: color-mix(in srgb, var(--orange) 24%, #fff); }
+.card.stat.t-orange b { color: var(--orange); }
+.card.stat.t-blue { background: color-mix(in srgb, var(--blue) 8%, #fff); border-color: color-mix(in srgb, var(--blue) 22%, #fff); }
+.card.stat.t-blue b { color: var(--blue); }
+.card.stat.ok { background: color-mix(in srgb, var(--accent) 8%, #fff); border-color: color-mix(in srgb, var(--accent) 22%, #fff); }
 .tile { display: grid; place-items: center; min-height: 72px; font-weight: 550; color: var(--ink); text-align: center; }
 .tile:hover { background: var(--hover); }
 
 /* статусы — текст с точкой */
-.status { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 500; color: var(--muted); white-space: nowrap; }
+.status { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 500; color: var(--muted); white-space: nowrap; padding: 2px 9px 2px 8px; border-radius: 11px; background: var(--fill-2); }
 .status::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--faint); flex: none; }
+.s-new { color: var(--blue); background: color-mix(in srgb, var(--blue) 9%, #fff); }
 .s-new::before { background: var(--blue); }
+.s-in_production, .s-installing { color: var(--orange); background: color-mix(in srgb, var(--orange) 10%, #fff); }
 .s-in_production::before, .s-installing::before { background: #d08a00; }
+.s-ready, .s-installed { color: var(--accent); background: color-mix(in srgb, var(--accent) 9%, #fff); }
 .s-ready::before, .s-installed::before { background: var(--accent); }
 .s-closed { color: var(--ink-2); }
 .s-closed::before { background: var(--ink); }

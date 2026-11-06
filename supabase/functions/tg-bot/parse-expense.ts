@@ -4,6 +4,7 @@
 export interface ExpenseCategory {
   id: number
   name: string
+  keywords?: string[] // слова из таблицы (экран «Расходы»): добавляются к встроенным
 }
 export interface ExpensePerson {
   id: string
@@ -80,6 +81,7 @@ export function parseExpense(raw: string, categories: ExpenseCategory[], people:
     if (cat) for (const w of list) words.push([normalize(w), cat])
   }
   for (const c of categories) {
+    for (const w of c.keywords ?? []) if (normalize(w).trim()) words.push([normalize(w).trim(), c]) // слова, которые добавили сами
     if (Object.keys(KEYWORDS).some((k) => normalize(k) === normalize(c.name))) continue
     for (const w of normalize(c.name).split(/[^\p{L}\p{N}']+/u)) if (w.length >= 3) words.push([w, c]) // свои категории — по своему названию
   }

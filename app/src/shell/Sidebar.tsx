@@ -1,6 +1,7 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth'
 import { LogoMark, Wordmark } from '../ui/Logo'
+import Tile from '../ui/Tile'
 import { setSection, useSection } from './pager'
 import { sectionsFor } from './sections'
 
@@ -31,13 +32,14 @@ export default function Sidebar({ badges = {} }: { badges?: Record<string, numbe
           return (
             <div key={s.id} className="side-group">
               <button type="button" className={`side-sec ${active ? 'on' : ''} ${childActive ? 'child-on' : ''}`} onClick={() => openSection(s.id)}>
-                <Icon size={17} strokeWidth={1.6} />
+                <Tile icon={Icon} tone={s.tone} size="sm" />
                 <span>{s.label}</span>
                 {!!badges[s.id] && <span className="side-badge">{badges[s.id]}</span>}
               </button>
               {(active || childActive) &&
                 s.items.map((i) => (
                   <Link key={i.to} to={i.to} className={`side-item ${loc.pathname.startsWith(i.to) ? 'on' : ''}`}>
+                    <Tile icon={i.icon} tone={i.tone} size="sm" />
                     {i.label}
                   </Link>
                 ))}

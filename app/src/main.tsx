@@ -11,8 +11,8 @@ const tg = (window as unknown as { Telegram?: { WebApp?: { ready(): void; expand
 tg?.ready()
 tg?.expand()
 try {
-  tg?.setHeaderColor?.('#f2f2f5')
-  tg?.setBackgroundColor?.('#f2f2f5')
+  tg?.setHeaderColor?.('#ffffff')
+  tg?.setBackgroundColor?.('#f7f7f8')
   tg?.disableVerticalSwipes?.() // иначе свайп внутри списков сворачивает Mini App
 } catch {
   /* старые версии Telegram */

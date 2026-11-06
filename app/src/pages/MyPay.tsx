@@ -37,15 +37,15 @@ export default function MyPay() {
       {sum && (
         <>
           <div className="grid3">
-            <div className="card stat">
+            <div className="card stat t-green">
               <small>{t.accrued}</small>
               <b>{formatSum(sum.accrued)} so‘m</b>
             </div>
-            <div className="card stat">
+            <div className="card stat t-green">
               <small>{t.paid}</small>
               <b>{formatSum(sum.paid)} so‘m</b>
             </div>
-            <div className="card stat">
+            <div className={`card stat ${sum.remaining > 0 ? 't-orange' : ''}`}>
               <small>{t.remaining}</small>
               <b>{formatSum(sum.remaining)} so‘m</b>
             </div>

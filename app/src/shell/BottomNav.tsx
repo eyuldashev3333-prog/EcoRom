@@ -28,7 +28,7 @@ export default function BottomNav({ badges = {} }: { badges?: Record<string, num
               if (!home) nav('/')
             }}
           >
-            <Icon size={20} strokeWidth={on ? 1.9 : 1.5} />
+            <span className={`bn-ic t-${s.tone} ${on ? 'on' : ''}`}><Icon size={19} strokeWidth={on ? 1.9 : 1.6} /></span>
             <span>{s.short}</span>
             {!!badges[s.id] && <i className="bn-dot" />}
           </button>

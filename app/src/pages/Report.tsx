@@ -93,6 +93,7 @@ export default function Report() {
             )}
           </div>
 
+          <div className="grid-2c rep-grid">
           <div className="card">
             <h2>{t.sales}</h2>
             <table className="kv">
@@ -172,6 +173,7 @@ export default function Report() {
                 <Row label={t.suppliers} value={r.debts.suppliers} to="/suppliers" />
               </tbody>
             </table>
+          </div>
           </div>
         </>
       )}

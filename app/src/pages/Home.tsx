@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { ChevronRight, LogOut, Plus } from 'lucide-react'
+import { AlertTriangle, ChevronRight, Hammer, LogOut, Plus, ReceiptText, Wallet, type LucideIcon } from 'lucide-react'
+import Tile, { type Tone } from '../ui/Tile'
 import { useAuth } from '../auth'
 import { supabase } from '../supabase'
 import { progressPct } from '../components/StageGrid'
@@ -58,7 +59,8 @@ function useRahbarData(enabled: boolean): RahbarData {
 // ============ строгие составные части ============
 const sum = (n: number | null) => (n === null ? <span className="skel" /> : <>{fmt(n)}<small> so‘m</small></>)
 
-function Kpis({ items }: { items: { label: string; value: ReactNode; tone?: 'red' | 'green'; sub?: string }[] }) {
+type KTone = 'red' | 'green' | 'blue' | 'orange' | 'purple'
+function Kpis({ items }: { items: { label: string; value: ReactNode; tone?: KTone; sub?: string }[] }) {
   return (
     <div className="kpis">
       {items.map((k) => (
@@ -72,11 +74,11 @@ function Kpis({ items }: { items: { label: string; value: ReactNode; tone?: 'red
   )
 }
 
-function Panel({ title, action, children, foot }: { title: string; action?: { to: string; label: string }; children: ReactNode; foot?: ReactNode }) {
+function Panel({ title, action, children, foot, tone, icon }: { title: string; action?: { to: string; label: string }; children: ReactNode; foot?: ReactNode; tone?: Exclude<Tone, 'gray'>; icon?: LucideIcon }) {
   return (
-    <section className="panel">
+    <section className={`panel ${tone ? `p-${tone}` : ''}`}>
       <header className="panel-head">
-        <h2>{title}</h2>
+        <h2>{icon && <Tile icon={icon} tone={tone} size="sm" />}{title}</h2>
         {action && (
           <Link to={action.to} className="panel-link">
             {action.label} <ChevronRight size={14} strokeWidth={1.8} />
@@ -118,9 +120,12 @@ const Pct = ({ v, late }: { v: number; late?: boolean }) => (
 function SectionHead({ sec, actions }: { sec: SectionDef; actions?: ReactNode }) {
   return (
     <header className="sec-head">
-      <div>
-        <div className="sec-kicker">{s.kicker[sec.id]}</div>
-        <h1>{s.title[sec.id]}</h1>
+      <div className="sec-title">
+        <Tile icon={sec.icon} tone={sec.tone} size="lg" />
+        <div>
+          <div className="sec-kicker">{s.kicker[sec.id]}</div>
+          <h1>{s.title[sec.id]}</h1>
+        </div>
       </div>
       {actions && <div className="sec-actions">{actions}</div>}
     </header>
@@ -134,7 +139,7 @@ function Links({ sec }: { sec: SectionDef }) {
         const Icon = i.icon
         return (
           <Link key={i.to} to={i.to} className="quick-item">
-            <Icon size={18} strokeWidth={1.5} />
+            <Tile icon={Icon} tone={i.tone ?? sec.tone} />
             <span>{i.label}</span>
           </Link>
         )
@@ -156,19 +161,19 @@ function ZavodPane({ sec, d }: { sec: SectionDef; d: RahbarData }) {
       <SectionHead sec={sec} actions={<Link to="/workshop" className="btn-link">{uz.shell.open3d}</Link>} />
       <Kpis
         items={[
-          { label: uz.home.cash, value: sum(d.cash), tone: d.cash !== null && d.cash < 0 ? 'red' : undefined, sub: d.since ? `${dmy(d.since)} dan` : undefined },
+          { label: uz.home.cash, value: sum(d.cash), tone: d.cash !== null && d.cash < 0 ? 'red' : 'green', sub: d.since ? `${dmy(d.since)} dan` : undefined },
           { label: uz.home.clientDebt, value: sum(d.debt), tone: d.debt ? 'red' : undefined },
-          { label: uz.home.supplierDebt, value: sum(d.supDebt) },
-          { label: uz.home.orders, value: d.orders === null ? <span className="skel" /> : fmt(d.orders) },
+          { label: uz.home.supplierDebt, value: sum(d.supDebt), tone: d.supDebt ? 'red' : undefined },
+          { label: uz.home.orders, value: d.orders === null ? <span className="skel" /> : fmt(d.orders), tone: 'blue' },
         ]}
       />
       <div className="cols">
-        <Panel title={s.attention}>
+        <Panel title={s.attention} tone="red" icon={AlertTriangle}>
           <Row to="/leaks" title={uz.home.leaks} right={<Count n={d.attention} />} />
           <Row to="/service" title={uz.home.service} right={<Count n={d.openService} />} />
           <Row title={s.neck} right={neck ? `${uz.workshop.stations[neck.station]} · ${neck.windows} ${uz.home.windows}` : <span className="muted">—</span>} />
         </Panel>
-        <Panel title={s.inShop} action={{ to: '/zavod', label: s.open }}>
+        <Panel title={s.inShop} action={{ to: '/zavod', label: s.open }} tone="orange" icon={Hammer}>
           {inShop.length === 0 && <Empty text={d.zavod ? s.nothing : uz.loading} />}
           {inShop.slice(0, 6).map((o) => (
             <Row key={o.order_id} to={`/orders/${o.order_id}`} title={`№${o.order_no} · ${o.client}`} sub={`${uz.workshop.stations[stationOf(o)]} · ${o.windows} ${uz.home.windows}`} right={<Pct v={Number(o.percent)} late={o.late} />} />
@@ -191,7 +196,7 @@ function SavdoPane({ sec, d }: { sec: SectionDef; d: RahbarData }) {
         }
       />
       <Links sec={sec} />
-      <Panel title={s.recent} action={{ to: '/orders', label: s.all }}>
+      <Panel title={s.recent} action={{ to: '/orders', label: s.all }} tone="blue" icon={ReceiptText}>
         {d.recent.length === 0 && <Empty text={s.nothing} />}
         {d.recent.map((o) => (
           <Row
@@ -219,7 +224,7 @@ function IshlabPane({ sec, d }: { sec: SectionDef; d: RahbarData }) {
     <>
       <SectionHead sec={sec} />
       <Links sec={sec} />
-      <Panel title={s.inShop} action={{ to: '/zavod', label: s.open }} foot={neck ? `${s.neck}: ${uz.workshop.stations[neck.station]} · ${neck.windows} ${uz.home.windows}` : undefined}>
+      <Panel title={s.inShop} action={{ to: '/zavod', label: s.open }} tone="orange" icon={Hammer} foot={neck ? `${s.neck}: ${uz.workshop.stations[neck.station]} · ${neck.windows} ${uz.home.windows}` : undefined}>
         {inShop.length === 0 && <Empty text={d.zavod ? s.nothing : uz.loading} />}
         {inShop.map((o) => (
           <Row
@@ -240,9 +245,9 @@ function MontajPane({ sec, d }: { sec: SectionDef; d: RahbarData }) {
   return (
     <>
       <SectionHead sec={sec} />
-      <Kpis items={[{ label: uz.home.service, value: d.openService ?? <span className="skel" />, tone: d.openService ? 'red' : undefined }, { label: s.readyInstall, value: ready.length }]} />
+      <Kpis items={[{ label: uz.home.service, value: d.openService ?? <span className="skel" />, tone: d.openService ? 'orange' : undefined }, { label: s.readyInstall, value: ready.length, tone: 'purple' }]} />
       <Links sec={sec} />
-      <Panel title={s.readyInstall}>
+      <Panel title={s.readyInstall} tone="purple" icon={Hammer}>
         {ready.length === 0 && <Empty text={d.zavod ? s.nothing : uz.loading} />}
         {ready.map((o) => (
           <Row
@@ -264,9 +269,9 @@ function PulPane({ sec, d }: { sec: SectionDef; d: RahbarData }) {
       <SectionHead sec={sec} />
       <Kpis
         items={[
-          { label: uz.home.cash, value: sum(d.cash) },
+          { label: uz.home.cash, value: sum(d.cash), tone: d.cash !== null && d.cash < 0 ? 'red' : 'green' },
           { label: uz.home.clientDebt, value: sum(d.debt), tone: d.debt ? 'red' : undefined },
-          { label: uz.home.supplierDebt, value: sum(d.supDebt) },
+          { label: uz.home.supplierDebt, value: sum(d.supDebt), tone: d.supDebt ? 'red' : undefined },
           { label: uz.home.leaks, value: d.attention ?? <span className="skel" />, tone: d.attention ? 'red' : undefined },
         ]}
       />
@@ -300,11 +305,11 @@ function MyMoney() {
     })
   }, [])
   return (
-    <Panel title={uz.payroll.my} action={{ to: '/my-pay', label: s.open }}>
+    <Panel title={uz.payroll.my} action={{ to: '/my-pay', label: s.open }} tone="green" icon={Wallet}>
       <Kpis items={[
-        { label: uz.payroll.accrued, value: sum(r?.accrued ?? null) },
-        { label: uz.payroll.paid, value: sum(r?.paid ?? null) },
-        { label: uz.payroll.remaining, value: sum(r?.remaining ?? null), tone: r && r.remaining > 0 ? 'green' : undefined },
+        { label: uz.payroll.accrued, value: sum(r?.accrued ?? null), tone: 'green' },
+        { label: uz.payroll.paid, value: sum(r?.paid ?? null), tone: 'green' },
+        { label: uz.payroll.remaining, value: sum(r?.remaining ?? null), tone: r && r.remaining > 0 ? 'orange' : undefined },
       ]} />
     </Panel>
   )
@@ -351,7 +356,7 @@ function ShopPane({ sec }: { sec: SectionDef }) {
     <>
       <SectionHead sec={sec} />
       <MyMoney />
-      <Panel title={uz.stages.shopList}>
+      <Panel title={uz.stages.shopList} tone="orange" icon={Hammer}>
         {rows === null && <Empty text={uz.loading} />}
         {rows?.length === 0 && <Empty text={uz.stages.noShop} />}
         {rows?.map((o) => (
@@ -403,7 +408,7 @@ function InstallPane({ sec }: { sec: SectionDef }) {
     <>
       <SectionHead sec={sec} />
       <MyMoney />
-      <Panel title={uz.install.today}>
+      <Panel title={uz.install.today} tone="purple" icon={Hammer}>
         {rows === null && <Empty text={uz.loading} />}
         {rows !== null && now.length === 0 && <Empty text={uz.install.noJobs} />}
         {now.map(row)}

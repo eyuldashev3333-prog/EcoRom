@@ -9,6 +9,7 @@ const t = uz.expenses
 interface Cat {
   id: number
   name: string
+  keywords: string[]
 }
 interface Row {
   id: string
@@ -59,7 +60,7 @@ export default function Expenses() {
     load()
   }, [load])
   const loadCats = useCallback(
-    () => supabase.from('expense_categories').select('id, name').eq('is_active', true).order('name').then(({ data }) => setCats((data as Cat[]) ?? [])),
+    () => supabase.from('expense_categories').select('id, name, keywords').eq('is_active', true).order('name').then(({ data }) => setCats((data as Cat[]) ?? [])),
     [],
   )
   useEffect(() => {
@@ -100,6 +101,13 @@ export default function Expenses() {
     const { error } = await supabase.rpc('reverse_expense', { p_id: r.id, p_note: reason })
     setMsg(error ? { ok: false, text: error.message } : { ok: true, text: t.reversed })
     load()
+  }
+  const saveKeywords = async (c: Cat, text: string) => {
+    const kw = text.split(',').map((x) => x.trim().toLowerCase()).filter(Boolean)
+    if (kw.join('|') === (c.keywords ?? []).join('|')) return
+    const { error } = await supabase.from('expense_categories').update({ keywords: kw }).eq('id', c.id)
+    setMsg(error ? { ok: false, text: error.message } : { ok: true, text: t.keywordsSaved })
+    loadCats()
   }
   const addCategory = async () => {
     const { error } = await supabase.from('expense_categories').insert({ name: newCat.trim().toUpperCase() })
@@ -201,6 +209,17 @@ export default function Expenses() {
           </button>
         </div>
       </div>
+
+      <details className="card kw-card">
+        <summary><b>{t.keywordsTitle}</b></summary>
+        <p className="muted small">{t.keywordsHint}</p>
+        {cats.map((c) => (
+          <label key={`${c.id}-${(c.keywords ?? []).join(',')}`}>
+            {c.name}
+            <input defaultValue={(c.keywords ?? []).join(', ')} onBlur={(e) => saveKeywords(c, e.target.value)} placeholder="obed, choy, …" />
+          </label>
+        ))}
+      </details>
 
       <h2>{t.list}</h2>
       {rows === null && <p className="muted">{uz.loading}</p>}
