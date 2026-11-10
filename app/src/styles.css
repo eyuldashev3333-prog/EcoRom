@@ -71,6 +71,8 @@ label.btn { width: 100%; }
 .inline input { flex: 1; }
 .inline.wrap { flex-wrap: wrap; }
 .inline input[type=month], .inline input[type=date] { flex: none; }
+.monthpick { display: inline-flex; gap: 8px; }
+.monthpick select { width: auto; min-width: 0; }
 .head { justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; row-gap: 10px; }
 .head h1 { margin: 0; }
 .row { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; margin-bottom: 8px; }

@@ -60,8 +60,9 @@ export default function OrderMoney({ orderId, contract, status, imported = false
   const pay = async () => {
     const n = Number(amount.replace(/\D/g, ''))
     if (!n) return setMsg({ ok: false, text: t.badAmount })
-    if (n > debt && !window.confirm(t.overpay)) return
-    if (await call('record_payment', { p_order: orderId, p_amount: n, p_date: date, p_note: note }, t.recorded)) {
+    const advance = n > debt
+    if (advance && !window.confirm(t.overpay)) return
+    if (await call('record_payment', { p_order: orderId, p_amount: n, p_date: date, p_note: note, p_advance: advance }, t.recorded)) {
       setAmount('')
       setNote('')
     }

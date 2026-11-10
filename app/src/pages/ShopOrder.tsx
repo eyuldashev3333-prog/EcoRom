@@ -26,9 +26,13 @@ export default function ShopOrder() {
   const { id } = useParams()
   const [order, setOrder] = useState<WOrder | null>(null)
   const [items, setItems] = useState<WItem[]>([])
+  const [loaded, setLoaded] = useState(false)
 
   const loadOrder = () =>
-    supabase.from('w_orders').select('order_no, status, deadline, client_name, notes').eq('id', id).maybeSingle().then(({ data }) => setOrder(data as WOrder | null))
+    supabase.from('w_orders').select('order_no, status, deadline, client_name, notes').eq('id', id).maybeSingle().then(({ data }) => {
+      setOrder(data as WOrder | null)
+      setLoaded(true)
+    })
   useEffect(() => {
     loadOrder()
     supabase
@@ -42,7 +46,14 @@ export default function ShopOrder() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
 
-  if (!order) return <p className="muted">{uz.loading}</p>
+  if (!order)
+    return loaded ? (
+      <p className="muted">
+        {uz.order.notFound} · <Link to="/">←</Link>
+      </p>
+    ) : (
+      <p className="muted">{uz.loading}</p>
+    )
 
   // материалы по всему заказу: позиция × количество
   const total = new Map<string, { qty: number; unit: string }>()

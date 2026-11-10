@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { arcLength, layout, measure, mergeParent, newDesign, resize, setPartSize, splitLeaf, updateLeaf, type WindowDesign } from './window'
+import { arcLength, designProblems, layout, measure, mergeParent, newDesign, resize, setPartSize, splitLeaf, updateLeaf, type WindowDesign } from './window'
 
 // Эталоны — таблица WinStudio владельца из видео (позиция «окно»).
 describe('measure: совпадение с WinStudio', () => {
@@ -76,5 +76,21 @@ describe('арка', () => {
     const rect = measure(newDesign(1000, 1500)).frame_m
     const arch = measure({ ...newDesign(1000, 1500), shape: 'arch', archRise: 500 }).frame_m
     expect(arch).toBeCloseTo(rect - (2 * 500 + 1000 - Math.PI * 500) / 1000, 2)
+  })
+})
+
+describe('designProblems: защита от «пустого» стекла', () => {
+  it('обычное окно — без проблем', () => expect(designProblems(newDesign(1200, 1500))).toEqual([]))
+  it('габарит вне 200…6000 мм', () => {
+    expect(designProblems(newDesign(100, 1500))).toContain('size')
+    expect(designProblems(newDesign(1200, 7000))).toContain('size')
+  })
+  it('створка в слишком узкой части → стекло ≤ 0', () => {
+    const base = newDesign(1200, 1500)
+    let d = splitLeaf(base, base.root.id, 'v')
+    d = setPartSize(d, d.root.id, 0, 1100) // правая часть 100 мм
+    const right = layout(d).cells[1].leaf.id
+    d = updateLeaf(d, right, { opening: 'turn_l' })
+    expect(designProblems(d)).toContain('pane')
   })
 })

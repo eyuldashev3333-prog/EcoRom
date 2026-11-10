@@ -13,6 +13,14 @@ const json = (body: unknown, status = 200) =>
 const LOGIN_RE = /^[a-z0-9._-]{3,32}$/
 const ROLES = ['rahbar', 'ishlab', 'montajchi']
 const BAN_FOREVER = '876000h'
+const COMMON = ['12345678', '123456789', '1234567890', '11111111', '00000000', 'password', 'qwertyui', 'parol123', 'ecorom123']
+// пароль: от 8 символов, не из списка очевидных, не равен логину
+const passwordProblem = (pw: string, login: string): string | null => {
+  if (pw.length < 8) return 'Parol kamida 8 belgi'
+  if (COMMON.includes(pw.toLowerCase()) || /^(.)\1+$/.test(pw)) return 'Parol juda oddiy'
+  if (login && pw.toLowerCase().includes(login.toLowerCase())) return "Parol loginni o'z ichiga olmasin"
+  return null
+}
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
@@ -40,7 +48,8 @@ Deno.serve(async (req) => {
       if (!LOGIN_RE.test(login)) return json({ error: "Login: 3–32 belgi, faqat lotin harflari, raqam, . _ -" }, 400)
       if (!fullName) return json({ error: 'Ism kiritilmagan' }, 400)
       if (!ROLES.includes(body.role)) return json({ error: "Lavozim noto'g'ri" }, 400)
-      if (password.length < 6) return json({ error: "Parol kamida 6 belgi" }, 400)
+      const weak = passwordProblem(password, login)
+      if (weak) return json({ error: weak }, 400)
 
       const { data: created, error } = await admin.auth.admin.createUser({
         email: `${login}@ecorom.app`,
@@ -63,7 +72,9 @@ Deno.serve(async (req) => {
 
     case 'set_password': {
       const password = String(body.password ?? '')
-      if (password.length < 6) return json({ error: "Parol kamida 6 belgi" }, 400)
+      const { data: tgt } = await admin.from('employees').select('login').eq('id', body.employee_id).maybeSingle()
+      const weak = passwordProblem(password, tgt?.login ?? '')
+      if (weak) return json({ error: weak }, 400)
       const uid = await authUserOf(body.employee_id)
       if (!uid) return json({ error: 'Xodim topilmadi' }, 404)
       const { error } = await admin.auth.admin.updateUserById(uid, { password })
@@ -73,6 +84,15 @@ Deno.serve(async (req) => {
     case 'deactivate':
     case 'activate': {
       const active = body.action === 'activate'
+      if (!active) {
+        const { data: myId } = await caller.rpc('my_id')
+        if (myId && myId === body.employee_id) return json({ error: "O'zingizni o'chirib bo'lmaydi" }, 400)
+        const { data: target } = await admin.from('employees').select('role, is_active').eq('id', body.employee_id).maybeSingle()
+        if (target?.role === 'rahbar' && target.is_active) {
+          const { count } = await admin.from('employees').select('id', { count: 'exact', head: true }).eq('role', 'rahbar').eq('is_active', true).neq('id', body.employee_id)
+          if (!count) return json({ error: "Oxirgi faol rahbarni o'chirib bo'lmaydi" }, 400)
+        }
+      }
       const uid = await authUserOf(body.employee_id)
       if (!uid) return json({ error: 'Xodim topilmadi' }, 404)
       const { error } = await admin.auth.admin.updateUserById(uid, { ban_duration: active ? 'none' : BAN_FOREVER })

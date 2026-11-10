@@ -14,6 +14,7 @@ interface Emp {
   is_active: boolean
   left_at: string | null
   hired_at: string | null
+  telegram_id: number | null
 }
 const t = uz.employees
 
@@ -26,7 +27,7 @@ export default function Employees() {
   const load = useCallback(async () => {
     const { data } = await supabase
       .from('employees')
-      .select('id, full_name, role, login, phone, is_active, left_at, hired_at')
+      .select('id, full_name, role, login, phone, is_active, left_at, hired_at, telegram_id')
       .order('is_active', { ascending: false })
       .order('full_name')
     setList((data as Emp[]) ?? [])
@@ -101,7 +102,7 @@ export default function Employees() {
         <label>
           {uz.password}
           <div className="inline">
-            <input value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required minLength={6} />
+            <input value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required minLength={8} />
             <button type="button" className="ghost" onClick={() => setForm({ ...form, password: generatePassword() })}>
               ↻
             </button>
@@ -116,6 +117,7 @@ export default function Employees() {
           <b>{emp.full_name}</b>
           <span className="muted">{uz.roles[emp.role]}</span>
           {emp.login && <code>{emp.login}</code>}
+          {emp.is_active && (emp.telegram_id ? <span className="muted">{t.botOn}</span> : <span className="warn" title={t.botOffHint}>{t.botOff}</span>)}
           {!emp.is_active && <span className="muted">{t.left} {emp.left_at}</span>}
           <label className="inline small" title={t.hiredHint}>
             <small className="muted">{t.hired}</small>
@@ -135,3 +137,4 @@ export default function Employees() {
     </>
   )
 }
+

@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useState } from 'react'
+﻿import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../supabase'
 import { formatSum } from '../lib/pricing'
 import PayrollView, { type PayLine, type PayOut } from '../components/PayrollView'
 import { uz } from '../uz'
+import MonthPicker from '../ui/MonthPicker'
 
 const t = uz.payroll
 
@@ -39,11 +40,14 @@ export default function Payroll() {
   const [pay, setPay] = useState({ employee: '', amount: '', date: tashkentToday(), note: '' })
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
   const [busy, setBusy] = useState(false)
+  const [unpriced, setUnpriced] = useState<{ employee: string; stage: string; base: number; orders: string }[]>([])
 
   const first = `${month}-01`
   const load = useCallback(async () => {
     const { data } = await supabase.rpc('payroll_summary', { p_month: first })
     setSums(((data as Sum[]) ?? []).map((s) => ({ ...s, accrued: Number(s.accrued), paid: Number(s.paid), remaining: Number(s.remaining) })))
+    const { data: up } = await supabase.rpc('payroll_unpriced', { p_month: first })
+    setUnpriced(((up as { employee: string; stage: string; base: number; orders: string }[]) ?? []).map((x) => ({ ...x, base: Number(x.base) })))
   }, [first])
   useEffect(() => {
     load()
@@ -96,10 +100,21 @@ export default function Payroll() {
       </p>
       <div className="inline head">
         <h1>{t.title}</h1>
-        <input type="month" value={month} onChange={(e) => e.target.value && (setMonth(e.target.value), setOpen(null))} style={{ width: 'auto' }} />
+        <MonthPicker value={month} onChange={(v) => (setMonth(v), setOpen(null))} />
       </div>
       <p className="muted small">{t.hint}</p>
       {msg && <div className={msg.ok ? 'card note ok' : 'card note bad'}>{msg.text}</div>}
+      {unpriced.length > 0 && (
+        <div className="card note bad">
+          <b>{t.unpricedTitle}</b>
+          {unpriced.map((x) => (
+            <div key={x.employee + x.stage}>
+              {x.employee} · {x.stage} · {Math.round(x.base * 100) / 100} m² ({x.orders})
+            </div>
+          ))}
+          <small>{t.unpricedHint}</small>
+        </div>
+      )}
 
       <div className="grid3">
         <div className="card stat">

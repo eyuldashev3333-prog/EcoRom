@@ -50,6 +50,7 @@ export interface Quote {
   cost: number // за 1 изделие
   materials: Material[] // за 1 изделие, без цен (видно цеху, списывается со склада)
   missing: string[] // выбранные позиции без цены (0) — подсказка Rahbar
+  unknown: string[] // выбранные позиции, которых нет в каталоге (удалены/скрыты) — считать нельзя
 }
 
 /** единица части на складе: заглушки — штуки, профиль/резина сетки — метры */
@@ -126,5 +127,7 @@ export function quoteItem(m: Measure, opt: ItemOptions, catalog: Map<string, Cat
     mat.set(key, { item_id: l.item_id, part: l.part, name: l.name, unit: l.unit, qty: r3((prev?.qty ?? 0) + l.qty) })
   }
 
-  return { lines, cost: round2(lines.reduce((s, l) => s + l.sum, 0)), materials: [...mat.values()], missing: [...new Set(missing)] }
+  const chosen = [opt.system, opt.glass, opt.sill?.id, opt.ebb?.id, opt.hardware, opt.door_hardware, opt.net, opt.color, opt.lamination, ...(opt.misc ?? []), ...(opt.works ?? []), ...(opt.extras ?? []).map((x) => x.id)]
+  const unknown = [...new Set(chosen.filter((id): id is string => !!id && !catalog.get(id)))]
+  return { lines, cost: round2(lines.reduce((s, l) => s + l.sum, 0)), materials: [...mat.values()], missing: [...new Set(missing)], unknown }
 }

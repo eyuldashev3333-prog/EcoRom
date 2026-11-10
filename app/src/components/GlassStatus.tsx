@@ -56,6 +56,7 @@ export default function GlassStatus({ orderId, locked = false }: { orderId: stri
   return (
     <div className="card form">
       <h2>{t.title}</h2>
+      <p className="muted small">{t.calibHint}</p>
       <p className="muted small">
         {panes} {t.summary} · {ALL.filter((s) => s !== 'none' && count(s)).map((s) => `${t.statuses[s]}: ${count(s)}`).join(' · ') || t.statuses.none}
       </p>

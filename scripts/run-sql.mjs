@@ -13,6 +13,7 @@ export async function runSql(query) {
   return JSON.parse(t)
 }
 
-if (process.argv[2]) {
+// как скрипт запускаем только напрямую (node scripts/run-sql.mjs файл.sql), при import — нет
+if (process.argv[2] && import.meta.url === new URL(`file:///${process.argv[1].replace(/\\/g, '/')}`).href) {
   console.log(JSON.stringify(await runSql(readFileSync(process.argv[2], 'utf8')), null, 2))
 }

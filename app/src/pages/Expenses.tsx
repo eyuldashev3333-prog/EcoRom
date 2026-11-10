@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useState } from 'react'
+﻿import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../supabase'
 import { formatSum } from '../lib/pricing'
 import { uz } from '../uz'
+import MonthPicker from '../ui/MonthPicker'
 
 const t = uz.expenses
 
@@ -126,7 +127,7 @@ export default function Expenses() {
     <>
       <div className="inline head">
         <h1>{t.title}</h1>
-        <input type="month" value={month} onChange={(e) => e.target.value && setMonth(e.target.value)} style={{ width: 'auto' }} />
+        <MonthPicker value={month} onChange={setMonth} />
       </div>
       <p className="muted small">{t.hint}</p>
       {msg && <div className={msg.ok ? 'card note ok' : 'card note bad'}>{msg.text}</div>}

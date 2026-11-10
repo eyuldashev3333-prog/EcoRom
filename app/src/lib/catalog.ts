@@ -35,5 +35,10 @@ const COLOR_HEX: Record<string, string> = {
   'береза': '#e4cfa4', 'бук': '#d39c66', 'вишня': '#8e3b2a', 'гикори': '#a87a4f', 'дуб': '#a8784a', 'желтый': '#e8c547',
   'зеленый': '#4c7a4c', 'клен': '#e2b97b', 'красное дерево': '#6e2c1f', 'красный': '#b22d2d', 'темный дуб': '#4a3426',
   'бордо': '#6d1f2a', 'серый': '#8a8f93',
+  // узбекские названия каталога (после миграции 036)
+  'oq': '#f4f4f2', 'antratsit': '#3d4246', 'eman-mokko': '#5e4636', 'oltin eman': '#b07b3e', 'sheffild': '#cfb185',
+  'qayin': '#e4cfa4', 'buk': '#d39c66', 'olcha': '#8e3b2a', 'gikori': '#a87a4f', 'eman': '#a8784a', 'sariq': '#e8c547',
+  'yashil': '#4c7a4c', 'zarang': '#e2b97b', 'qizil daraxt': '#6e2c1f', 'qizil': '#b22d2d', "to'q eman": '#4a3426',
+  'bordo': '#6d1f2a', 'kulrang': '#8a8f93',
 }
 export const colorHex = (name?: string): string => COLOR_HEX[(name ?? '').trim().toLowerCase()] ?? '#f4f4f2'

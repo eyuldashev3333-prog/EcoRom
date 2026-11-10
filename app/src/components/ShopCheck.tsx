@@ -47,14 +47,17 @@ export default function ShopCheck({ orderId, status, hasItems, onChanged }: { or
 
   const send = async () => {
     if (sentAt && !window.confirm(t.resendConfirm)) return
+    const { count: linked } = await supabase.from('employees').select('id', { count: 'exact', head: true }).eq('role', 'ishlab').eq('is_active', true).not('telegram_id', 'is', null)
+    if (!linked && !window.confirm(t.noRecipientsAsk)) return
     setBusy(true)
-    const { data, error } = await supabase.rpc('send_to_shop', { p_order: orderId })
+    let { data, error } = await supabase.rpc('send_to_shop', { p_order: orderId })
+    if (error?.message.startsWith('NARX_NOL') && window.confirm(t.zeroPriceAsk)) ({ data, error } = await supabase.rpc('send_to_shop', { p_order: orderId, p_force: true }))
     if (!error) {
       await load()
       onChanged()
     }
     setBusy(false)
-    setMsg(error ? { ok: false, text: error.message } : data?.recipients ? { ok: true, text: t.sent } : { ok: false, text: t.noRecipients })
+    setMsg(error ? { ok: false, text: error.message.replace('NARX_NOL: ', '') } : data?.recipients ? { ok: true, text: t.sent } : { ok: false, text: t.noRecipients })
   }
 
   const current = sentAt ? checks.filter((c) => c.created_at >= sentAt) : []

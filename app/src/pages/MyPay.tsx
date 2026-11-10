@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../supabase'
 import { formatSum } from '../lib/pricing'
 import PayrollView, { type PayLine, type PayOut } from '../components/PayrollView'
 import { uz } from '../uz'
+import MonthPicker from '../ui/MonthPicker'
 
 const t = uz.payroll
 
@@ -32,7 +33,7 @@ export default function MyPay() {
     <>
       <div className="inline head">
         <h1>{t.my}</h1>
-        <input type="month" value={month} onChange={(e) => e.target.value && setMonth(e.target.value)} style={{ width: 'auto' }} />
+        <MonthPicker value={month} onChange={setMonth} />
       </div>
       {sum && (
         <>

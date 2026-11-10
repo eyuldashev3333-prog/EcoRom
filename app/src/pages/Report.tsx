@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../supabase'
 import { formatSum } from '../lib/pricing'
 import { uz } from '../uz'
+import MonthPicker from '../ui/MonthPicker'
 
 const t = uz.report
 
@@ -73,7 +74,7 @@ export default function Report() {
     <>
       <div className="inline head">
         <h1>{t.title}</h1>
-        <input type="month" value={month} onChange={(e) => e.target.value && setMonth(e.target.value)} style={{ width: 'auto' }} />
+        <MonthPicker value={month} onChange={setMonth} />
       </div>
       {err && <div className="card note bad">{err}</div>}
       {!r && !err && <p className="muted">{uz.loading}</p>}

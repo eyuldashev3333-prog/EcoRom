@@ -71,10 +71,14 @@ Deno.serve(async (req) => {
     const { notification_id } = await req.json()
     const { data: n } = await admin.from('notifications').select('*').eq('id', notification_id).maybeSingle()
     if (!n) return new Response('not found', { status: 404 })
-    let q = admin.from('employees').select('telegram_id, role').eq('is_active', true).not('telegram_id', 'is', null)
+    let q = admin.from('employees').select('full_name, telegram_id, role').eq('is_active', true).not('telegram_id', 'is', null)
     q = n.employee_id ? q.eq('id', n.employee_id) : q.eq('role', n.target_role)
     const { data: people } = await q
-    const errors: string[] = []
+    // повторная отправка: тем, кому уже дошло, второй раз не шлём
+    const done = new Set<number>((n.delivered_tg ?? []).map(Number))
+    const permanent: string[] = []
+    const transient: string[] = []
+    const PERMANENT = /chat not found|bot was blocked|user is deactivated|chat_id is empty|PEER_ID_INVALID/i
     // фото установленных окон: временные ссылки на закрытые файлы → альбом (подпись — текст уведомления)
     const photos: string[] = Array.isArray(n.payload?.photos) ? n.payload.photos.slice(0, 10) : []
     const urls: string[] = []
@@ -82,16 +86,52 @@ Deno.serve(async (req) => {
       const { data: s } = await admin.storage.from('install-photos').createSignedUrl(path, 600)
       if (s?.signedUrl) urls.push(s.signedUrl)
     }
-    for (const p of people ?? []) {
-      const r = urls.length
-        ? await tg('sendMediaGroup', { chat_id: p.telegram_id, media: urls.map((u, i) => ({ type: 'photo', media: u, ...(i === 0 ? { caption: n.text } : {}) })) })
-        : await tg('sendMessage', { chat_id: p.telegram_id, text: n.text, reply_markup: keyboard(p.role, n.payload ?? {}) })
-      if (!r.ok) errors.push(`${p.telegram_id}: ${r.description}`)
+    for (const p of (people ?? []).filter((x) => !done.has(Number(x.telegram_id)))) {
+      let r: { ok: boolean; description?: string }
+      try {
+        r = urls.length
+          ? await tg('sendMediaGroup', { chat_id: p.telegram_id, media: urls.map((u, i) => ({ type: 'photo', media: u, ...(i === 0 ? { caption: n.text } : {}) })) })
+          : await tg('sendMessage', { chat_id: p.telegram_id, text: n.text, reply_markup: keyboard(p.role, n.payload ?? {}) })
+      } catch (e) {
+        r = { ok: false, description: `network: ${e instanceof Error ? e.message : e}` }
+      }
+      if (r.ok) done.add(Number(p.telegram_id))
+      else (PERMANENT.test(r.description ?? '') ? permanent : transient).push(`${p.full_name} (${p.telegram_id}): ${r.description}`)
     }
+    const attempts = (n.attempts ?? 0) + 1
+    const final = transient.length === 0 || attempts >= 5 // временные ошибки повторяет база (notify_retry), до 5 попыток
+    const noRecipients = !(people ?? []).length
+    const failures = [...permanent, ...transient]
     await admin
       .from('notifications')
-      .update({ sent_at: new Date().toISOString(), error: errors.length ? errors.join('; ') : (people?.length ? null : 'qabul qiluvchi yo‘q') })
+      .update({
+        delivered_tg: [...done],
+        attempts,
+        last_attempt_at: new Date().toISOString(),
+        sent_at: final ? new Date().toISOString() : null,
+        error: failures.length ? failures.join('; ') : noRecipients ? 'qabul qiluvchi yo‘q' : null,
+      })
       .eq('id', notification_id)
+    // не дошло → Rahbar узнаёт (на сами предупреждения предупреждений не шлём)
+    if (final && n.payload?.kind !== 'alert' && (failures.length || (noRecipients && (n.employee_id || n.target_role !== 'rahbar')))) {
+      let who = ''
+      if (noRecipients) {
+        if (n.employee_id) {
+          const { data: e } = await admin.from('employees').select('full_name').eq('id', n.employee_id).maybeSingle()
+          who = e?.full_name ?? ''
+        } else {
+          const { data: es } = await admin.from('employees').select('full_name').eq('role', n.target_role).eq('is_active', true)
+          who = (es ?? []).map((x) => x.full_name).join(', ')
+        }
+      }
+      const head = String(n.text).split('\n')[0].slice(0, 80)
+      await admin.rpc('notify', {
+        p_role: 'rahbar',
+        p_employee: null,
+        p_text: `⚠️ Xabar yetib bormadi: «${head}»\n` + (noRecipients ? `Qabul qiluvchi yo‘q — botga ulanmagan${who ? `: ${who}` : ''}.` : failures.join('\n')),
+        p_payload: { kind: 'alert', order_id: n.payload?.order_id ?? null },
+      })
+    }
     return new Response('ok')
   }
 

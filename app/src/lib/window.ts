@@ -307,3 +307,11 @@ export function resize(d: WindowDesign, width: number, height: number): WindowDe
   }
   return { ...d, width, height, root: scale(d.root, width, height) }
 }
+
+/** Проблемы чертежа, при которых цену и стекло считать нельзя: 'size' — габарит вне 200…6000 мм, 'pane' — стекло меньше 50 мм (отрицательные/нулевые панели). */
+export function designProblems(d: WindowDesign, dims: Dims = DEFAULT_DIMS): ('size' | 'pane')[] {
+  const out: ('size' | 'pane')[] = []
+  if (!(d.width >= 200 && d.width <= 6000) || !(d.height >= 200 && d.height <= 6000)) out.push('size')
+  if (measure(d, dims).panes.some((p) => !(p.w >= 50 && p.h >= 50))) out.push('pane')
+  return out
+}

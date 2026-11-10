@@ -65,3 +65,15 @@ describe('quoteItem', () => {
     expect(qq.lines.map((l) => l.name)).toEqual(['Дверной (Супра)'])
   })
 })
+
+describe('quoteItem: позиции, которых нет в каталоге', () => {
+  it('удалённая система попадает в unknown, а не молча выпадает', () => {
+    const cat = new Map<string, CatalogItem>([['G', { id: 'G', kind: 'glass', name: 'G', unit: 'm2', price: 100, params: {} }]])
+    const q = quoteItem(measure(newDesign(1200, 1500)), { system: 'GONE', glass: 'G' }, cat, 1200)
+    expect(q.unknown).toEqual(['GONE'])
+  })
+  it('всё найдено — unknown пуст', () => {
+    const cat = new Map<string, CatalogItem>([['G', { id: 'G', kind: 'glass', name: 'G', unit: 'm2', price: 100, params: {} }]])
+    expect(quoteItem(measure(newDesign(1200, 1500)), { glass: 'G' }, cat, 1200).unknown).toEqual([])
+  })
+})

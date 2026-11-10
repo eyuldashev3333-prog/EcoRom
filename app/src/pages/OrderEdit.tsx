@@ -17,8 +17,8 @@ import InstallParts from '../components/InstallParts'
 import CuttingPlan from '../components/CuttingPlan'
 import { colorHex, useCatalog } from '../lib/catalog'
 import { formatSum, profit, suggestedPrice } from '../lib/pricing'
-import { quoteItem, type ItemOptions } from '../lib/quote'
-import { measure, type WindowDesign } from '../lib/window'
+import { quoteItem, type ItemOptions, type Material, type QuoteLine } from '../lib/quote'
+import { designProblems, measure, type WindowDesign } from '../lib/window'
 import { uz } from '../uz'
 
 const t = uz.order
@@ -31,6 +31,8 @@ interface ItemDraft {
   design: WindowDesign
   options: ItemOptions
   note: string
+  // цены на момент сохранения: пока окно не менялось, старый заказ не пересчитывается по новым ценам каталога
+  frozen?: { cost: number; area_m2: number; calc: { lines?: QuoteLine[] }; materials: { items?: Material[] } }
 }
 interface ClientDraft {
   id?: string
@@ -61,6 +63,7 @@ export default function OrderEdit() {
   }, [])
   const [orderNo, setOrderNo] = useState<number | null>(null)
   const [status, setStatus] = useState('new')
+  const [frozenMarkup, setFrozenMarkup] = useState<number | null>(null) // наценка, с которой заказ был сохранён
   const [savedContract, setSavedContract] = useState(0) // договор из базы (оплаты считаются от него)
   const [loaded, setLoaded] = useState(!id) // блок оплат — только после загрузки заказа (иначе % от нуля)
   const [imported, setImported] = useState(false) // заказ из истории (таблица): без чертежей
@@ -96,10 +99,11 @@ export default function OrderEdit() {
       setDiscount(Number(o.discount_pct))
       setContract(String(Number(o.contract_price) || ''))
       setSavedContract(Number(o.contract_price))
+      setFrozenMarkup(Number(o.markup) || null)
       setImported(!!o.is_imported)
       setHead({ windows: o.windows_count, area: Number(o.area_m2), cost: Number(o.calc_cost) })
-      const { data: its } = await supabase.from('order_items').select('id, pos, title, qty, design, options, note').eq('order_id', id).order('pos')
-      setItems(((its as { id: string; title: string | null; qty: number; design: WindowDesign; options: ItemOptions; note: string | null }[]) ?? []).map((x) => ({ id: x.id, key: newKey(), title: x.title ?? '', qty: x.qty, design: x.design, options: x.options ?? {}, note: x.note ?? '' })))
+      const { data: its } = await supabase.from('order_items').select('id, pos, title, qty, design, options, note, cost, area_m2, calc, materials').eq('order_id', id).order('pos')
+      setItems(((its as { id: string; title: string | null; qty: number; design: WindowDesign; options: ItemOptions; note: string | null; cost: number; area_m2: number; calc: { lines?: QuoteLine[] }; materials: { items?: Material[] } }[]) ?? []).map((x) => ({ id: x.id, key: newKey(), title: x.title ?? '', qty: x.qty, design: x.design, options: x.options ?? {}, note: x.note ?? '', frozen: { cost: Number(x.cost), area_m2: Number(x.area_m2), calc: x.calc ?? {}, materials: x.materials ?? {} } })))
       setLoaded(true)
     })()
   }, [id])
@@ -109,7 +113,9 @@ export default function OrderEdit() {
     () =>
       items.map((it) => {
         const m = measure(it.design)
-        return { m, q: quoteItem(m, it.options, catalog.byId, it.design.width) }
+        const live = quoteItem(m, it.options, catalog.byId, it.design.width)
+        if (it.frozen) return { m, q: { lines: it.frozen.calc.lines ?? [], cost: it.frozen.cost, materials: it.frozen.materials.items ?? [], missing: [], unknown: [] as string[] }, live }
+        return { m, q: live, live }
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [items, catalog.items],
@@ -117,7 +123,16 @@ export default function OrderEdit() {
   const cost = calc.reduce((s, c, i) => s + c.q.cost * items[i].qty, 0)
   const area = calc.reduce((s, c, i) => s + c.m.area_m2 * items[i].qty, 0)
   const windows = items.reduce((s, it) => s + it.qty, 0)
-  const suggested = suggestedPrice(cost, catalog.markup, discount)
+  const markupUsed = frozenMarkup ?? catalog.markup
+  const suggested = suggestedPrice(cost, markupUsed, discount)
+  const liveCost = calc.reduce((s, c, i) => s + c.live.cost * items[i].qty, 0)
+  const priceDrift = items.some((x) => x.frozen) && Math.abs(liveCost - cost) > 1
+  const recalc = () => {
+    setItems((xs) => xs.map((x) => ({ ...x, frozen: undefined })))
+    setFrozenMarkup(null)
+  }
+  const problems = items.flatMap((it, i) => designProblems(it.design).map((c) => ({ pos: i + 1, code: c })))
+  const unknownIds = [...new Set(calc.flatMap((c) => c.q.unknown))]
   const contractNum = Number(contract) || roundDown1000(suggested)
   const pr = profit(contractNum, cost)
   const missing = [...new Set(calc.flatMap((c) => c.q.missing))]
@@ -135,11 +150,30 @@ export default function OrderEdit() {
     setItems((xs) => [...xs, it])
     setEditing(it.key)
   }
-  const patchItem = (key: string, patch: Partial<ItemDraft>) => setItems((xs) => xs.map((x) => (x.key === key ? { ...x, ...patch } : x)))
-  const copyItem = (it: ItemDraft) => setItems((xs) => [...xs, { ...structuredClone(it), id: undefined, key: newKey() }])
+  const patchItem = (key: string, patch: Partial<ItemDraft>) => setItems((xs) => xs.map((x) => (x.key === key ? { ...x, ...patch, ...('design' in patch || 'options' in patch ? { frozen: undefined } : {}) } : x)))
+  const copyItem = (it: ItemDraft) => setItems((xs) => [...xs, { ...structuredClone(it), id: undefined, key: newKey(), frozen: undefined }])
   const removeItem = (key: string) => window.confirm(t.removeConfirm) && setItems((xs) => xs.filter((x) => x.key !== key))
 
+  const locked = !!id && !['new', 'in_production'].includes(status)
+
   const save = async () => {
+    if (!locked) {
+      if (problems.length) return setMsg({ ok: false, text: problems.map((p) => `${p.pos}-pozitsiya: ${p.code === 'size' ? t.badSize : t.badPane}`).join('; ') })
+      if (unknownIds.length) return setMsg({ ok: false, text: t.unknownItems })
+      if (missing.length && !window.confirm(`${t.missingConfirm}: ${missing.join(', ')}`)) return
+    }
+    if (id && status === 'in_production' && !window.confirm(t.resendConfirm)) return
+    const digits = (s: string) => s.replace(/\D/g, '').slice(-9)
+    if (!client.id) {
+      const dup = clients.find((c) => (digits(client.phone).length >= 7 && digits(c.phone ?? '') === digits(client.phone)) || c.full_name.trim().toLowerCase() === client.full_name.trim().toLowerCase())
+      if (dup && window.confirm(`${t.dupClient}: ${dup.full_name}${dup.phone ? ` · ${dup.phone}` : ''}`)) {
+        setClient({ id: dup.id, full_name: dup.full_name, phone: dup.phone ?? '', address: dup.address ?? '' })
+        return setMsg({ ok: true, text: t.dupClientPicked })
+      }
+    } else {
+      const orig = clients.find((c) => c.id === client.id)
+      if (orig && (orig.full_name !== client.full_name || (orig.phone ?? '') !== client.phone) && !window.confirm(t.clientEditConfirm)) return
+    }
     setBusy(true)
     setMsg(null)
     const payload = {
@@ -153,7 +187,7 @@ export default function OrderEdit() {
       windows_count: windows,
       area_m2: Math.round(area * 100) / 100,
       calc_cost: Math.round(cost * 100) / 100,
-      markup: catalog.markup,
+      markup: markupUsed,
       calc_suggested: suggested,
       discount_pct: discount,
       contract_price: contractNum,
@@ -166,17 +200,17 @@ export default function OrderEdit() {
         qty: it.qty,
         design: it.design,
         options: it.options,
-        materials: { items: calc[i].q.materials, panes: calc[i].m.panes.map((p) => ({ w: Math.round(p.w), h: Math.round(p.h), sash: p.sash })) },
-        calc: { lines: calc[i].q.lines, measure: { ...calc[i].m, panes: undefined } },
+        materials: it.frozen ? it.frozen.materials : { items: calc[i].q.materials, panes: calc[i].m.panes.map((p) => ({ w: Math.round(p.w), h: Math.round(p.h), sash: p.sash })) },
+        calc: it.frozen ? it.frozen.calc : { lines: calc[i].q.lines, measure: { ...calc[i].m, panes: undefined } },
         cost: calc[i].q.cost,
-        area_m2: calc[i].m.area_m2,
+        area_m2: it.frozen ? it.frozen.area_m2 : calc[i].m.area_m2,
         note: it.note,
       })),
     }
     const { data, error } = await supabase.rpc('save_order', { p: payload })
     setBusy(false)
     if (error) return setMsg({ ok: false, text: error.message })
-    setMsg({ ok: true, text: `${t.saved} #${data.order_no}` })
+    setMsg({ ok: true, text: data.resent ? t.resentOk : `${t.saved} #${data.order_no}` })
     setOrderNo(data.order_no)
     setSavedContract(contractNum)
     if (!id) nav(`/orders/${data.id}`, { replace: true })
@@ -194,6 +228,7 @@ export default function OrderEdit() {
         {orderNo ? `${t.order} #${orderNo}` : t.new} {orderNo && <span className={`status s-${status}`}>{t.statuses[status]}</span>}
       </h1>
       {msg && <div className={msg.ok ? 'card note ok' : 'card note bad'}>{msg.text}</div>}
+      {locked && !imported && <div className="card note">{t.lockedHint}</div>}
       {id && (
         <p>
           <Link to={`/orders/${id}/print`} className="btn-link">
@@ -260,6 +295,7 @@ export default function OrderEdit() {
       <>
       {/* позиции */}
       <h2>{t.items}</h2>
+      <fieldset disabled={locked} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
       {items.map((it, i) => (
         <div key={it.key} className={`card item-row ${editing === it.key ? 'on' : ''}`}>
           <div className="thumb">
@@ -345,12 +381,22 @@ export default function OrderEdit() {
         </div>
       )}
 
+      </fieldset>
+
       {/* склад: пока заказ не ушёл в цех (после — материалы уже списаны) */}
       {status === 'new' && items.length > 0 && <StockHint items={items.map((it, i) => ({ qty: it.qty, materials: calc[i].q.materials }))} />}
 
       {/* итог */}
       <div className="card totals">
         <h2>{t.total}</h2>
+        {priceDrift && !locked && (
+          <p className="warn">
+            {t.priceDrift}: {formatSum(liveCost)} / {formatSum(cost)}{' '}
+            <button type="button" className="link" onClick={recalc}>{t.recalc}</button>
+          </p>
+        )}
+        {problems.length > 0 && <p className="warn">{problems.map((p) => `${p.pos}-pozitsiya: ${p.code === 'size' ? t.badSize : t.badPane}`).join('; ')}</p>}
+        {unknownIds.length > 0 && <p className="warn">{t.unknownItems}</p>}
         {missing.length > 0 && (
           <p className="warn">
             {t.missing}: {missing.join(', ')}
@@ -363,7 +409,7 @@ export default function OrderEdit() {
             <tr>
               <td>{t.discount}</td>
               <td>
-                <select value={discount} onChange={(e) => setDiscount(Number(e.target.value))}>
+                <select value={discount} disabled={locked} onChange={(e) => setDiscount(Number(e.target.value))}>
                   {[0, 1, 2, 3, 5].map((d) => (
                     <option key={d} value={d}>
                       {d}%
@@ -372,13 +418,13 @@ export default function OrderEdit() {
                 </select>
               </td>
             </tr>
-            <tr><td>{t.suggested} (+{Math.round(catalog.markup * 100)}%)</td><td>{formatSum(suggested)}</td></tr>
+            <tr><td>{t.suggested} (+{Math.round(markupUsed * 100)}%)</td><td>{formatSum(suggested)}</td></tr>
             <tr>
               <td>
                 <b>{t.contract}</b>
               </td>
               <td>
-                <input className="money" inputMode="numeric" placeholder={formatSum(roundDown1000(suggested))} value={contract} onChange={(e) => setContract(e.target.value.replace(/\D/g, ''))} />
+                <input className="money" disabled={locked} inputMode="numeric" placeholder={formatSum(roundDown1000(suggested))} value={contract} onChange={(e) => setContract(e.target.value.replace(/\D/g, ''))} />
               </td>
             </tr>
             <tr className={pr.marginPct < marginAlert ? 'bad' : ''}>

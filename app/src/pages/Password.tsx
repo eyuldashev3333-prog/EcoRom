@@ -12,7 +12,7 @@ export default function Password() {
 
   const submit = async (e: FormEvent) => {
     e.preventDefault()
-    if (pw.length < 6) return setMsg({ ok: false, text: t.tooShort })
+    if (pw.length < 8) return setMsg({ ok: false, text: t.tooShort })
     if (pw !== pw2) return setMsg({ ok: false, text: t.mismatch })
     const { error } = await supabase.auth.updateUser({ password: pw })
     setMsg(error ? { ok: false, text: error.message } : { ok: true, text: t.done })
@@ -40,3 +40,4 @@ export default function Password() {
     </>
   )
 }
+
