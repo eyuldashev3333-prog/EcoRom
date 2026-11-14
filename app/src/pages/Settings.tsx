@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../supabase'
+import LangUnits from '../components/LangUnits'
 import { uz } from '../uz'
 
 const t = uz.settings
@@ -72,6 +73,7 @@ export default function Settings() {
   return (
     <>
       <h1>{t.title}</h1>
+      <LangUnits />
       <p className="muted small">{t.hint}</p>
       {msg && <div className={msg.ok ? 'card note ok' : 'card note bad'}>{msg.text}</div>}
       {FIELDS.map((f) => {

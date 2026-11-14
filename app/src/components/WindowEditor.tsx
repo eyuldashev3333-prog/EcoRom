@@ -1,8 +1,16 @@
 import { useEffect, useMemo, useState } from 'react'
 import WindowSvg from './WindowSvg'
+import NumPad from './NumPad'
+import ConfigPicker from './ConfigPicker'
+import CellDialog from './CellDialog'
+import MeasureTable from './MeasureTable'
+import { fmtLen, lenToMm, lenUnit, withLenUnit } from '../lib/units'
+import { Confirm } from './Dialog'
 import {
   OPENINGS,
+  equalize,
   findNode,
+  hasUnequalParts,
   layout,
   measure,
   mergeParent,
@@ -19,69 +27,31 @@ import { uz } from '../uz'
 
 const t = uz.designer
 
-// готовые схемы (как «конфигурация» в WinStudio)
-export const PRESETS: { key: string; build: () => WindowDesign }[] = [
-  { key: 'fixed', build: () => newDesign(1200, 1500) },
-  {
-    key: 'two',
-    build: () => {
-      const b = newDesign(1200, 1500)
-      const d = splitLeaf(b, b.root.id, 'v')
-      return updateLeaf(d, layout(d).cells[1].leaf.id, { opening: 'tt_r' })
-    },
-  },
-  {
-    key: 'three',
-    build: () => {
-      const b = newDesign(1800, 1500)
-      const d = splitLeaf(b, b.root.id, 'v', 3)
-      const c = layout(d).cells
-      return updateLeaf(updateLeaf(d, c[0].leaf.id, { opening: 'tt_l' }), c[2].leaf.id, { opening: 'tt_r' })
-    },
-  },
-  {
-    key: 'transom',
-    build: () => {
-      const b = newDesign(1500, 2000)
-      let d = splitLeaf(b, b.root.id, 'h')
-      d = setPartSize(d, d.root.id, 0, 500)
-      const bottom = layout(d).cells[1].leaf.id
-      d = splitLeaf(d, bottom, 'v')
-      return updateLeaf(d, layout(d).cells[2].leaf.id, { opening: 'tt_r' })
-    },
-  },
-  {
-    key: 'balcony',
-    build: () => {
-      const b = newDesign(2100, 2150)
-      let d = splitLeaf(b, b.root.id, 'v')
-      d = setPartSize(d, d.root.id, 0, 750)
-      return updateLeaf(d, layout(d).cells[0].leaf.id, { opening: 'tt_l', door: true })
-    },
-  },
-  { key: 'arch', build: () => ({ ...newDesign(1200, 1800), shape: 'arch', archRise: 400 }) },
-]
+// готовые схемы с открываниями и каталог конфигураций — в lib/configs.ts
+export { PRESETS } from '../lib/configs'
 
-const askNumber = (label: string, current: number): number | null => {
-  const v = window.prompt(label, String(current))
-  if (v === null) return null
-  const n = Math.round(Number(v.replace(',', '.')))
-  return Number.isFinite(n) && n > 0 ? n : null
+// запрос числа через цифровую клавиатуру (вместо window.prompt)
+interface PadReq {
+  title: string
+  value: number
+  min: number
+  max: number
+  apply: (n: number) => void
 }
 
 // поле размера: применяется по Enter или при выходе из поля
 export function SizeInput({ label, value, min, onCommit }: { label: string; value: number; min: number; onCommit: (n: number) => void }) {
-  const [v, setV] = useState(String(value))
-  useEffect(() => setV(String(value)), [value])
+  const [v, setV] = useState(fmtLen(value))
+  useEffect(() => setV(fmtLen(value)), [value])
   const commit = () => {
-    const n = Math.round(Number(v.replace(',', '.')))
+    const n = lenToMm(Number(v.replace(',', '.')))
     if (Number.isFinite(n) && n >= min) onCommit(n)
-    else setV(String(value))
+    else setV(fmtLen(value))
   }
   return (
     <label>
-      {label}
-      <input inputMode="numeric" value={v} onChange={(e) => setV(e.target.value)} onBlur={commit} onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()} />
+      {withLenUnit(label)}
+      <input inputMode="decimal" value={v} onChange={(e) => setV(e.target.value)} onBlur={commit} onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()} />
     </label>
   )
 }
@@ -90,35 +60,48 @@ interface Props {
   value: WindowDesign
   onChange: (d: WindowDesign) => void
   frameColor?: string
+  legend?: string[] // выбранные опции окна — показываются на чертеже при включённом «Nazorat»
+  qty?: number
+  note?: string
+  cost?: number // себестоимость одного окна (для нижней таблицы)
+  price?: number // цена одного окна для клиента (своя цена / скидка учтены)
 }
 
-export default function WindowEditor({ value: design, onChange, frameColor }: Props) {
+export default function WindowEditor({ value: design, onChange, frameColor, legend, qty, note, cost, price }: Props) {
+  const [control, setControl] = useState(true)
   const [selected, setSelected] = useState<string | null>(null)
+  const [pad, setPad] = useState<PadReq | null>(null)
+  const [eq, setEq] = useState<{ w: number; h: number } | null>(null)
+  const [picking, setPicking] = useState(false)
+  const [cellOpen, setCellOpen] = useState(false)
   const m = useMemo(() => measure(design), [design])
   const sel = selected ? (findNode(design.root, selected) as Leaf | null) : null
   const set = (fn: (d: WindowDesign) => WindowDesign) => onChange(fn(design))
 
-  const setSize = (axis: 'w' | 'h', current: number) => {
-    const n = askNumber(axis === 'w' ? t.width : t.height, current)
-    if (n && n >= 300) set((d) => resize(d, axis === 'w' ? n : d.width, axis === 'h' ? n : d.height))
+  // смена габарита: если части неравные — спрашиваем «Уравнять размеры?»
+  const changeSize = (w: number, h: number) => {
+    if (hasUnequalParts(design)) setEq({ w, h })
+    else onChange(resize(design, w, h))
   }
+  const setSize = (axis: 'w' | 'h', current: number) =>
+    setPad({
+      title: withLenUnit(axis === 'w' ? t.width : t.height),
+      value: current,
+      min: 300,
+      max: 6000,
+      apply: (n) => changeSize(axis === 'w' ? n : design.width, axis === 'h' ? n : design.height),
+    })
 
   return (
     <>
-      <div className="tabs">
-        {PRESETS.map((p) => (
-          <button
-            key={p.key}
-            type="button"
-            className="tab"
-            onClick={() => {
-              onChange(p.build())
-              setSelected(null)
-            }}
-          >
-            {t.presets[p.key]}
-          </button>
-        ))}
+      <div className="inline wrap" style={{ marginBottom: 10, alignItems: 'center' }}>
+        <button type="button" className="ghost" onClick={() => setPicking(true)}>
+          ▦ {t.pickConfig}
+        </button>
+        <label className="ctrl">
+          <input type="checkbox" checked={control} onChange={(e) => setControl(e.target.checked)} />
+          {t.control}
+        </label>
       </div>
 
       <div className="designer">
@@ -127,12 +110,17 @@ export default function WindowEditor({ value: design, onChange, frameColor }: Pr
             design={design}
             frameColor={frameColor}
             selectedId={selected}
-            onSelect={setSelected}
-            onSizeClick={setSize}
-            onPartClick={(splitId, i, cur) => {
-              const n = askNumber(t.partSize, cur)
-              if (n) set((d) => setPartSize(d, splitId, i, n))
+            legend={control ? legend : undefined}
+            badge={control && qty && qty > 0 ? `${qty} ${t.pcs}` : undefined}
+            note={control ? note : undefined}
+            onSelect={(id) => {
+              setSelected(id)
+              setCellOpen(true)
             }}
+            onSizeClick={setSize}
+            onPartClick={(splitId, i, cur) =>
+              setPad({ title: withLenUnit(t.partSize), value: cur, min: 100, max: 6000, apply: (n) => set((d) => setPartSize(d, splitId, i, n)) })
+            }
           />
           <p className="muted hint">{t.hint}</p>
         </div>
@@ -140,8 +128,8 @@ export default function WindowEditor({ value: design, onChange, frameColor }: Pr
         <div className="side">
           <div className="card form">
             <div className="inline">
-              <SizeInput label={t.width} value={design.width} min={300} onCommit={(n) => set((d) => resize(d, n, d.height))} />
-              <SizeInput label={t.height} value={design.height} min={300} onCommit={(n) => set((d) => resize(d, d.width, n))} />
+              <SizeInput label={t.width} value={design.width} min={300} onCommit={(n) => changeSize(n, design.height)} />
+              <SizeInput label={t.height} value={design.height} min={300} onCommit={(n) => changeSize(design.width, n)} />
             </div>
             <label>
               {t.shape}
@@ -166,69 +154,67 @@ export default function WindowEditor({ value: design, onChange, frameColor }: Pr
           <div className="card form">
             <h2>{sel ? t.cell : t.pickCell}</h2>
             {sel && (
-              <>
-                <div className="inline wrap">
-                  <button type="button" className="ghost" onClick={() => set((d) => splitLeaf(d, sel.id, 'v'))}>
-                    ┃ {t.splitV}
-                  </button>
-                  <button type="button" className="ghost" onClick={() => set((d) => splitLeaf(d, sel.id, 'h'))}>
-                    ━ {t.splitH}
-                  </button>
-                  <button
-                    type="button"
-                    className="ghost"
-                    onClick={() => {
-                      set((d) => mergeParent(d, sel.id))
-                      setSelected(null)
-                    }}
-                  >
-                    ⧈ {t.merge}
-                  </button>
-                </div>
-                <div className="openings">
-                  {OPENINGS.map((o: Opening) => (
-                    <button key={o} type="button" className={sel.opening === o ? 'tab on' : 'tab'} onClick={() => set((d) => updateLeaf(d, sel.id, { opening: o, net: o === 'fixed' ? false : sel.net }))}>
-                      {t.openings[o]}
-                    </button>
-                  ))}
-                </div>
-                <label className="check">
-                  <input type="checkbox" checked={!!sel.door} onChange={(e) => set((d) => updateLeaf(d, sel.id, { door: e.target.checked }))} />
-                  {t.door}
-                </label>
-                <label className="check">
-                  <input type="checkbox" checked={!!sel.net} disabled={sel.opening === 'fixed'} onChange={(e) => set((d) => updateLeaf(d, sel.id, { net: e.target.checked }))} />
-                  {t.net}
-                </label>
-              </>
+              <button type="button" onClick={() => setCellOpen(true)}>
+                ✎ {t.cellTitle}
+              </button>
             )}
           </div>
 
           <div className="card">
-            <h2>{t.measures}</h2>
-            <table className="kv">
-              <tbody>
-                <tr><td>{t.area}</td><td>{m.area_m2} m²</td></tr>
-                <tr><td>{t.frame}</td><td>{m.frame_m} m</td></tr>
-                <tr><td>{t.impost}</td><td>{m.impost_m} m</td></tr>
-                <tr><td>{t.sash}</td><td>{m.sash_m} m ({m.sashes})</td></tr>
-                <tr><td>{t.bead}</td><td>{m.bead_m} m</td></tr>
-                <tr><td>{t.gasket}</td><td>{m.gasket_m} m</td></tr>
-                <tr><td>{t.glass}</td><td>{m.glass_m2} m²</td></tr>
-                {m.nets_m2 > 0 && <tr><td>{t.net}</td><td>{m.nets_m2} m²</td></tr>}
-              </tbody>
-            </table>
             <h2>{t.panes}</h2>
             <ul className="panes">
               {m.panes.map((p, i) => (
                 <li key={p.leafId}>
-                  {i + 1}. {Math.round(p.w)} × {Math.round(p.h)} mm {p.sash ? `· ${t.inSash}` : ''}
+                  {i + 1}. {fmtLen(p.w)} × {fmtLen(p.h)} {lenUnit()} {p.sash ? `· ${t.inSash}` : ''}
                 </li>
               ))}
             </ul>
           </div>
         </div>
       </div>
+
+      <MeasureTable m={m} qty={qty} cost={cost} price={price} />
+
+      {cellOpen && sel && <CellDialog design={design} leafId={sel.id} onChange={onChange} onClose={() => setCellOpen(false)} />}
+      {picking && (
+        <ConfigPicker
+          onClose={() => setPicking(false)}
+          onPick={(d) => {
+            onChange(d)
+            setSelected(null)
+            setPicking(false)
+          }}
+        />
+      )}
+      {pad && (
+        <NumPad
+          title={pad.title}
+          value={pad.value}
+          min={pad.min}
+          max={pad.max}
+          onCancel={() => setPad(null)}
+          onOk={(n) => {
+            pad.apply(n)
+            setPad(null)
+          }}
+        />
+      )}
+      {eq && (
+        <Confirm
+          title={t.equalizeQ}
+          text={t.equalizeSub}
+          no={t.no}
+          yes={t.yes}
+          onNo={() => {
+            onChange(resize(design, eq.w, eq.h))
+            setEq(null)
+          }}
+          onYes={() => {
+            onChange(equalize(resize(design, eq.w, eq.h)))
+            setEq(null)
+          }}
+        />
+      )}
     </>
   )
 }

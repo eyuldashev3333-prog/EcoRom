@@ -22,6 +22,7 @@ export default function Orders() {
   const [debts, setDebts] = useState<Map<string, number>>(new Map())
   const [pct, setPct] = useState<Map<string, number>>(new Map())
   const [q, setQ] = useState(() => new URLSearchParams(window.location.hash.split('?')[1] ?? '').get('q') ?? '') // глобальный поиск из шапки
+  const [sort, setSort] = useState<'no' | 'name'>('no')
   const nav = useNavigate()
   useEffect(() => {
     supabase
@@ -41,15 +42,35 @@ export default function Orders() {
       .then(({ data }) => setPct(new Map(((data as { order_id: string; percent: string }[]) ?? []).map((d) => [d.order_id, Number(d.percent)]))))
   }, [])
   const s = q.trim().toLowerCase()
-  const shown = (rows ?? []).filter((r) => !s || String(r.order_no).includes(s) || r.clients?.full_name.toLowerCase().includes(s) || (r.clients?.phone ?? '').includes(s))
+  const found = (rows ?? []).filter((r) => !s || String(r.order_no).includes(s) || r.clients?.full_name.toLowerCase().includes(s) || (r.clients?.phone ?? '').includes(s))
+  const shown = sort === 'name' ? [...found].sort((a, b) => (a.clients?.full_name ?? '').localeCompare(b.clients?.full_name ?? '', 'ru') || b.order_no - a.order_no) : found
+  // последний созданный заказ (по дате создания, а не по номеру: номера импорта идут не по порядку)
+  const last = (rows ?? []).reduce<Row | null>((m, r) => (!m || r.created_at > m.created_at ? r : m), null)
 
   return (
     <>
       <div className="inline head">
         <h1>{t.list}</h1>
-        <button onClick={() => nav('/orders/new')}>+ {t.new}</button>
+        <div className="inline">
+          {last && (
+            <button className="ghost" onClick={() => nav(`/orders/${last.id}`)}>
+              {t.lastOrder}
+            </button>
+          )}
+          <button onClick={() => nav('/orders/new')}>+ {t.new}</button>
+        </div>
       </div>
-      <input placeholder={t.search} value={q} onChange={(e) => setQ(e.target.value)} className="search" />
+      <div className="inline wrap" style={{ alignItems: 'center', marginBottom: 10 }}>
+        <input placeholder={t.search} value={q} onChange={(e) => setQ(e.target.value)} className="search" style={{ flex: 1, margin: 0, minWidth: 200 }} />
+        <div className="tabs" role="group" aria-label={t.sort}>
+          <button type="button" className={sort === 'no' ? 'tab on' : 'tab'} onClick={() => setSort('no')}>
+            {t.sortNo}
+          </button>
+          <button type="button" className={sort === 'name' ? 'tab on' : 'tab'} onClick={() => setSort('name')}>
+            {t.sortName}
+          </button>
+        </div>
+      </div>
       {rows === null && <p className="muted">{uz.loading}</p>}
       {rows?.length === 0 && <p className="muted">{t.empty}</p>}
       {shown.map((r) => (

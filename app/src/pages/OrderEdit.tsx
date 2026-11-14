@@ -3,6 +3,12 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../supabase'
 import WindowEditor, { PRESETS } from '../components/WindowEditor'
 import WindowSvg from '../components/WindowSvg'
+import { Confirm } from '../components/Dialog'
+import WindowTabs from '../components/WindowTabs'
+import ConfigPicker from '../components/ConfigPicker'
+import { optionLegend } from '../lib/legend'
+import { download } from '../lib/export'
+import { buildWindowsFile, parseWindowsFile, remapOptions } from '../lib/exchange'
 import ItemOptionsForm from '../components/ItemOptionsForm'
 import OrderMoney from '../components/OrderMoney'
 import ShopCheck from '../components/ShopCheck'
@@ -15,9 +21,9 @@ import BreakageList from '../components/BreakageList'
 import InstallPlan from '../components/InstallPlan'
 import InstallParts from '../components/InstallParts'
 import CuttingPlan from '../components/CuttingPlan'
-import { colorHex, useCatalog } from '../lib/catalog'
-import { formatSum, profit, suggestedPrice } from '../lib/pricing'
-import { quoteItem, type ItemOptions, type Material, type QuoteLine } from '../lib/quote'
+import { itemColor, useCatalog } from '../lib/catalog'
+import { formatSum, itemPrice, profit, round2 } from '../lib/pricing'
+import { quoteItem, workCost, type ItemOptions, type Material, type QuoteLine } from '../lib/quote'
 import { designProblems, measure, type WindowDesign } from '../lib/window'
 import { uz } from '../uz'
 
@@ -113,7 +119,7 @@ export default function OrderEdit() {
     () =>
       items.map((it) => {
         const m = measure(it.design)
-        const live = quoteItem(m, it.options, catalog.byId, it.design.width)
+        const live = quoteItem(m, it.options, catalog.byId, it.design.width, it.design.height)
         if (it.frozen) return { m, q: { lines: it.frozen.calc.lines ?? [], cost: it.frozen.cost, materials: it.frozen.materials.items ?? [], missing: [], unknown: [] as string[] }, live }
         return { m, q: live, live }
       }),
@@ -124,7 +130,14 @@ export default function OrderEdit() {
   const area = calc.reduce((s, c, i) => s + c.m.area_m2 * items[i].qty, 0)
   const windows = items.reduce((s, it) => s + it.qty, 0)
   const markupUsed = frozenMarkup ?? catalog.markup
-  const suggested = suggestedPrice(cost, markupUsed, discount)
+  // цена окна: своя цена и скидка окна главнее общей скидки заказа
+  const taxK = 1 + catalog.settings.taxPct / 100 // налог из прайса (по умолчанию 0)
+  const itemPrices = items.map((it, i) =>
+    round2(
+      itemPrice(calc[i]?.q.cost ?? 0, workCost(calc[i]?.q.lines ?? []), markupUsed, discount, it.options, catalog.settings.schemes.find((s) => s.id === it.options.scheme)) * taxK,
+    ),
+  )
+  const suggested = round2(items.reduce((s, it, i) => s + itemPrices[i] * it.qty, 0))
   const liveCost = calc.reduce((s, c, i) => s + c.live.cost * items[i].qty, 0)
   const priceDrift = items.some((x) => x.frozen) && Math.abs(liveCost - cost) > 1
   const recalc = () => {
@@ -145,14 +158,37 @@ export default function OrderEdit() {
     } else setClient((x) => ({ ...x, full_name: label }))
   }
 
-  const addItem = () => {
-    const it: ItemDraft = { key: newKey(), title: '', qty: 1, design: PRESETS[1].build(), options: items.length ? { ...items[items.length - 1].options } : {}, note: '' }
+  const [picking, setPicking] = useState(false) // выбор схемы для нового окна («+» в ленте)
+  const addItem = (design?: WindowDesign) => {
+    const it: ItemDraft = { key: newKey(), title: '', qty: 1, design: design ?? PRESETS[1].build(), options: items.length ? { ...items[items.length - 1].options } : {}, note: '' }
     setItems((xs) => [...xs, it])
     setEditing(it.key)
   }
   const patchItem = (key: string, patch: Partial<ItemDraft>) => setItems((xs) => xs.map((x) => (x.key === key ? { ...x, ...patch, ...('design' in patch || 'options' in patch ? { frozen: undefined } : {}) } : x)))
   const copyItem = (it: ItemDraft) => setItems((xs) => [...xs, { ...structuredClone(it), id: undefined, key: newKey(), frozen: undefined }])
-  const removeItem = (key: string) => window.confirm(t.removeConfirm) && setItems((xs) => xs.filter((x) => x.key !== key))
+  // обмен окнами файлом: выгрузка всех окон заказа и добавление окон из файла (id опций переносятся по названиям)
+  const exportWindows = () => {
+    const f = buildWindowsFile(items.map(({ title, qty, design, options, note }) => ({ title, qty, design, options, note })), catalog.byId)
+    download(new Blob([JSON.stringify(f, null, 1)], { type: 'application/json' }), `ecorom-oynalar-${orderNo ?? 'yangi'}.json`)
+  }
+  const importWindows = async (file: File | undefined, el: HTMLInputElement) => {
+    if (!file) return
+    const f = parseWindowsFile(await file.text())
+    el.value = ''
+    if (typeof f === 'string') return setMsg({ ok: false, text: f })
+    if (!f.items.length) return setMsg({ ok: false, text: uz.exchange.empty })
+    const dropped = new Set<string>()
+    const added: ItemDraft[] = f.items.map((r) => {
+      const m = remapOptions(r.options, f.names, catalog.byId)
+      m.dropped.forEach((x) => dropped.add(x))
+      return { key: newKey(), title: r.title, qty: r.qty, design: r.design, options: m.options, note: r.note }
+    })
+    setItems((xs) => [...xs, ...added])
+    setEditing(added[0].key)
+    setMsg({ ok: true, text: `${added.length} ${uz.exchange.importedWindows}${dropped.size ? `. ${uz.exchange.droppedOptions}: ${[...dropped].join(', ')}` : ''}` })
+  }
+  const [askRemove, setAskRemove] = useState<string | null>(null)
+  const removeItem = (key: string) => setItems((xs) => xs.filter((x) => x.key !== key))
 
   const locked = !!id && !['new', 'in_production'].includes(status)
 
@@ -296,10 +332,20 @@ export default function OrderEdit() {
       {/* позиции */}
       <h2>{t.items}</h2>
       <fieldset disabled={locked} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
+      {items.length > 0 && <WindowTabs items={items} active={editing} onPick={(k) => setEditing(editing === k ? null : k)} onAdd={() => setPicking(true)} disabled={locked} />}
+      {picking && (
+        <ConfigPicker
+          onClose={() => setPicking(false)}
+          onPick={(d) => {
+            addItem(d)
+            setPicking(false)
+          }}
+        />
+      )}
       {items.map((it, i) => (
         <div key={it.key} className={`card item-row ${editing === it.key ? 'on' : ''}`}>
           <div className="thumb">
-            <WindowSvg design={it.design} frameColor={colorHex(catalog.byId.get(it.options.color ?? '')?.name)} maxHeight={120} />
+            <WindowSvg design={it.design} frameColor={itemColor(catalog.byId.get(it.options.color ?? ''))} maxHeight={120} />
           </div>
           <div className="item-info">
             <b>
@@ -319,15 +365,36 @@ export default function OrderEdit() {
             <button type="button" className="ghost" onClick={() => copyItem(it)}>
               {t.copy}
             </button>
-            <button type="button" className="ghost" onClick={() => removeItem(it.key)}>
+            <button type="button" className="ghost" onClick={() => setAskRemove(it.key)} aria-label={t.removeConfirm}>
               ✕
             </button>
+            {askRemove === it.key && (
+              <Confirm
+                text={t.removeConfirm}
+                no={uz.designer.no}
+                yes={uz.designer.yes}
+                onNo={() => setAskRemove(null)}
+                onYes={() => {
+                  removeItem(it.key)
+                  setAskRemove(null)
+                }}
+              />
+            )}
           </div>
         </div>
       ))}
-      <button type="button" onClick={addItem}>
-        + {t.addItem}
-      </button>
+      <div className="inline wrap">
+        <button type="button" onClick={() => (items.length ? addItem() : setPicking(true))}>
+          + {t.addItem}
+        </button>
+        <button type="button" className="ghost" onClick={exportWindows} disabled={!items.length}>
+          ↓ {uz.exchange.exportWindows}
+        </button>
+        <label className="btn ghost" style={{ width: 'auto' }}>
+          ↑ {uz.exchange.importWindows}
+          <input type="file" accept="application/json,.json" hidden onChange={(e) => importWindows(e.target.files?.[0], e.target)} />
+        </label>
+      </div>
 
       {/* редактор позиции */}
       {edited && editedCalc && (
@@ -345,9 +412,18 @@ export default function OrderEdit() {
               <input inputMode="numeric" value={edited.qty} onChange={(e) => patchItem(edited.key, { qty: Math.max(1, Number(e.target.value) || 1) })} />
             </label>
           </div>
-          <WindowEditor value={edited.design} onChange={(design) => patchItem(edited.key, { design })} frameColor={colorHex(catalog.byId.get(edited.options.color ?? '')?.name)} />
+          <WindowEditor
+            value={edited.design}
+            onChange={(design) => patchItem(edited.key, { design })}
+            frameColor={itemColor(catalog.byId.get(edited.options.color ?? ''))}
+            legend={optionLegend(edited.options, catalog.byId, (id) => catalog.settings.schemes.find((s) => s.id === id)?.name)}
+            qty={edited.qty}
+            note={edited.note}
+            cost={editedCalc.q.cost}
+            price={itemPrices[items.indexOf(edited)]}
+          />
           <div className="designer">
-            <ItemOptionsForm value={edited.options} onChange={(options) => patchItem(edited.key, { options })} catalog={catalog} widthMm={edited.design.width} />
+            <ItemOptionsForm value={edited.options} onChange={(options) => patchItem(edited.key, { options })} catalog={catalog} widthMm={edited.design.width} calcPrice={round2(editedCalc.q.cost * (1 + markupUsed))} />
             <div className="card">
               <h2>{t.breakdown}</h2>
               <table className="kv lines">

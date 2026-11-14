@@ -2,7 +2,9 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { supabase } from '../supabase'
 import WindowSvg from '../components/WindowSvg'
-import { colorHex, useCatalog } from '../lib/catalog'
+import RequisitesDialog, { type Company } from '../components/RequisitesDialog'
+import { itemColor, useCatalog } from '../lib/catalog'
+import { optionLegend } from '../lib/legend'
 import { dataUrlToBlob, download, elementToPng, insideTelegram, pagesToPdf, sendToTelegram } from '../lib/export'
 import { formatSum } from '../lib/pricing'
 import type { ItemOptions } from '../lib/quote'
@@ -35,13 +37,11 @@ interface Order {
   calc_cost: number
   clients: { full_name: string; phone: string | null; address: string | null }
 }
-interface Company {
-  name?: string
-  executor?: string
-  address?: string
-  phone?: string
-  web?: string
-}
+type Mode = 'client' | 'drawings' | 'details' | 'offer' | 'shop'
+const MODES: Mode[] = ['client', 'drawings', 'details', 'offer', 'shop']
+const MODE_LABEL: Record<Mode, string> = { client: t.forClient, drawings: t.drawings, details: t.details, offer: t.offer, shop: t.forShop }
+const MODE_TITLE: Record<Exclude<Mode, 'offer'>, string> = { client: t.titleClient, drawings: t.titleDrawings, details: t.titleDetails, shop: t.titleShop }
+const FILE_SUFFIX: Record<Mode, string> = { client: '', drawings: '-chizma', details: '-tafsilot', offer: '-taklif', shop: '-zavod' }
 
 // договорная цена делится по позициям пропорционально себестоимости (сумма = договор)
 function allocate(items: Item[], contract: number): number[] {
@@ -55,7 +55,9 @@ function allocate(items: Item[], contract: number): number[] {
 export default function OrderPrint() {
   const { id } = useParams()
   const [params, setParams] = useSearchParams()
-  const mode = params.get('mode') === 'shop' ? 'shop' : 'client'
+  const mode: Mode = (MODES as string[]).includes(params.get('mode') ?? '') ? (params.get('mode') as Mode) : 'client'
+  const showPrice = mode === 'client' || mode === 'offer'
+  const [reqOpen, setReqOpen] = useState(false)
   const catalog = useCatalog()
   const [order, setOrder] = useState<Order | null>(null)
   const [items, setItems] = useState<Item[]>([])
@@ -84,7 +86,9 @@ export default function OrderPrint() {
   for (let i = 0; i < Math.max(items.length, 1); i += PER_PAGE) pages.push(items.slice(i, i + PER_PAGE))
   const name = (idv?: string) => (idv ? catalog.byId.get(idv)?.name : undefined)
   const date = new Date(order.created_at).toLocaleDateString('ru-RU')
-  const fileBase = `ECOROM-${order.order_no}${mode === 'shop' ? '-zavod' : ''}`
+  const fileBase = `ECOROM-${order.order_no}${FILE_SUFFIX[mode]}`
+  const docTitle = mode === 'offer' ? company.title?.trim() || t.offerTitle : MODE_TITLE[mode]
+  const schemeName = (sid: string) => catalog.settings.schemes.find((s) => s.id === sid)?.name
 
   const pageEls = () => Array.from(pagesRef.current?.querySelectorAll<HTMLElement>('.sheet') ?? [])
   const run = async (label: string, fn: () => Promise<void>) => {
@@ -116,12 +120,11 @@ export default function OrderPrint() {
           <Link to={`/orders/${id}`}>← {uz.order.order} #{order.order_no}</Link>
         </p>
         <div className="tabs">
-          <button className={mode === 'client' ? 'tab on' : 'tab'} onClick={() => setParams({ mode: 'client' })}>
-            {t.forClient}
-          </button>
-          <button className={mode === 'shop' ? 'tab on' : 'tab'} onClick={() => setParams({ mode: 'shop' })}>
-            {t.forShop}
-          </button>
+          {MODES.map((m) => (
+            <button key={m} className={mode === m ? 'tab on' : 'tab'} onClick={() => setParams({ mode: m })}>
+              {MODE_LABEL[m]}
+            </button>
+          ))}
         </div>
         <div className="inline wrap actions">
           <button onClick={tg} disabled={!!busy}>{busy === 'tg' ? '…' : t.toTelegram}</button>
@@ -132,7 +135,11 @@ export default function OrderPrint() {
               {t.print}
             </button>
           )}
+          <button className="ghost" onClick={() => setReqOpen(true)}>
+            {t.requisites}
+          </button>
         </div>
+        {reqOpen && <RequisitesDialog value={company} onSaved={setCompany} onClose={() => setReqOpen(false)} />}
         {msg && <div className={msg.ok ? 'card note ok' : 'card note bad'}>{msg.text}</div>}
       </div>
 
@@ -144,6 +151,7 @@ export default function OrderPrint() {
                 <div><span>{t.executor}:</span> {company.executor}</div>
                 <div><span>{t.address}:</span> {company.address}</div>
                 <div><span>{t.phone}:</span> {company.phone}</div>
+                {company.email && <div><span>{t.email}:</span> {company.email}</div>}
                 <div><span>{t.web}:</span> {company.web}</div>
               </div>
               <img src={`${import.meta.env.BASE_URL}logo.jpg`} alt="ECOROM" className="sheet-logo" />
@@ -154,33 +162,47 @@ export default function OrderPrint() {
                 <div><span>{t.orderNo}:</span> <b>№{order.order_no}</b></div>
               </div>
             </header>
+            <h3 className="doc-title">{docTitle}</h3>
             <div className="sheet-grid">
               {chunk.map((it) => {
                 const idx = items.indexOf(it)
                 const o = it.options ?? {}
                 const optsLine = [name(o.sill?.id), name(o.ebb?.id), name(o.hardware), name(o.net), name(o.color)].filter(Boolean).join(' · ')
+                const legend = mode === 'details' ? optionLegend(o, catalog.byId, schemeName).join(' · ') : ''
+                const unit = it.qty ? Math.round(prices[idx] / it.qty) : 0
                 return (
                   <div key={it.id} className="cell">
                     <div className="cell-top">
                       <b>{it.pos}</b>
-                      <span>{[name(o.system), name(o.glass)].filter(Boolean).join(' · ')}</span>
+                      <span>{mode === 'drawings' ? '' : [name(o.system), name(o.glass)].filter(Boolean).join(' · ')}</span>
                     </div>
                     {it.title && <div className="cell-title">{it.title}</div>}
-                    <WindowSvg design={it.design} frameColor={colorHex(name(o.color))} maxHeight={175} fontScale={1.9} />
+                    <WindowSvg design={it.design} frameColor={itemColor(catalog.byId.get(o.color ?? ''))} maxHeight={mode === 'details' ? 140 : 175} fontScale={1.9} />
                     <div className="cell-foot">
-                      {optsLine && <div className="opts">{optsLine}</div>}
+                      {mode === 'details' ? legend && <div className="opts legend">{legend}</div> : mode !== 'drawings' && mode !== 'offer' && optsLine && <div className="opts">{optsLine}</div>}
                       {mode === 'shop' && it.materials?.panes && (
                         <div className="opts">
                           {t.panes}: {it.materials.panes.map((p) => `${p.w}×${p.h}`).join(', ')}
                         </div>
                       )}
                       {it.note && <div className="opts">✎ {it.note}</div>}
-                      <div className="cell-sum">
-                        <span>
-                          {Number(it.area_m2)} m² × {it.qty} {t.pcs}
-                        </span>
-                        {mode === 'client' && <b>{formatSum(prices[idx])} {t.sum}</b>}
-                      </div>
+                      {mode === 'offer' ? (
+                        <table className="offer-tbl">
+                          <tbody>
+                            <tr><td>{t.area}</td><td>{Number(it.area_m2)} m²</td></tr>
+                            <tr><td>{t.price1}</td><td>{formatSum(unit)} {t.sum}</td></tr>
+                            <tr><td>{t.qty}</td><td>{it.qty} {t.pcs}</td></tr>
+                            <tr><td><b>{t.sumRow}</b></td><td><b>{formatSum(prices[idx])} {t.sum}</b></td></tr>
+                          </tbody>
+                        </table>
+                      ) : (
+                        <div className="cell-sum">
+                          <span>
+                            {Number(it.area_m2)} m² × {it.qty} {t.pcs}
+                          </span>
+                          {mode === 'client' && <b>{formatSum(prices[idx])} {t.sum}</b>}
+                        </div>
+                      )}
                     </div>
                   </div>
                 )
@@ -192,7 +214,7 @@ export default function OrderPrint() {
                   <tbody>
                     <tr><td>{t.constructions}</td><td>{order.windows_count} {t.pcs}</td></tr>
                     <tr><td>{t.totalArea}</td><td>{Number(order.area_m2)} m²</td></tr>
-                    {mode === 'client' && (
+                    {showPrice && (
                       <tr><td><b>{t.totalSum}</b></td><td><b>{formatSum(Number(order.contract_price))} {t.sum}</b></td></tr>
                     )}
                   </tbody>

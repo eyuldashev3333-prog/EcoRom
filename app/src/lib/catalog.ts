@@ -1,33 +1,39 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../supabase'
 import type { CatalogItem } from './quote'
+import { parsePriceSettings, scaleItem, SETTING_KEYS, type PriceSettings } from './priceSettings'
 
 export interface CatalogState {
   items: CatalogItem[]
   byId: Map<string, CatalogItem>
   byKind: (kind: string) => CatalogItem[]
   markup: number
+  settings: PriceSettings // валюта/курс, налог, финансовые схемы
   loading: boolean
 }
 
-// активный каталог + наценка из настроек (одна загрузка на страницу)
+// активный каталог + настройки прайса (одна загрузка на страницу). Цены сразу пересчитаны в валюту результатов по курсу.
 export function useCatalog(): CatalogState {
   const [items, setItems] = useState<CatalogItem[]>([])
-  const [markup, setMarkup] = useState(0.37)
+  const [settings, setSettings] = useState<PriceSettings>(() => parsePriceSettings([]))
   const [loading, setLoading] = useState(true)
   useEffect(() => {
     Promise.all([
       supabase.from('catalog_items').select('id, kind, name, unit, price, params').eq('is_active', true).order('sort').order('name'),
-      supabase.from('app_settings').select('value').eq('key', 'markup').maybeSingle(),
+      supabase.from('app_settings').select('key, value').in('key', [...SETTING_KEYS]),
     ]).then(([c, s]) => {
-      setItems(((c.data as CatalogItem[]) ?? []).map((i) => ({ ...i, price: Number(i.price) })))
-      if (s.data) setMarkup(Number(s.data.value))
+      const st = parsePriceSettings((s.data as { key: string; value: unknown }[]) ?? [])
+      setSettings(st)
+      setItems(((c.data as CatalogItem[]) ?? []).map((i) => scaleItem({ ...i, price: Number(i.price) }, st.rate)))
       setLoading(false)
     })
   }, [])
   const byId = new Map(items.map((i) => [i.id, i]))
-  return { items, byId, byKind: (k) => items.filter((i) => i.kind === k), markup, loading }
+  return { items, byId, byKind: (k) => items.filter((i) => i.kind === k), markup: settings.markup, settings, loading }
 }
+
+/** цвет для чертежа: образец из прайса (params.hex), иначе по названию */
+export const itemColor = (it?: CatalogItem): string => (typeof it?.params?.hex === 'string' && /^#[0-9a-f]{6}$/i.test(it.params.hex) ? it.params.hex : colorHex(it?.name))
 
 // цвета профиля для чертежа (по названию из каталога)
 const COLOR_HEX: Record<string, string> = {

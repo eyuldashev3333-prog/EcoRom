@@ -8,6 +8,7 @@ import { uz } from './uz'
 import Login from './pages/Login'
 import Home from './pages/Home'
 import Catalog from './pages/Catalog'
+import Exchange from './pages/Exchange'
 import Employees from './pages/Employees'
 import Password from './pages/Password'
 import Designer from './pages/Designer'
@@ -79,6 +80,7 @@ export default function App() {
       <main className={loc.pathname.startsWith('/jadval') ? 'page wide' : 'page'} key={loc.pathname}>
         <Routes>
           <Route path="/catalog" element={me.role === 'rahbar' ? <Catalog /> : <Navigate to="/" />} />
+          <Route path="/exchange" element={me.role === 'rahbar' ? <Exchange /> : <Navigate to="/" />} />
           <Route path="/employees" element={me.role === 'rahbar' ? <Employees /> : <Navigate to="/" />} />
           <Route path="/password" element={<Password />} />
           <Route path="/install/:id" element={me.role === 'montajchi' ? <InstallOrder /> : <Navigate to="/" />} />

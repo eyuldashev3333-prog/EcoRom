@@ -12,7 +12,7 @@ await page.goto(BASE+'/orders/new'); await page.waitForTimeout(2000)
 await page.fill('label:has-text("Mijoz ismi") input','TEST Freeze'); 
 await page.click('text=+ Oyna qo\'shish'); await page.waitForTimeout(1000)
 await page.selectOption('label:has-text("Oyna tizimi") select',{label:'TEST sys'}); await page.selectOption('label:has-text("Oyna paket") select',{label:'TEST glass'}); await page.waitForTimeout(500)
-await page.click('button:has-text("Saqlash")'); await page.waitForTimeout(2500)
+await page.click('button:text-is("Saqlash")'); await page.waitForTimeout(2500)
 const id = page.url().split('/orders/')[1]
 const c1=(await sql(`select calc_cost, calc_suggested from orders where id='${id}'`))[0]; console.log('saved', c1)
 // цена каталога выросла
@@ -21,14 +21,15 @@ await page.reload(); await page.waitForTimeout(3000)
 const txt=(await page.locator('main').innerText()).replace(/\s+/g,' ')
 check('F1','баннер «Katalog narxlari o\'zgargan» показан', /Katalog narxlari o'zgargan/.test(txt), txt.match(/Katalog narxlari.{0,80}/)?.[0])
 // сохранить без правки окон (изменить только заметку)
-await page.fill('label:has-text("Izoh") textarea','note changed'); await page.click('button:has-text("Saqlash")'); await page.waitForTimeout(2500)
+await page.fill('label:has-text("Izoh") textarea','note changed'); await page.click('button:text-is("Saqlash")'); await page.waitForTimeout(2500)
 const c2=(await sql(`select calc_cost, calc_suggested from orders where id='${id}'`))[0]
 check('F2','сохранение без правки окон НЕ меняет себестоимость', Number(c2.calc_cost)===Number(c1.calc_cost), JSON.stringify(c2))
 // пересчитать
-await page.click('button:has-text("Qayta hisoblash")'); await page.waitForTimeout(500); await page.click('button:has-text("Saqlash")'); await page.waitForTimeout(2500)
+await page.click('button:has-text("Qayta hisoblash")'); await page.waitForTimeout(500); await page.click('button:text-is("Saqlash")'); await page.waitForTimeout(2500)
 const c3=(await sql(`select calc_cost from orders where id='${id}'`))[0]
 check('F3','после «Qayta hisoblash» себестоимость стала по новой цене', Number(c3.calc_cost)>Number(c1.calc_cost), JSON.stringify(c3))
 console.log('dialogs',dialogs,'errs',errs)
 await page.screenshot({path:'shots/freeze.png',fullPage:true})
 await write(R,'DELETE',`catalog_items?id=in.(${s.id},${g.id})`)
 await br.close()
+

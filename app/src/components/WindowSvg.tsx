@@ -1,5 +1,6 @@
 import { useId } from 'react'
-import { arcLength, layout, splitBoxes, type Opening, type Rect, type WindowDesign } from '../lib/window'
+import { fmtLen } from '../lib/units'
+import { arcLength, frameSides, layout, splitBoxes, type Opening, type Rect, type WindowDesign } from '../lib/window'
 
 interface Props {
   design: WindowDesign
@@ -10,23 +11,26 @@ interface Props {
   onSizeClick?: (axis: 'w' | 'h', current: number) => void
   maxHeight?: number
   fontScale?: number // крупнее подписи для печатного листа
+  legend?: string[] // выбранные опции окна (режим «контроль» и PDF с подробностями)
+  badge?: string // «5 dona» — количество
+  note?: string // заметка к окну
 }
 
 const FRAME = 60 // видимая ширина рамы на чертеже, мм
 const IMPOST = 35 // половина видимого импоста, мм
 const SASH = 55 // видимая ширина створки, мм
 
-// внутренний просвет ячейки на чертеже
-function clearRect(r: Rect, W: number, H: number): Rect {
-  const l = r.x <= 0 ? FRAME : IMPOST
-  const t = r.y <= 0 ? FRAME : IMPOST
-  const rr = r.x + r.w >= W ? FRAME : IMPOST
-  const b = r.y + r.h >= H ? FRAME : IMPOST
+// внутренний просвет ячейки на чертеже (рама — по краю габарита и по границе с вырезом)
+function clearRect(r: Rect, fs: { l: boolean; t: boolean; r: boolean; b: boolean }): Rect {
+  const l = fs.l ? FRAME : IMPOST
+  const t = fs.t ? FRAME : IMPOST
+  const rr = fs.r ? FRAME : IMPOST
+  const b = fs.b ? FRAME : IMPOST
   return { x: r.x + l, y: r.y + t, w: r.w - l - rr, h: r.h - t - b }
 }
 const inset = (r: Rect, d: number): Rect => ({ x: r.x + d, y: r.y + d, w: r.w - 2 * d, h: r.h - 2 * d })
 
-function openingLines(o: Opening, g: Rect) {
+export function openingLines(o: Opening, g: Rect) {
   const { x, y, w, h } = g
   const L = { x, y: y + h / 2 }
   const R = { x: x + w, y: y + h / 2 }
@@ -48,11 +52,12 @@ function openingLines(o: Opening, g: Rect) {
   }
 }
 
-export default function WindowSvg({ design, frameColor = '#f4f4f2', selectedId, onSelect, onPartClick, onSizeClick, maxHeight = 420, fontScale = 1 }: Props) {
+export default function WindowSvg({ design, frameColor = '#f4f4f2', selectedId, onSelect, onPartClick, onSizeClick, maxHeight = 420, fontScale = 1, legend, badge, note }: Props) {
   // свой id на каждый чертёж: на одной странице (PDF заказа) их несколько
   const uidRaw = useId().replace(/[^a-zA-Z0-9]/g, '')
   const clipId = `clip${uidRaw}`
   const netId = `net${uidRaw}`
+  const panelId = `pnl${uidRaw}`
   const { width: W, height: H } = design
   const { cells } = layout(design)
   const splits = splitBoxes(design)
@@ -84,6 +89,10 @@ export default function WindowSvg({ design, frameColor = '#f4f4f2', selectedId, 
         <pattern id={netId}width={font * 0.6} height={font * 0.6} patternUnits="userSpaceOnUse">
           <path d={`M0,0 L${font * 0.6},${font * 0.6} M${font * 0.6},0 L0,${font * 0.6}`} stroke="#5a6b62" strokeWidth={stroke * 0.5} />
         </pattern>
+        <pattern id={panelId} width={font * 0.9} height={font * 0.9} patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+          <rect width={font * 0.9} height={font * 0.9} fill="#eceee9" />
+          <path d={`M0,0 V${font * 0.9}`} stroke="#8a948d" strokeWidth={stroke * 0.7} />
+        </pattern>
       </defs>
 
       {/* рама */}
@@ -92,8 +101,9 @@ export default function WindowSvg({ design, frameColor = '#f4f4f2', selectedId, 
 
       <g clipPath={`url(#${clipId})`}>
         {cells.map(({ leaf, rect }) => {
-          const c = clearRect(rect, W, H)
-          const sash = leaf.opening !== 'fixed'
+          if (leaf.void) return null
+          const c = clearRect(rect, frameSides(cells, rect, W, H))
+          const sash = leaf.opening !== 'fixed' && !leaf.panel
           const glass = sash ? inset(c, SASH) : c
           const sel = leaf.id === selectedId
           return (
@@ -101,12 +111,12 @@ export default function WindowSvg({ design, frameColor = '#f4f4f2', selectedId, 
               {/* импост/фон ячейки */}
               <rect x={rect.x} y={rect.y} width={rect.w} height={rect.h} fill={frameColor} stroke="#3c4a42" strokeWidth={stroke * 0.5} />
               {sash && <rect x={c.x} y={c.y} width={c.w} height={c.h} fill={frameColor} stroke="#3c4a42" strokeWidth={stroke * 0.7} />}
-              <rect x={glass.x} y={glass.y} width={glass.w} height={glass.h} fill="#cfe4f2" stroke="#3c4a42" strokeWidth={stroke * 0.5} />
+              <rect x={glass.x} y={glass.y} width={glass.w} height={glass.h} fill={leaf.panel ? `url(#${panelId})` : '#cfe4f2'} stroke="#3c4a42" strokeWidth={stroke * 0.5} />
               {leaf.net && <rect x={glass.x} y={glass.y} width={glass.w} height={glass.h} fill={`url(#${netId})`} opacity={0.5} />}
-              {openingLines(leaf.opening, glass).map((d, i) => (
+              {!leaf.panel && openingLines(leaf.opening, glass).map((d, i) => (
                 <path key={i} d={d} fill="none" stroke="#3c4a42" strokeWidth={stroke * 0.6} />
               ))}
-              {leaf.opening === 'fixed' && (
+              {leaf.opening === 'fixed' && !leaf.panel && (
                 <path
                   d={`M${glass.x + glass.w / 2 - font},${glass.y + glass.h / 2} h${font * 2} M${glass.x + glass.w / 2},${glass.y + glass.h / 2 - font} v${font * 2}`}
                   stroke="#7b8c83"
@@ -143,13 +153,21 @@ export default function WindowSvg({ design, frameColor = '#f4f4f2', selectedId, 
         })}
       </g>
 
+      {/* вырез Г-/Т-образного окна: закрашиваем фоном, чтобы убрать раму габарита */}
+      {cells
+        .filter((c) => c.leaf.void)
+        .map(({ leaf, rect }) => (
+          <rect key={leaf.id} x={rect.x - stroke} y={rect.y - stroke} width={rect.w + 2 * stroke} height={rect.h + 2 * stroke} fill="#ffffff" onClick={() => onSelect?.(leaf.id)} style={{ cursor: onSelect ? 'pointer' : 'default' }} />
+        ))}
+
       {/* размеры частей делений (нажать — изменить) */}
-      {splits.map(({ split, parts }) =>
-        parts.map((p, i) => {
+      {splits.map(({ split, parts }) => (
+        <g key={split.id}>
+        {parts.map((p, i) => {
           const v = split.dir === 'v'
           const cx = v ? p.x + p.w / 2 : p.x + FRAME + font * 1.6
           const cy = v ? p.y + p.h - FRAME - font * 1.2 : p.y + p.h / 2
-          const label = String(split.sizes[i])
+          const label = fmtLen(split.sizes[i])
           return (
             <g key={`${split.id}-${i}`} onClick={() => onPartClick?.(split.id, i, split.sizes[i])} style={{ cursor: onPartClick ? 'pointer' : 'default' }}>
               <rect x={cx - font * 1.4} y={cy - font * 0.75} width={font * 2.8} height={font * 1.3} rx={font * 0.3} fill="#ffffff" stroke="#9aaba1" strokeWidth={stroke * 0.5} />
@@ -158,8 +176,9 @@ export default function WindowSvg({ design, frameColor = '#f4f4f2', selectedId, 
               </text>
             </g>
           )
-        }),
-      )}
+        })}
+        </g>
+      ))}
 
       {/* общие размеры */}
       <g stroke="#3c4a42" strokeWidth={stroke * 0.6}>
@@ -171,7 +190,7 @@ export default function WindowSvg({ design, frameColor = '#f4f4f2', selectedId, 
         <line x1={-pad * 0.3} y1={H} x2={-pad * 0.6} y2={H} />
       </g>
       <text x={W / 2} y={H + pad * 0.45 + font * 1.2} textAnchor="middle" fill="#15201a" fontWeight={700} onClick={() => onSizeClick?.('w', W)} style={{ cursor: onSizeClick ? 'pointer' : 'default' }}>
-        {W}
+        {fmtLen(W)}
       </text>
       <text
         x={-pad * 0.45 - font * 0.5}
@@ -183,11 +202,34 @@ export default function WindowSvg({ design, frameColor = '#f4f4f2', selectedId, 
         onClick={() => onSizeClick?.('h', H)}
         style={{ cursor: onSizeClick ? 'pointer' : 'default' }}
       >
-        {H}
+        {fmtLen(H)}
       </text>
+      {legend && legend.length > 0 && (
+        <g fontSize={font * 0.8} fill="#15201a" pointerEvents="none">
+          {legend.map((line, i) => (
+            <text key={i} x={W - FRAME - font * 0.4} y={FRAME + font * 1.2 + i * font * 1.0} textAnchor="end" stroke="#ffffff" strokeWidth={font * 0.22} paintOrder="stroke">
+              {line}
+            </text>
+          ))}
+        </g>
+      )}
+      {(badge || note) && (
+        <g pointerEvents="none" fill="#15201a" paintOrder="stroke" stroke="#ffffff" strokeWidth={font * 0.25}>
+          {badge && (
+            <text x={FRAME + font * 0.4} y={H - FRAME - font * (note ? 1.4 : 0.5)} fontSize={font * 1.1} fontWeight={700}>
+              {badge}
+            </text>
+          )}
+          {note && (
+            <text x={FRAME + font * 0.4} y={H - FRAME - font * 0.5} fontSize={font * 0.7}>
+              {note}
+            </text>
+          )}
+        </g>
+      )}
       {rise > 0 && (
         <text x={W + pad * 0.1} y={rise / 2} fill="#62736a" fontSize={font * 0.8}>
-          ⌒ {rise} · {Math.round(arcLength(W, rise))}
+          ⌒ {fmtLen(rise)} · {fmtLen(arcLength(W, rise))}
         </text>
       )}
     </svg>
