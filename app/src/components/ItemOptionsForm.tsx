@@ -186,7 +186,7 @@ export default function ItemOptionsForm({ value: o, onChange, catalog, widthMm, 
       <Section title={t.laminationOut} summary={nm(o.lamination_out)}>
         <Radios kind="lamination" value={o.lamination_out} catalog={catalog} onChange={(lamination_out) => set({ lamination_out })} />
       </Section>
-      <Section title={t.color} summary={nm(o.color)}>
+      <Section title={t.color} summary={nm(o.color)} open>
         <Radios kind="color" value={o.color} catalog={catalog} swatch onChange={(color) => set({ color })} />
       </Section>
 
