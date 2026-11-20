@@ -62,19 +62,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => sub.subscription.unsubscribe()
   }, [])
 
+  // профиль грузим только при смене пользователя: supabase присылает новый объект сессии при возврате на вкладку
+  // и обновлении токена — раньше это показывало экран загрузки и стирало несохранённую форму заказа
+  const uid = session?.user.id
   useEffect(() => {
-    if (!session) return
+    if (!uid) return
     setLoading(true)
     supabase
       .from('employees')
       .select('id, full_name, role')
-      .eq('auth_user_id', session.user.id)
+      .eq('auth_user_id', uid)
       .maybeSingle()
       .then(({ data }) => {
         setMe((data as Me | null) ?? null)
         setLoading(false)
       })
-  }, [session])
+  }, [uid])
 
   const signIn = async (login: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({ email: toEmail(login), password })
