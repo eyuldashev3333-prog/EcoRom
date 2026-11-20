@@ -132,6 +132,8 @@ export default function OrderEdit() {
   const markupUsed = frozenMarkup ?? catalog.markup
   // цена окна: своя цена и скидка окна главнее общей скидки заказа
   const taxK = 1 + catalog.settings.taxPct / 100 // налог из прайса (по умолчанию 0)
+  // прайс в одной валюте ($), результат в другой (so'm), а курс не введён — суммы были бы неверными
+  const rateMissing = catalog.settings.currency !== catalog.settings.resultCurrency && catalog.settings.rate === 1
   const itemPrices = items.map((it, i) =>
     round2(
       itemPrice(calc[i]?.q.cost ?? 0, workCost(calc[i]?.q.lines ?? []), markupUsed, discount, it.options, catalog.settings.schemes.find((s) => s.id === it.options.scheme)) * taxK,
@@ -147,7 +149,10 @@ export default function OrderEdit() {
   const problems = items.flatMap((it, i) => designProblems(it.design).map((c) => ({ pos: i + 1, code: c })))
   const unknownIds = [...new Set(calc.flatMap((c) => c.q.unknown))]
   const contractNum = Number(contract) || roundDown1000(suggested)
-  const pr = profit(contractNum, cost)
+  // свободная скидка суммой = цена после % минус договорная; только если договор задан руками
+  const discountSum = Number(contract) > 0 ? Math.max(0, Math.round(suggested - Number(contract))) : 0
+  // прибыль считается без налога (НДС уходит государству)
+  const pr = profit(contractNum / taxK, cost)
   const missing = [...new Set(calc.flatMap((c) => c.q.missing))]
 
   const pickClient = (label: string) => {
@@ -307,10 +312,6 @@ export default function OrderEdit() {
             </button>
           </p>
         )}
-        <label>
-          {t.notes}
-          <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
-        </label>
       </div>
 
       {imported && items.length === 0 ? (
@@ -482,8 +483,9 @@ export default function OrderEdit() {
           <tbody>
             <tr><td>{t.windows}</td><td>{windows} · {Math.round(area * 100) / 100} m²</td></tr>
             <tr><td>{t.cost}</td><td>{formatSum(cost)}</td></tr>
+            <tr><td>{t.suggested} (+{Math.round(markupUsed * 100)}%)</td><td>{formatSum(suggested)}</td></tr>
             <tr>
-              <td>{t.discount}</td>
+              <td>{t.discount} %</td>
               <td>
                 <select value={discount} disabled={locked} onChange={(e) => setDiscount(Number(e.target.value))}>
                   {[0, 1, 2, 3, 5].map((d) => (
@@ -494,7 +496,22 @@ export default function OrderEdit() {
                 </select>
               </td>
             </tr>
-            <tr><td>{t.suggested} (+{Math.round(markupUsed * 100)}%)</td><td>{formatSum(suggested)}</td></tr>
+            <tr>
+              <td>{t.discountSum}</td>
+              <td>
+                <input
+                  className="money"
+                  disabled={locked}
+                  inputMode="numeric"
+                  placeholder="0"
+                  value={discountSum ? String(discountSum) : ''}
+                  onChange={(e) => {
+                    const s = Number(e.target.value.replace(/\D/g, '')) || 0
+                    setContract(s ? String(Math.max(0, Math.round(suggested - s))) : '')
+                  }}
+                />
+              </td>
+            </tr>
             <tr>
               <td>
                 <b>{t.contract}</b>
@@ -511,7 +528,8 @@ export default function OrderEdit() {
             </tr>
           </tbody>
         </table>
-        <button disabled={busy || items.length === 0 || !client.full_name.trim()} onClick={save}>
+        {rateMissing && <p className="warn">{t.rateMissing}</p>}
+        <button disabled={busy || items.length === 0 || !client.full_name.trim() || (rateMissing && !locked)} onClick={save}>
           {t.save}
         </button>
       </div>

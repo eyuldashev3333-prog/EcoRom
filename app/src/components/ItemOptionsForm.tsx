@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import { itemColor, type CatalogState } from '../lib/catalog'
 import { formatSum } from '../lib/pricing'
-import { DOBOR, SIDES, mirrorOptions, selList, type Dobor, type ItemOptions, type Sel, type Side, type SideOpts } from '../lib/quote'
+import { SIDES, mirrorOptions, selList, type ItemOptions, type Sel, type Side, type SideOpts } from '../lib/quote'
 import { uz } from '../uz'
 
 const t = uz.order
@@ -120,7 +120,6 @@ export default function ItemOptionsForm({ value: o, onChange, catalog, widthMm, 
   const sills = selList(o, 'sill')
   const ebbs = selList(o, 'ebb')
   const nm = (id?: string) => (id ? catalog.byId.get(id)?.name : undefined)
-  const doborCount = DOBOR.reduce((n, d) => n + (sd.dobor?.[d]?.length ?? 0), 0)
 
   return (
     <div className="card form opts">
@@ -209,33 +208,14 @@ export default function ItemOptionsForm({ value: o, onChange, catalog, widthMm, 
       </Section>
       {(
         [
-          ['connect', t.connect],
           ['connect90', t.connect90],
           ['connect135', t.connect135],
-          ['nashelnik', t.nashelnik],
         ] as const
       ).map(([k, label]) => (
         <Section key={k} title={label} summary={count(sd[k]?.length ?? 0)}>
           <SideChips label={label} value={sd[k]} onChange={(v) => setSides({ [k]: v.length ? v : undefined })} />
         </Section>
       ))}
-      <Section title={t.dobor} summary={count(doborCount)}>
-        <div className="dobor">
-          {DOBOR.map((d: Dobor) => (
-            <div key={d} className="dobor-row">
-              <b>{d} mm</b>
-              <SideChips
-                label={`${t.dobor} ${d}`}
-                value={sd.dobor?.[d]}
-                onChange={(v) => {
-                  const dobor = { ...sd.dobor, [d]: v.length ? v : undefined }
-                  setSides({ dobor: Object.values(dobor).some((x) => x && x.length) ? dobor : undefined })
-                }}
-              />
-            </div>
-          ))}
-        </div>
-      </Section>
     </div>
   )
 }

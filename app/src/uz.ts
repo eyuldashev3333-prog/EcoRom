@@ -317,6 +317,8 @@ export const uz = {
     windows: 'Oynalar',
     cost: 'Tannarx',
     discount: 'Chegirma',
+    discountSum: "Chegirma summasi (so'm)",
+    rateMissing: "Dollar kursi kiritilmagan: Katalog va narxlar → «Kurs» maydoniga 1 $ necha so'm ekanini yozing, aks holda narxlar noto'g'ri chiqadi. Saqlash o'chirilgan.",
     suggested: 'Tavsiya narx',
     contract: 'Shartnoma narxi',
     profit: 'Foyda',

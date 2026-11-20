@@ -143,6 +143,16 @@ export default function WindowSvg({ design, frameColor = '#f4f4f2', selectedId, 
                 />
               )}
               {leaf.door && (
+                <rect
+                  x={leaf.opening.endsWith('_r') ? glass.x + font * 0.55 : glass.x + glass.w - font * 1.1}
+                  y={glass.y + glass.h / 2 - font * 1.6}
+                  width={font * 0.55}
+                  height={font * 3.2}
+                  rx={font * 0.2}
+                  fill="#3c4a42"
+                />
+              )}
+              {leaf.door && (
                 <text x={glass.x + glass.w / 2} y={glass.y + font * 1.6} textAnchor="middle" fill="#3c4a42" fontWeight={700}>
                   ESHIK
                 </text>

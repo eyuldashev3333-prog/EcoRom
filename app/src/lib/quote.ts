@@ -215,7 +215,9 @@ export function quoteItem(m: Measure, opt: ItemOptions, catalog: Map<string, Cat
   add(dhw, m.doors)
   // ручки: простая — на оконную створку, балконная — на дверную (предположение, подтвердить у владельца)
   addIf(hw, 'handle_simple', windowSashes, 'ruchka', 'pcs')
-  addIf(dhw, 'handle_balcony', m.doors, 'ruchka balkon', 'pcs')
+  // у двери ручка есть всегда: балконная, а если её цена не задана — простая
+  if (Number(dhw?.params?.handle_balcony ?? 0) > 0) addIf(dhw, 'handle_balcony', m.doors, 'ruchka balkon', 'pcs')
+  else addIf(dhw, 'handle_simple', m.doors, 'ruchka', 'pcs')
 
   const net = opt.net ? catalog.get(opt.net) : undefined
   if (net && m.nets_m2 > 0) {

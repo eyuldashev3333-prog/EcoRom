@@ -55,16 +55,16 @@ export default function CellDialog({ design, leafId, onChange, onClose }: { desi
       <section className="cd-sec">
         <h4>{t.dividers}</h4>
         <div className="cd-quick">
-          <button type="button" className="ghost small-btn" onClick={() => onChange(splitLeaf(design, leafId, 'v', 2))}>
+          <button type="button" className="ghost small-btn" onClick={() => { onChange(splitLeaf(design, leafId, 'v', 2)); onClose() }}>
             ┃ 2
           </button>
-          <button type="button" className="ghost small-btn" onClick={() => onChange(splitLeaf(design, leafId, 'v', 3))}>
+          <button type="button" className="ghost small-btn" onClick={() => { onChange(splitLeaf(design, leafId, 'v', 3)); onClose() }}>
             ┃ 3
           </button>
-          <button type="button" className="ghost small-btn" onClick={() => onChange(splitLeaf(design, leafId, 'h', 2))}>
+          <button type="button" className="ghost small-btn" onClick={() => { onChange(splitLeaf(design, leafId, 'h', 2)); onClose() }}>
             ━ 2
           </button>
-          <button type="button" className="ghost small-btn" onClick={() => onChange(splitLeaf(design, leafId, 'h', 3))}>
+          <button type="button" className="ghost small-btn" onClick={() => { onChange(splitLeaf(design, leafId, 'h', 3)); onClose() }}>
             ━ 3
           </button>
           {hasParent && (
@@ -82,6 +82,7 @@ export default function CellDialog({ design, leafId, onChange, onClose }: { desi
             onChange(gridLeaf(design, leafId, cols + 1, rows + 1))
             setCols(0)
             setRows(0)
+            onClose()
           }}
         >
           {t.applyGrid}: {cols + 1} × {rows + 1}
