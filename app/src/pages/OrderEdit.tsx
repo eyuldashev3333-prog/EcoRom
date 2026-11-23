@@ -271,7 +271,10 @@ export default function OrderEdit() {
       {msg && <div className={msg.ok ? 'card note ok' : 'card note bad'}>{msg.text}</div>}
       {locked && !imported && <div className="card note">{t.lockedHint}</div>}
       {id && (
-        <p>
+        <p className="inline wrap">
+          <Link to={`/ws/edit/${id}`} className="btn-link">
+            {uz.ws.openEditor}
+          </Link>
           <Link to={`/orders/${id}/print`} className="btn-link">
             {uz.print.open}
           </Link>
@@ -529,7 +532,7 @@ export default function OrderEdit() {
           </tbody>
         </table>
         {rateMissing && <p className="warn">{t.rateMissing}</p>}
-        <button disabled={busy || items.length === 0 || !client.full_name.trim() || (rateMissing && !locked)} onClick={save}>
+        <button disabled={busy || items.length === 0 || !client.full_name.trim()} onClick={save}>
           {t.save}
         </button>
       </div>

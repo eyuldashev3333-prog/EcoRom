@@ -1,0 +1,220 @@
+/* WinStudio V44.4 ko'rinishi (telefon, portret). Ranglar va joylashuv ilovaning haqiqiy ekran suratlaridan olingan (docs/winstudio-study/phone). */
+.ws-root {
+  --ws-blue: #55aaff;
+  --ws-magenta: #d65781;
+  --ws-green: #b1c873;
+  --ws-bg: #ededed;
+  --ws-canvas: #cecece;
+  --ws-glass: #cddbeb;
+  --ws-yellow: #ffdd00;
+  --ws-red: #a00000;
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  justify-content: center;
+  background: #1a1a1a;
+  font-family: Roboto, 'Inter', system-ui, -apple-system, 'Segoe UI', Arial, sans-serif;
+  color: #222;
+}
+.ws-root .ws-phone {
+  position: relative;
+  width: 100%;
+  max-width: 520px;
+  height: 100%;
+  background: var(--ws-bg);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+/* сброс глобальных стилей кнопок и полей ERP: здесь всё рисуется заново, как в WinStudio */
+.ws-root button { all: unset; box-sizing: border-box; cursor: pointer; font-family: inherit; display: inline-flex; align-items: center; justify-content: center; text-align: center; -webkit-tap-highlight-color: transparent; }
+.ws-root button:disabled { opacity: 0.5; cursor: default; }
+.ws-root input, .ws-root textarea { font: inherit; border-radius: 0; box-shadow: none; min-height: 0; margin: 0; }
+.ws-root label { display: block; margin: 0; font-weight: 400; }
+.ws-root h2, .ws-root p { margin: 0; }
+
+/* ---- общий верх ---- */
+.ws-root .ws-brand { text-align: center; font-size: 12px; color: var(--ws-blue); padding: 6px 0 0; letter-spacing: 0.2px; }
+.ws-root .ws-titlebar { background: var(--ws-blue); color: #eaf4ff; text-align: center; font-size: 12px; line-height: 18px; height: 18px; flex: none; }
+
+/* ---- старт: две кнопки ---- */
+.ws-root .ws-center { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 0 20px 60px; }
+.ws-root .ws-center h2 { margin: 0 0 6px; font-size: 20px; font-weight: 400; color: var(--ws-blue); text-align: center; }
+.ws-root .ws-bigbtn { display: block; width: 100%; max-width: 252px; height: 88px; color: #fff; font-size: 20px; font-weight: 700; text-transform: uppercase; text-align: center; box-shadow: 0 3px 6px rgba(0, 0, 0, 0.3); }
+.ws-root .ws-bigbtn + .ws-bigbtn { margin-top: 0; }
+.ws-root .ws-bigbtn.blue { background: var(--ws-blue); }
+.ws-root .ws-bigbtn.magenta { background: var(--ws-magenta); }
+
+/* ---- карточка-форма (заказчик / заказ) ---- */
+.ws-root .ws-form { width: 100%; max-width: 270px; margin: 0 auto; box-shadow: 0 3px 6px rgba(0, 0, 0, 0.25); background: #fff; }
+.ws-root .ws-formhead { color: #fff; text-align: center; font-size: 15px; padding: 2px 4px 3px; line-height: 20px; }
+.ws-root .ws-formhead.blue { background: var(--ws-blue); }
+.ws-root .ws-formhead.magenta { background: var(--ws-magenta); font-size: 14px; }
+.ws-root .ws-formhead b { font-weight: 400; display: block; }
+.ws-root .ws-field { display: block; background: #fff; padding: 2px 3px 0; height: 65px; box-shadow: inset 0 3px 3px -3px rgba(0, 0, 0, 0.35); }
+.ws-root .ws-field span { display: block; text-align: center; font-size: 12px; color: var(--ws-blue); line-height: 16px; }
+.ws-root .ws-field input { display: block; width: 100%; border: 0; border-bottom: 2px solid transparent; background: transparent; text-align: center; font-size: 20px; color: #000; padding: 8px 0 2px; outline: none; }
+.ws-root .ws-field input:focus { border-bottom-color: #7fcdbf; }
+.ws-root .ws-submit { display: block; width: 100%; height: 56px; color: #fff; font-size: 22px; font-weight: 500; text-transform: uppercase; text-align: center; box-shadow: 0 -3px 6px -3px rgba(0, 0, 0, 0.4) inset; }
+.ws-root .ws-submit.blue { background: var(--ws-blue); }
+.ws-root .ws-submit.magenta { background: var(--ws-magenta); }
+.ws-root .ws-submit:disabled { opacity: 0.55; }
+.ws-root .ws-top { padding-top: 40px; flex: 1; }
+.ws-root .ws-msg { max-width: 270px; margin: 10px auto 0; padding: 8px 10px; font-size: 13px; background: #fff3cd; color: #6b4e00; }
+
+/* ---- список заказчиков ---- */
+.ws-root .ws-listhead { background: var(--ws-blue); color: #fff; text-align: center; font-size: 14px; line-height: 22px; margin: 8px 8px 0; }
+.ws-root .ws-list { flex: 1; overflow: auto; margin: 0 8px; }
+.ws-root .ws-row { display: flex; align-items: center; justify-content: space-between; width: 100%; background: #fff; border-bottom: 1px solid #ddd; padding: 14px 12px; font-size: 18px; text-align: left; }
+.ws-root .ws-radio { width: 20px; height: 20px; border-radius: 50%; border: 2px solid #aaa; flex: none; }
+.ws-root .ws-row.on .ws-radio { border-color: #20b2aa; background: radial-gradient(#20b2aa 45%, transparent 50%); }
+.ws-root .ws-bottom { margin: 8px; }
+
+/* ---- редактор ---- */
+.ws-root .ws-edit { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.ws-root .ws-canvas { position: relative; flex: 1; min-height: 0; background: var(--ws-canvas); overflow: hidden; }
+.ws-root .ws-burger { position: absolute; left: 4px; top: 4px; width: 62px; height: 62px; border-radius: 50%; background: #4a90d9; color: #fff; box-shadow: 0 3px 6px rgba(0, 0, 0, 0.35); display: flex; align-items: center; justify-content: center; z-index: 3; }
+.ws-root .ws-burger svg { width: 30px; height: 30px; }
+.ws-root .ws-who { position: absolute; right: 2px; top: 4px; z-index: 2; font-size: 12px; color: #222; max-width: 62%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ws-root .ws-ctrl { position: absolute; right: 6px; top: 24px; z-index: 2; display: flex; align-items: center; gap: 6px; font-size: 12px; }
+.ws-root .ws-ctrl input { width: 18px; height: 18px; accent-color: #3d8bd8; }
+.ws-root .ws-legend { position: absolute; right: 0; top: 50px; z-index: 2; text-align: right; font-size: 11.5px; line-height: 15px; pointer-events: none; max-width: 52%; }
+.ws-root .ws-legend .h { display: inline-block; padding: 0 6px; color: #fff; text-shadow: 0 0 1px rgba(0, 0, 0, 0.25); }
+.ws-root .ws-legend .i { display: block; }
+.ws-root .ws-qtyline { position: absolute; left: 8px; bottom: 8px; z-index: 2; pointer-events: none; font-size: 14px; }
+.ws-root .ws-qtyline b { display: block; font-size: 17px; }
+.ws-root .ws-svgbox { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+.ws-root .ws-svgbox svg { width: 100% !important; height: 100% !important; max-height: 100% !important; }
+.ws-root .ws-trash { position: absolute; right: 12px; bottom: 8px; z-index: 3; width: 44px; height: 44px; background: transparent; opacity: 0.45; }
+.ws-root .ws-trash svg { width: 38px; height: 38px; }
+.ws-root .ws-empty { position: absolute; inset: 0; }
+
+/* таблица */
+.ws-root .ws-table { flex: none; position: relative; display: flex; background: #d8d8d8; font-size: 11px; height: 140px; }
+.ws-root .ws-tl { flex: none; width: 88px; background: #dadadb; }
+.ws-root .ws-tr { flex: none; width: 84px; background: #dadadb; text-align: center; }
+.ws-root .ws-ts { flex: 1; min-width: 0; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
+.ws-root .ws-ts::-webkit-scrollbar { display: none; }
+.ws-root .ws-ts table { border-collapse: collapse; }
+.ws-root .ws-trow { height: 28px; line-height: 28px; white-space: nowrap; overflow: hidden; }
+.ws-root .ws-tl .ws-trow { padding-left: 3px; }
+.ws-root .ws-ts td, .ws-root .ws-ts th { height: 28px; padding: 0 8px; white-space: nowrap; font-weight: 400; text-align: center; font-size: 11px; }
+.ws-root .ws-r0 { background: #c5c5c5; }
+.ws-root .ws-r1 { background: #b7b7b7; }
+.ws-root .ws-r2 { background: #c5c5c5; }
+.ws-root .ws-r3 { background: #b7b7b7; }
+.ws-root .ws-r4 { background: #c5c5c5; }
+.ws-root .ws-lbl-price { color: #0645c6; }
+.ws-root .ws-lbl-cost { color: #a00000; }
+.ws-root .ws-val-blue { color: #0b4fc4; font-weight: 700; }
+.ws-root .ws-val-red { color: #a00000; font-weight: 700; }
+.ws-root .ws-val-yellow { background: #f3e27a; }
+.ws-root .ws-th-all { color: #a00000; font-weight: 700; }
+
+/* лента окон */
+.ws-root .ws-ribbon { flex: none; display: flex; height: 76px; background: var(--ws-blue); }
+.ws-root .ws-plus { flex: none; width: 75px; background: var(--ws-blue); color: #e1f0ff; font-size: 54px; line-height: 1; font-weight: 200; display: flex; align-items: center; justify-content: center; box-shadow: inset -2px 0 3px rgba(0, 0, 0, 0.15); }
+.ws-root .ws-tabs { flex: 1; min-width: 0; display: flex; overflow-x: auto; scrollbar-width: none; }
+.ws-root .ws-tabs::-webkit-scrollbar { display: none; }
+.ws-root .ws-tab { position: relative; flex: none; width: 75px; height: 100%; background: var(--ws-magenta); padding: 0; display: flex; align-items: center; justify-content: center; }
+.ws-root .ws-tab .in { width: 52px; height: 52px; background: var(--ws-glass); border: 2px solid #fff; padding: 2px; display: flex; align-items: center; justify-content: center; }
+.ws-root .ws-tab .in svg { max-width: 100%; max-height: 100%; height: 100% !important; }
+.ws-root .ws-tab .n { position: absolute; top: 2px; right: 6px; color: #fff; font-size: 11px; }
+.ws-root .ws-tab .q { position: absolute; bottom: 2px; right: 6px; color: #ffe700; font-size: 11px; font-weight: 700; }
+.ws-root .ws-tab.off { background: #7aa7d6; opacity: 0.85; }
+.ws-root .ws-compass { flex: none; width: 75px; background: var(--ws-green); color: #fff; display: flex; align-items: center; justify-content: center; }
+.ws-root .ws-compass svg { width: 40px; height: 40px; }
+
+/* диалоги */
+.ws-root .ws-ov { position: absolute; inset: 0; z-index: 35; background: rgba(0, 0, 0, 0.5); display: flex; align-items: center; justify-content: center; }
+.ws-root .ws-dlg { background: #ededed; width: min(94%, 360px); max-height: 92%; display: flex; flex-direction: column; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5); }
+.ws-root .ws-dlg-h { background: var(--ws-blue); color: #fff; text-align: center; font-size: 12px; line-height: 18px; flex: none; }
+.ws-root .ws-dlg-body { flex: 1; min-height: 0; overflow: auto; background: #c8c8c8; }
+.ws-root .ws-dlg-act { display: flex; flex: none; height: 54px; }
+.ws-root .ws-dlg-act button { flex: 1; color: #fff; font-size: 22px; font-weight: 700; text-transform: uppercase; }
+.ws-root .ws-dlg-act .no { background: var(--ws-blue); flex: 0 0 33%; }
+.ws-root .ws-dlg-act .yes { background: var(--ws-green); }
+.ws-root .ws-text { padding: 20px 14px; text-align: center; font-size: 17px; background: #ededed; }
+
+.ws-root .ws-cfg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; padding: 10px; }
+.ws-root .ws-cfg button { background: transparent; padding: 0; border: 2px solid transparent; }
+.ws-root .ws-cfg button.on { border-color: #1e90ff; }
+.ws-root .ws-cfg .mini { background: #fff; padding: 4px; aspect-ratio: 1.1; display: flex; align-items: center; justify-content: center; }
+.ws-root .ws-cfg .mini svg { height: 100% !important; width: auto !important; max-width: 100%; }
+
+.ws-root .ws-cell { display: flex; }
+.ws-root .ws-cell .left { flex: 0 0 36%; background: #ededed; border-right: 3px solid #ededed; }
+.ws-root .ws-cell .right { flex: 1; background: #c8c8c8; }
+.ws-root .ws-cell h5 { margin: 0; background: var(--ws-blue); color: #fff; font-weight: 400; font-size: 12px; text-align: center; line-height: 18px; }
+.ws-root .ws-igrid { display: grid; gap: 6px; padding: 5px; }
+.ws-root .ws-igrid.c2 { grid-template-columns: repeat(2, 1fr); }
+.ws-root .ws-igrid.c3 { grid-template-columns: repeat(3, 1fr); }
+.ws-root .ws-tile { background: #fff; border: 2px solid #fff; padding: 2px; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; }
+.ws-root .ws-tile.on { border-color: #1e90ff; outline: 3px solid #1e90ff; outline-offset: -1px; }
+.ws-root .ws-tile svg { width: 100%; height: 100%; }
+.ws-root .ws-tile.sel-dark.on { border-color: #000; outline-color: #000; }
+.ws-root .ws-chk { display: flex; align-items: center; gap: 8px; padding: 6px 10px; font-size: 13px; }
+.ws-root .ws-chk input { width: 20px; height: 20px; accent-color: #3d8bd8; }
+.ws-root .ws-chk.off { opacity: 0.45; }
+
+/* клавиатура */
+.ws-root .ws-pad { background: #fff; width: min(88%, 290px); box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5); }
+.ws-root .ws-pad-val { height: 62px; text-align: center; font-size: 40px; line-height: 62px; border-top: 6px solid var(--ws-blue); background: #fff; }
+.ws-root .ws-pad-keys { display: grid; grid-template-columns: repeat(3, 1fr); }
+.ws-root .ws-pad-keys button { height: 61px; background: var(--ws-blue); color: #fff; font-size: 34px; border: 1px solid rgba(255, 255, 255, 0.55); }
+.ws-root .ws-pad-keys button.g { background: #b4b4b4; }
+.ws-root .ws-pad-keys button.dk { background: #7a7a7a; }
+.ws-root .ws-pad-keys button:disabled { opacity: 0.6; }
+
+/* меню ☰ */
+.ws-root .ws-menu { position: absolute; inset: 0; z-index: 30; background: rgba(0, 0, 0, 0.45); display: flex; flex-direction: column; }
+.ws-root .ws-menu .t { background: var(--ws-blue); color: #fff; text-align: center; font-size: 12px; line-height: 18px; }
+.ws-root .ws-menu button { display: flex; align-items: center; justify-content: center; text-align: center; color: #fff; font-size: 19px; font-weight: 700; min-height: 60px; padding: 4px 10px; text-transform: uppercase; box-shadow: 0 3px 5px rgba(0, 0, 0, 0.3); }
+.ws-root .ws-menu .m1 { background: #b1c873; }
+.ws-root .ws-menu .m2 { background: #ffac94; }
+.ws-root .ws-menu .m3 { background: #dc7d7d; }
+.ws-root .ws-menu .m4 { background: #e2ac5f; }
+.ws-root .ws-menu .m5 { background: #8d79c9; }
+.ws-root .ws-menu .m6 { background: var(--ws-blue); }
+.ws-root .ws-menu .m7 { background: #5a9a54; }
+
+/* панель «настройки окна» */
+.ws-root .ws-side { position: absolute; top: 0; right: 0; bottom: 0; width: 46%; min-width: 220px; max-width: 280px; z-index: 25; display: flex; flex-direction: column; background: #eee; box-shadow: -4px 0 10px rgba(0, 0, 0, 0.4); }
+.ws-root .ws-side-h { background: var(--ws-green); color: #fff; text-align: center; font-size: 13px; line-height: 20px; flex: none; }
+.ws-root .ws-side-b { flex: 1; min-height: 0; overflow-y: auto; }
+.ws-root .ws-side-ok { flex: none; height: 56px; background: var(--ws-green); color: #fff; font-size: 20px; font-weight: 700; }
+.ws-root .ws-sec { color: #fff; text-align: center; font-size: 12px; line-height: 17px; margin-top: 2px; }
+.ws-root .ws-opt { display: flex; align-items: center; gap: 8px; min-height: 30px; padding: 0 6px; font-size: 13px; background: #eee; }
+.ws-root .ws-opt input[type='radio'], .ws-root .ws-opt input[type='checkbox'] { width: 20px; height: 20px; accent-color: #3d8bd8; flex: none; }
+.ws-root .ws-opt .sw { width: 28px; height: 30px; flex: none; margin-left: -6px; }
+.ws-root .ws-opt .ed { margin-left: auto; width: 30px; height: 30px; border-radius: 50%; background: #cde; color: #345; display: flex; align-items: center; justify-content: center; font-size: 14px; }
+.ws-root .ws-qtyrow { display: flex; align-items: center; justify-content: space-between; padding: 4px 4px; background: #eee; }
+.ws-root .ws-qtyrow button { width: 56px; height: 36px; background: #d6d6d6; font-size: 18px; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3); }
+.ws-root .ws-qtyrow span { font-size: 18px; }
+.ws-root .ws-input { display: block; width: 100%; border: 0; border-bottom: 2px solid #7fcdbf; background: #fff; text-align: center; font-size: 16px; height: 40px; outline: none; }
+.ws-root .ws-pricebox { display: flex; align-items: center; background: #fff; min-height: 40px; }
+.ws-root .ws-pricebox .v { flex: 1; text-align: center; font-size: 16px; }
+.ws-root .ws-pricebox button { width: 40px; height: 40px; background: transparent; opacity: 0.55; }
+.ws-root .ws-sidegrid { background: #e9ebed; padding: 6px 4px 4px; }
+.ws-root .ws-sidegrid .line { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 2px 0; }
+.ws-root .ws-sidegrid .lb { width: 28px; font-size: 12px; }
+.ws-root .ws-sq { width: 28px; height: 28px; border: 2px solid #3d8bd8; background: #fff; padding: 0; display: flex; align-items: center; justify-content: center; }
+.ws-root .ws-sq.on { background: #3d8bd8; color: #fff; }
+.ws-root .ws-sq svg { width: 100%; height: 100%; }
+.ws-root .ws-pic { width: 36px; height: 30px; padding: 0; background: transparent; }
+.ws-root .ws-pic.on svg .f { fill: #1f3a56; }
+.ws-root .ws-pic svg { width: 100%; height: 100%; }
+.ws-root .ws-toast { position: absolute; left: 50%; bottom: 90px; transform: translateX(-50%); background: rgba(40, 40, 40, 0.92); color: #fff; padding: 8px 14px; font-size: 13px; z-index: 40; max-width: 86%; text-align: center; }
+.ws-root .ws-toast.bad { background: rgba(160, 30, 30, 0.95); }
+.ws-root .ws-banner { flex: none; background: #fff3cd; color: #6b4e00; font-size: 12px; text-align: center; padding: 3px 8px; }
+
+.ws-root .ws-ocust { background: #1d5e0c; color: #fff; padding: 6px 8px; font-size: 15px; }
+.ws-root .ws-ocust small, .ws-root .ws-oord small { display: block; font-size: 12px; opacity: 0.75; }
+.ws-root .ws-oord { display: flex; background: #c58509; color: #fff; margin: 2px 0 0 4px; border-bottom: 2px solid #1d5e0c; }
+.ws-root .ws-oord.on { background: #e7a21b; }
+.ws-root .ws-oord .main { flex: 1; text-align: left; justify-content: flex-start; flex-direction: column; align-items: flex-start; padding: 6px 8px; font-size: 14px; }
+.ws-root .ws-oord .det { width: 52px; font-size: 16px; letter-spacing: 2px; background: rgba(0, 0, 0, 0.12); }
+.ws-root .ws-obar { display: flex; flex: none; height: 60px; margin: 6px 8px 8px; }
+.ws-root .ws-obar .open { flex: 1; background: #267f0d; color: #fff; font-size: 22px; font-weight: 700; }
+.ws-root .ws-obar .az { width: 68px; background: #2196f3; color: #fff; font-size: 20px; font-weight: 700; }

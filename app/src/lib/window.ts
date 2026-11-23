@@ -24,6 +24,16 @@ export interface Leaf {
   net?: boolean
   panel?: boolean // сэндвич-панель вместо стекла: нет стекла, штапика и створки, площадь идёт в sandwich_m2
   void?: boolean // пустая ячейка (вырез Г-/Т-образного окна): нет стекла, соседи получают раму по этой границе
+  /** импосты внутри ячейки (левая колонка окна «импосты / открывание» в WinStudio): одна створка или одно глухое стекло, поделённые импостами */
+  sub?: LeafSub
+  /** при импостах внутри ячейки сэндвич-панель задаётся отдельно для каждой части (как в окне «импосты / открывание» WinStudio) */
+  panels?: boolean[]
+}
+export interface LeafSub {
+  dir: 'v' | 'h' // v — вертикальные импосты (части рядом), h — горизонтальные
+  parts: number // число частей: 2 (один импост) или 3 (два импоста)
+  /** размеры частей по оси деления, мм, от наружного края створки (у глухого стекла — от края стекла); без них — поровну */
+  sizes?: number[]
 }
 export interface Split {
   kind: 'split'
@@ -58,13 +68,15 @@ export interface Dims {
   glassSash: number // стекло/панель в створке окна: отступ от наружного края створки, на сторону
   glassDoor: number // то же в дверной створке
   beadWidth: number // только чертёж: светлая полоска штапика между контуром и видимым стеклом
+  subFace: number // стекло рядом с импостом внутри ячейки: отступ от оси импоста, на сторону
   /** видимая ширина профиля для площади ламинации, мм: внутренняя и внешняя сторона (подобрано по замерам WinStudio) */
   lamIn: { frame: number; sash: number; door: number; impost: number }
   lamOut: { frame: number; sash: number; door: number; impost: number }
 }
-export const DEFAULT_DIMS: Dims = { frameFace: 48, impostFace: 26, impostCut: 48, impostCutT: 26, sashFrame: 35, sashImpost: 13, glassSash: 62, glassDoor: 94, beadWidth: 15,
-  lamIn: { frame: 72, sash: 72.5, door: 103, impost: 103 },
-  lamOut: { frame: 75, sash: 76, door: 107, impost: 104 },
+export const DEFAULT_DIMS: Dims = { frameFace: 48, impostFace: 26, impostCut: 48, impostCutT: 26, sashFrame: 35, sashImpost: 13, glassSash: 62, glassDoor: 94, beadWidth: 15, subFace: 26,
+  // подбор по точным пробам (цена ламинации 1 000 000, 6 окон; docs/winstudio-study/lam_exact.txt): снаружи целые значения, остаток 0; внутри остаток ≤ 0,002 м²
+  lamIn: { frame: 73.24, sash: 72.24, door: 103.14, impost: 102.23 },
+  lamOut: { frame: 75, sash: 76, door: 108, impost: 106 },
 }
 
 /** слои одной ячейки на чертеже: створка (если есть), контур стекла/панели (по нему считаются штапик и стекло) и видимое стекло */
@@ -86,6 +98,49 @@ export function leafLayers(rect: Rect, fs: { l: boolean; t: boolean; r: boolean;
   const contour = grow(rect, side(fs.l, dims.frameFace, dims.impostFace), side(fs.t, dims.frameFace, dims.impostFace), side(fs.r, dims.frameFace, dims.impostFace), side(fs.b, dims.frameFace, dims.impostFace))
   return { sash: null, contour, glass: bead(contour) }
 }
+
+/** раскладка импостов внутри ячейки: части (стёкла) и тела импостов; null — деления нет */
+export interface SubLayout {
+  ref: Rect // от неё отсчитываются размеры частей: створка, а у глухого стекла — контур стекла
+  sizes: number[] // размеры частей по оси деления, мм
+  axes: number[] // оси импостов (абсолютные координаты по оси деления)
+  panes: Rect[] // контуры стёкол/панелей (по ним штапик и стекло)
+  bars: Rect[] // тела импостов между стёклами
+  impostLen: number // длина детали импоста
+}
+export function subLayout(lf: Leaf, ly: LeafLayers, dims: Dims = DEFAULT_DIMS): SubLayout | null {
+  const sub = lf.sub
+  if (!sub || sub.parts < 2) return null
+  const ref = ly.sash ?? ly.contour
+  const v = sub.dir === 'v'
+  const span = v ? ref.w : ref.h
+  const n = Math.round(sub.parts)
+  let sizes = sub.sizes && sub.sizes.length === n && sub.sizes.every((s) => s > 0) ? [...sub.sizes] : Array.from({ length: n }, () => span / n)
+  // последняя часть забирает остаток (сумма частей = размер по оси деления)
+  sizes = sizes.map((s, i) => (i === n - 1 ? span - sizes.slice(0, -1).reduce((a, b) => a + b, 0) : s))
+  const c = ly.contour
+  const start = v ? ref.x : ref.y
+  const axes: number[] = []
+  let pos = start
+  for (let i = 0; i < n - 1; i++) {
+    pos += sizes[i]
+    axes.push(pos)
+  }
+  const cs = v ? c.x : c.y
+  const ce = cs + (v ? c.w : c.h)
+  const f = dims.subFace
+  const panes: Rect[] = []
+  const bars: Rect[] = []
+  for (let i = 0; i < n; i++) {
+    const a = i === 0 ? cs : axes[i - 1] + f
+    const b = i === n - 1 ? ce : axes[i] - f
+    panes.push(v ? { x: a, y: c.y, w: b - a, h: c.h } : { x: c.x, y: a, w: c.w, h: b - a })
+    if (i < n - 1) bars.push(v ? { x: axes[i] - f, y: c.y, w: 2 * f, h: c.h } : { x: c.x, y: axes[i] - f, w: c.w, h: 2 * f })
+  }
+  return { ref, sizes, axes, panes, bars, impostLen: v ? c.h : c.w }
+}
+/** часть ячейки k — сэндвич-панель (без импостов внутри ячейки часть одна) */
+export const isPanel = (lf: Leaf, k: number): boolean => (lf.sub ? !!lf.panels?.[k] : !!lf.panel)
 
 export const hasSash = (o: Opening) => o !== 'fixed'
 export const OPENINGS: Opening[] = ['fixed', 'fixed_sash', 'turn_l', 'turn_r', 'tilt', 'top', 'tt_l', 'tt_r', 'slide_l', 'slide_r']
@@ -201,11 +256,14 @@ export interface Measure {
   lam_in_m2: number // площадь ламинации внутри (видимый профиль: длина × ширина), колонка «ламин.внутр.»
   lam_out_m2: number // площадь ламинации снаружи, колонка «ламин.внеш.»
   imposts: number // число отрезков импоста (для коннекторов импоста)
+  impostList: number[] // длины всех деталей импоста, мм (в т.ч. импосты внутри ячейки) — для раскроя
   nets: number // число москитных сеток
   sash_by: Partial<Record<Opening, number>> // оконные (не дверные) створки по типам открывания
   sash_all_by: Partial<Record<Opening, number>> // все створки (и дверные) по типам открывания — для комплектов механики и ручек (как в WinStudio)
   panes: Pane[]
   sashRects: SashRect[] // габариты всех створок (для раскроя)
+  // точные (неокруглённые) значения: WinStudio умножает цену на них, а на экране показывает округлённые (проверено живыми пробами 23.11.2026)
+  exact: { area_m2: number; frame_m: number; impost_m: number; sash_m: number; bead_m: number; gasket_m: number; door_sash_m: number; nets_m: number; glass_m2: number; nets_m2: number; sandwich_m2: number }
 }
 
 const r2 = (n: number) => Math.round(n * 100) / 100
@@ -302,7 +360,6 @@ export function measure(d: WindowDesign, dims: Dims = DEFAULT_DIMS): Measure {
   const framePerimeter = rise > 0 ? 2 * (H - rise) + W + arcLength(W, rise) : frames.reduce((s, f) => s + 2 * (f.w + f.h), 0)
   const framesArea = frames.reduce((s, f) => s + f.w * f.h, 0)
   const impostList = impostPieces(cells, dividers, W, H, dims, joins)
-  const impost = impostList.reduce((a, b) => a + b, 0)
   const sashBy: Partial<Record<Opening, number>> = {}
   const sashAllBy: Partial<Record<Opening, number>> = {}
   let netCount = 0
@@ -344,12 +401,19 @@ export function measure(d: WindowDesign, dims: Dims = DEFAULT_DIMS): Measure {
       }
     }
     // штапик идёт и у сэндвич-панели (как у стекла); площадь панели считается отдельно от стекла
-    bead += 2 * (gw + gh)
-    if (lf.panel) sandwich += (gw * gh) / 1e6
-    else panes.push({ leafId: lf.id, w: gw, h: gh, sash: hasSash(lf.opening) })
+    // импосты внутри ячейки делят стекло на части: штапик и стекло считаются по каждой части, импост — отдельная деталь
+    const sb = subLayout(lf, layers, dims)
+    const partsR = sb ? sb.panes : [layers.contour]
+    partsR.forEach((pr, k) => {
+      bead += 2 * (pr.w + pr.h)
+      if (isPanel(lf, k)) sandwich += (pr.w * pr.h) / 1e6
+      else panes.push({ leafId: lf.id, w: pr.w, h: pr.h, sash: hasSash(lf.opening) })
+    })
+    if (sb) for (let i = 0; i < sb.bars.length; i++) impostList.push(sb.impostLen)
     if (lf.door) doors += 1
   }
 
+  const impost = impostList.reduce((a, b) => a + b, 0)
   // ламинация: видимый профиль = длина детали × его ширина (рама, створка, дверная створка, импост)
   const lamArea = (w: Dims['lamIn']) => (framePerimeter * w.frame + (sashPerim - doorPerim) * w.sash + doorPerim * w.door + impost * w.impost) / 1e6
 
@@ -370,11 +434,25 @@ export function measure(d: WindowDesign, dims: Dims = DEFAULT_DIMS): Measure {
     lam_in_m2: r3(lamArea(dims.lamIn)),
     lam_out_m2: r3(lamArea(dims.lamOut)),
     imposts: impostList.length,
+    impostList,
     nets: netCount,
     sash_by: sashBy,
     sash_all_by: sashAllBy,
     panes,
     sashRects,
+    exact: {
+      area_m2: (framesArea - voidArea) / 1e6,
+      frame_m: framePerimeter / 1000,
+      impost_m: impost / 1000,
+      sash_m: sashPerim / 1000,
+      bead_m: bead / 1000,
+      gasket_m: (bead + 2 * sashPerim) / 1000,
+      door_sash_m: doorPerim / 1000,
+      nets_m: netsPerim / 1000,
+      glass_m2: panes.reduce((s, p) => s + (p.w * p.h) / 1e6, 0),
+      nets_m2: nets,
+      sandwich_m2: r3(sandwich), // WinStudio считает цену панели по площади, округлённой до 3 знаков (проба: 0.998 при 0.998016)
+    },
   }
 }
 
@@ -453,6 +531,34 @@ export function updateLeaf(d: WindowDesign, leafId: string, patch: Partial<Leaf>
   return { ...d, root: mapNode(d.root, leafId, (n) => ({ ...(n as Leaf), ...patch })) }
 }
 
+/** размер первой части ячейки с импостами внутри; остальные части делят остаток поровну */
+export function setSubSize(d: WindowDesign, leafId: string, index: number, value: number): WindowDesign {
+  const lf = findNode(d.root, leafId) as Leaf | null
+  if (!lf || lf.kind !== 'leaf' || !lf.sub) return d
+  const cell = layout(d).cells.find((c) => c.leaf.id === leafId)
+  if (!cell) return d
+  const fs = frameSides(layout(d).cells, cell.rect, d.width, d.height, layout(d).joins)
+  const sb = subLayout(lf, leafLayers(cell.rect, fs, lf))
+  if (!sb || index !== 0) return d
+  const span = sb.sizes.reduce((a, b) => a + b, 0)
+  const n = lf.sub.parts
+  const first = Math.max(100, Math.min(Math.round(value), span - 100 * (n - 1)))
+  const rest = (span - first) / (n - 1)
+  return updateLeaf(d, leafId, { sub: { ...lf.sub, sizes: [first, ...Array.from({ length: n - 1 }, () => rest)] } })
+}
+/** задать (или снять) импосты внутри ячейки: части делятся поровну по текущему размеру створки/стекла; при смене размера окна первые части сохраняют размер, последняя забирает остаток */
+export function withSub(d: WindowDesign, leafId: string, spec: { dir: 'v' | 'h'; parts: number } | null, panels?: boolean[]): WindowDesign {
+  const lf = findNode(d.root, leafId) as Leaf | null
+  if (!lf || lf.kind !== 'leaf') return d
+  if (!spec) return updateLeaf(d, leafId, { sub: undefined, panels: undefined })
+  const lay = layout(d)
+  const cell = lay.cells.find((c) => c.leaf.id === leafId)
+  if (!cell) return d
+  const ly = leafLayers(cell.rect, frameSides(lay.cells, cell.rect, d.width, d.height, lay.joins), lf)
+  const ref = ly.sash ?? ly.contour
+  const span = spec.dir === 'v' ? ref.w : ref.h
+  return updateLeaf(d, leafId, { sub: { dir: spec.dir, parts: spec.parts, sizes: Array.from({ length: spec.parts }, () => span / spec.parts) }, panels: panels ?? Array.from({ length: spec.parts }, () => false) })
+}
 const MIN = 100
 /** изменить размер части деления; разницу забирает соседняя часть */
 export function setPartSize(d: WindowDesign, splitId: string, index: number, value: number): WindowDesign {

@@ -57,6 +57,7 @@ export default function Orders() {
               {t.lastOrder}
             </button>
           )}
+          <button className="ghost" onClick={() => nav('/ws/orders')}>{uz.ws.wsList}</button>
           <button onClick={() => nav('/orders/new')}>+ {t.new}</button>
         </div>
       </div>

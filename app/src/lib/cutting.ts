@@ -1,6 +1,6 @@
 // Раскрой профиля: длины деталей окна → резка из обрезков и хлыстов.
 // Длины деталей — наружные (как в расчёте метров): рама = стороны, импост = пролёт − 2×impostCut, створка = просвет + нахлёст, штапик = стекло.
-import { arcLength, DEFAULT_DIMS, impostPieces, layout, measure, type Dims, type WindowDesign } from './window'
+import { arcLength, DEFAULT_DIMS, measure, type Dims, type WindowDesign } from './window'
 
 export type ProfPart = 'rama' | 'impost' | 'tavaqa' | 'shtapik'
 export const PROF_PARTS: ProfPart[] = ['rama', 'impost', 'tavaqa', 'shtapik']
@@ -11,9 +11,8 @@ export function windowPieces(d: WindowDesign, dims: Dims = DEFAULT_DIMS): Record
   const H = d.height
   const rise = d.shape === 'arch' ? Math.min(d.archRise ?? 0, W / 2, H) : 0
   const rama = rise > 0 ? [W, H - rise, H - rise, arcLength(W, rise)] : [W, W, H, H]
-  const { cells, dividers } = layout(d)
-  const impost = impostPieces(cells, dividers, W, H, dims)
   const m = measure(d, dims)
+  const impost = m.impostList // импосты рамы и импосты внутри ячеек
   const tavaqa: number[] = []
   for (const s of m.sashRects) tavaqa.push(s.w, s.w, s.h, s.h)
   const shtapik: number[] = []

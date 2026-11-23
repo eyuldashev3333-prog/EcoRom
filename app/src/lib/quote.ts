@@ -66,6 +66,7 @@ export interface QuoteLine {
   unit: Unit
   price: number
   sum: number
+  col?: string // колонка нижней таблицы (как в WinStudio); у старых сохранённых заказов нет — определяется по названию части
 }
 export interface Material {
   item_id: string
@@ -86,10 +87,14 @@ export interface Quote {
 /** единица части на складе: заглушки — штуки, профиль/резина сетки — метры */
 export const partUnit = (unit: Unit, part: string): Unit => (part === 'zaglushka' ? 'pcs' : ['profil', 'rezina'].includes(part) ? 'm' : unit)
 
-const SYS_PARTS: { key: string; label: string; m: (x: Measure) => number }[] = [
+/** WinStudio умножает цену на неокруглённые метры (на экране они округлены) — проверено живыми пробами 23.11.2026 */
+const exactOf = (m: Measure): Measure['exact'] =>
+  m.exact ?? { area_m2: m.area_m2, frame_m: m.frame_m, impost_m: m.impost_m, sash_m: m.sash_m, bead_m: m.bead_m, gasket_m: m.gasket_m, door_sash_m: m.door_sash_m, nets_m: m.nets_m, glass_m2: m.glass_m2, nets_m2: m.nets_m2, sandwich_m2: m.sandwich_m2 }
+
+const SYS_PARTS: { key: string; label: string; m: (x: Measure['exact']) => number }[] = [
   { key: 'frame', label: 'rama', m: (x) => x.frame_m },
   { key: 'impost', label: 'impost', m: (x) => x.impost_m },
-  { key: 'sash', label: 'tavaqa', m: (x) => r3(x.sash_m - x.door_sash_m) },
+  { key: 'sash', label: 'tavaqa', m: (x) => x.sash_m - x.door_sash_m },
   { key: 'bead', label: 'shtapik', m: (x) => x.bead_m },
   { key: 'gasket', label: 'rezina', m: (x) => x.gasket_m },
 ]
@@ -104,8 +109,9 @@ const r3 = (n: number) => Math.round(n * 1000) / 1000
 
 /** количество по единице каталога для «на изделие» позиций (работы, разное, цвет) */
 function qtyByUnit(unit: Unit, m: Measure): number {
-  if (unit === 'm2') return m.area_m2
-  if (unit === 'm') return m.frame_m
+  const e = exactOf(m)
+  if (unit === 'm2') return e.area_m2
+  if (unit === 'm') return e.frame_m
   return 1
 }
 
@@ -113,7 +119,7 @@ function qtyByUnit(unit: Unit, m: Measure): number {
 function qtyOf(it: CatalogItem, m: Measure, W: number, H: number): number {
   switch (String(it.params?.basis ?? '')) {
     case 'pcs': return 1
-    case 'm2': return m.area_m2
+    case 'm2': return exactOf(m).area_m2
     case 'perimeter': return (2 * (W + H)) / 1000
     case 'width': return W / 1000
     case 'height': return H / 1000
@@ -159,11 +165,11 @@ export const hasSides = (s?: SideOpts) =>
 export function quoteItem(m: Measure, opt: ItemOptions, catalog: Map<string, CatalogItem>, widthMm: number, heightMm: number = widthMm): Quote {
   const lines: QuoteLine[] = []
   const missing: string[] = []
-  const add = (it: CatalogItem | undefined, qty: number, label?: string, price?: number, unit?: Unit) => {
+  const add = (it: CatalogItem | undefined, qty: number, label?: string, price?: number, unit?: Unit, col?: string) => {
     if (!it || qty <= 0) return
     const p = price ?? (Number(it.price) || 0)
     if (!p) missing.push(label ? `${it.name} (${label})` : it.name)
-    lines.push({ item_id: it.id, part: label ?? '', kind: it.kind, name: label ? `${it.name} — ${label}` : it.name, qty: r3(qty), unit: unit ?? partUnit(it.unit, label ?? ''), price: p, sum: round2(qty * p) })
+    lines.push({ item_id: it.id, part: label ?? '', kind: it.kind, name: label ? `${it.name} — ${label}` : it.name, qty: r3(qty), unit: unit ?? partUnit(it.unit, label ?? ''), price: p, sum: round2(qty * p), ...(col ? { col } : {}) })
   }
   // необязательная колонка прайса: добавляется только при цене > 0
   const addIf = (it: CatalogItem | undefined, key: string, qty: number, label: string, unit: Unit) => {
@@ -171,16 +177,17 @@ export function quoteItem(m: Measure, opt: ItemOptions, catalog: Map<string, Cat
     if (it && p > 0 && qty > 0) add(it, qty, label, p, unit)
   }
 
+  const e = exactOf(m)
   const sys = opt.system ? catalog.get(opt.system) : undefined
   if (sys) {
-    for (const part of SYS_PARTS) add(sys, part.m(m), part.label, Number(sys.params?.[part.key] ?? 0))
-    // дверная створка: отдельная цена метра, иначе как у обычной
-    if (m.door_sash_m > 0) add(sys, m.door_sash_m, 'tavaqa', Number(sys.params?.door_sash ?? 0) || Number(sys.params?.sash ?? 0))
-    addIf(sys, 'sandwich', m.sandwich_m2, 'sendvich panel', 'm2')
-    addIf(sys, 'armor_frame', m.frame_m, 'armatura rama', 'm')
-    addIf(sys, 'armor_impost', m.impost_m, 'armatura impost', 'm')
-    addIf(sys, 'armor_sash', r3(m.sash_m - m.door_sash_m), 'armatura tavaqa', 'm')
-    addIf(sys, 'armor_door', m.door_sash_m, 'armatura eshik', 'm')
+    for (const part of SYS_PARTS) add(sys, part.m(e), part.label, Number(sys.params?.[part.key] ?? 0))
+    // дверная створка: только своя колонка прайса «дверная створка» (живая проба WinStudio 23.11.2026: ценой обычной створки дверь не оценивается)
+    if (e.door_sash_m > 0) add(sys, e.door_sash_m, 'tavaqa', Number(sys.params?.door_sash ?? 0), undefined, 'doorSash')
+    addIf(sys, 'sandwich', r3(e.sandwich_m2), 'sendvich panel', 'm2')
+    addIf(sys, 'armor_frame', e.frame_m, 'armatura rama', 'm')
+    addIf(sys, 'armor_impost', e.impost_m, 'armatura impost', 'm')
+    addIf(sys, 'armor_sash', e.sash_m - e.door_sash_m, 'armatura tavaqa', 'm')
+    addIf(sys, 'armor_door', e.door_sash_m, 'armatura eshik', 'm')
     for (const [o, n] of Object.entries(m.sash_all_by)) {
       const key = MECH_BY_OPENING[o]
       if (key && n) addIf(sys, key, n, `mexanika ${key.slice(5)}`, 'pcs')
@@ -195,9 +202,16 @@ export function quoteItem(m: Measure, opt: ItemOptions, catalog: Map<string, Cat
   const glassParts = ['glass1', 'glass2', 'glass3', 'film', 'gas', 'spacer', 'desiccant', 'butyl', 'sealant']
   if (gl && glassParts.some((k) => Number(gl.params?.[k] ?? 0) > 0)) {
     const perim = m.panes.reduce((s, p) => s + (2 * (p.w + p.h)) / 1000, 0)
-    for (const [k, l] of [['glass1', 'stekla 1'], ['glass2', 'stekla 2'], ['glass3', 'stekla 3'], ['film', 'plyonka'], ['gas', 'gaz']] as const) addIf(gl, k, m.glass_m2, l, 'm2')
-    for (const [k, l] of [['spacer', 'spreyser'], ['desiccant', 'quritgich'], ['butyl', 'butil lenta'], ['sealant', 'germetik']] as const) addIf(gl, k, perim, l, 'm')
-  } else add(gl, m.glass_m2)
+    for (const [k, l] of [['glass1', 'stekla 1'], ['glass2', 'stekla 2'], ['glass3', 'stekla 3'], ['film', 'plyonka'], ['gas', 'gaz']] as const) addIf(gl, k, e.glass_m2, l, 'm2')
+    // живые пробы WinStudio: слоёв стекла = сколько из «стекло 1/2/3» с ценой > 0; камер = max(1, слоёв − 1);
+    // спейсер = периметр × камер, бутил-лента = 2 × периметр × камер, осушитель и герметик = периметр
+    const layers = (['glass1', 'glass2', 'glass3'] as const).filter((k) => Number(gl.params?.[k] ?? 0) > 0).length
+    const chambers = Math.max(1, layers - 1)
+    addIf(gl, 'spacer', perim * chambers, 'spreyser', 'm')
+    addIf(gl, 'desiccant', perim, 'quritgich', 'm')
+    addIf(gl, 'butyl', 2 * perim * chambers, 'butil lenta', 'm')
+    addIf(gl, 'sealant', perim, 'germetik', 'm')
+  } else add(gl, e.glass_m2)
 
   for (const k of ['sill', 'ebb'] as const) {
     for (const sel of selList(opt, k)) {
@@ -220,10 +234,10 @@ export function quoteItem(m: Measure, opt: ItemOptions, catalog: Map<string, Cat
   addIf(dhw, 'handle_simple', m.doors, 'ruchka', 'pcs')
 
   const net = opt.net ? catalog.get(opt.net) : undefined
-  if (net && m.nets_m2 > 0) {
-    add(net, m.nets_m2)
-    if (Number(net.params?.profile)) add(net, m.nets_m, 'profil', Number(net.params.profile))
-    if (Number(net.params?.gasket)) add(net, m.nets_m, 'rezina', Number(net.params.gasket))
+  if (net && e.nets_m2 > 0) {
+    add(net, e.nets_m2)
+    if (Number(net.params?.profile)) add(net, e.nets_m, 'profil', Number(net.params.profile))
+    if (Number(net.params?.gasket)) add(net, e.nets_m, 'rezina', Number(net.params.gasket))
     // на каждую сетку: 4 уголка, 4 держателя, 2 ручки (проверено пробами в WinStudio V44.4)
     addIf(net, 'corner', 4 * m.nets, 'burchak', 'pcs')
     addIf(net, 'holder', 4 * m.nets, 'ushlagich', 'pcs')

@@ -31,6 +31,8 @@ import ServiceWork from './pages/ServiceWork'
 import Stock from './pages/Stock'
 import Purchases from './pages/Purchases'
 import Suppliers from './pages/Suppliers'
+import { WsCustomer, WsCustomers, WsNew, WsOrderForm, WsOrders } from './ws/WsStart'
+import WsEditor from './ws/WsEditor'
 // PDF-библиотеки тяжёлые — грузятся только при открытии печати
 const OrderPrint = lazy(() => import('./pages/OrderPrint'))
 // экран «Zavod» — отдельный чанк
@@ -44,7 +46,8 @@ export default function App() {
 
   const loc = useLocation()
   const home = loc.pathname === '/'
-  const immersive = loc.pathname === '/zavod' // 3D-режим: завод на весь экран, без меню
+  const ws = loc.pathname.startsWith('/ws') // создание заказа в стиле WinStudio: свой экран без меню ERP
+  const immersive = loc.pathname === '/zavod' || ws // 3D-режим: завод на весь экран, без меню
   const nav = useNavigate()
   // Rahbar открывает систему — сначала 3D-завод (один раз за сеанс; дальше переключатель 3D/ERP)
   useEffect(() => {
@@ -114,7 +117,13 @@ export default function App() {
           <Route path="/shop/:id" element={me.role === 'ishlab' ? <ShopOrder /> : <Navigate to="/" />} />
           <Route path="/designer" element={me.role === 'rahbar' ? <Designer /> : <Navigate to="/" />} />
           <Route path="/orders" element={me.role === 'rahbar' ? <Orders /> : <Navigate to="/" />} />
-          <Route path="/orders/new" element={me.role === 'rahbar' ? <OrderEdit /> : <Navigate to="/" />} />
+          <Route path="/orders/new" element={<Navigate to="/ws/new" replace />} />
+          <Route path="/ws/new" element={me.role === 'rahbar' ? <WsNew /> : <Navigate to="/" />} />
+          <Route path="/ws/orders" element={me.role === 'rahbar' ? <WsOrders /> : <Navigate to="/" />} />
+          <Route path="/ws/customer" element={me.role === 'rahbar' ? <WsCustomer /> : <Navigate to="/" />} />
+          <Route path="/ws/customers" element={me.role === 'rahbar' ? <WsCustomers /> : <Navigate to="/" />} />
+          <Route path="/ws/order" element={me.role === 'rahbar' ? <WsOrderForm /> : <Navigate to="/" />} />
+          <Route path="/ws/edit/:id?" element={me.role === 'rahbar' ? <WsEditor /> : <Navigate to="/" />} />
           <Route path="/orders/:id" element={me.role === 'rahbar' ? <OrderEdit /> : <Navigate to="/" />} />
           <Route
             path="/orders/:id/print"

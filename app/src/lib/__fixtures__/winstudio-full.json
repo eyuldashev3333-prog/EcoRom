@@ -1,0 +1,154 @@
+﻿{
+    "prices":  {
+                   "system":  {
+                                  "system_frame":  "301.5",
+                                  "system_impost":  "289.25",
+                                  "system_leaf":  "262.4",
+                                  "system_shtapik":  "91.7",
+                                  "system_rubber_sealant":  "15.35",
+                                  "system_firm_frame":  "221.1",
+                                  "system_firm_impost":  "231.6",
+                                  "system_firm_leaf":  "233.3",
+                                  "system_mehanic_rot":  "1411.5",
+                                  "system_mehanic_hor":  "987.25",
+                                  "system_mehanic_vert":  "891.75",
+                                  "system_firm_corner_frame":  "7.5",
+                                  "system_firm_corner_leaf":  "6.25",
+                                  "system_impost_connector":  "44.4",
+                                  "system_seat_profile":  "83.9",
+                                  "system_dorsill":  "295.5",
+                                  "system_corner_jamb_profile":  "150.3",
+                                  "system_joint_profile":  "290.5",
+                                  "system_gap_profile":  "24.5",
+                                  "system_extender_profile_20":  "202.3",
+                                  "system_extender_profile_40":  "265.2",
+                                  "system_extender_profile_60":  "285.3",
+                                  "system_extender_profile_80":  "380.2",
+                                  "system_extender_profile_100":  "394.2",
+                                  "system_door_leaf":  "271.9",
+                                  "system_firm_door_leaf":  "238.4",
+                                  "system_sandwiches":  "512.5"
+                              },
+                   "glass":  {
+                                 "glass_glass1":  "490",
+                                 "glass_glass2":  "491",
+                                 "glass_glass3":  "492",
+                                 "glass_film":  "3.3",
+                                 "glass_spacers":  "1.57",
+                                 "glass_dryer":  "2.12",
+                                 "glass_butil_stripe":  "1.41",
+                                 "glass_sealant":  "2.52",
+                                 "glass_gas":  "4.4"
+                             },
+                   "furniture":  {
+                                     "furniture_handle_regular":  "483",
+                                     "furniture_handle_with_lock":  "692",
+                                     "furniture_handle_balcony":  "60"
+                                 },
+                   "net":  {
+                               "mosquito_grid":  "153",
+                               "mosquito_profile":  "165",
+                               "mosquito_gum":  "4.1",
+                               "mosquito_corners":  "2.5",
+                               "mosquito_holders":  "2.6",
+                               "mosquito_handles":  "11.5"
+                           },
+                   "lamination":  190.5,
+                   "sillInner":  [
+                                     736.5,
+                                     20.5
+                                 ],
+                   "sillOuter":  [
+                                     213.5,
+                                     40.5
+                                 ],
+                   "job":  689.5,
+                   "extra":  615.5
+               },
+    "windows":  [
+                    {
+                        "ops":  "OPEN_TOP_LEFT",
+                        "nets":  "true",
+                        "code":  "wblock{vsx{0.0 1200.0}vsx vsy{0.0 1500.0}vsy pns{0:0 1:1}pns frs{0:1}frs ops{0:1}ops imps{}imps opsfrs{0}opsfrs impsfrs{-1}impsfrs}wblock",
+                        "doors":  "false",
+                        "extra":  {
+                                      "winInnerSill":  "белый 300",
+                                      "winGlass":  "простое 4-6-4-6-4",
+                                      "winAditions":  "пена монтажная",
+                                      "winWorks":  "монтаж",
+                                      "winLaminationInner":  "светлый дуб",
+                                      "winLaminationOuter":  "светлый дуб",
+                                      "winOuterSill":  "отлив белый 200"
+                                  }
+                    },
+                    {
+                        "ops":  "OPEN_RIGHT",
+                        "nets":  "false",
+                        "code":  "wblock{vsx{0.0 800.0}vsx vsy{0.0 2100.0}vsy pns{0:0 1:1}pns frs{0:1}frs ops{0:1}ops imps{}imps opsfrs{0}opsfrs impsfrs{-1}impsfrs}wblock",
+                        "doors":  "true",
+                        "extra":  {
+                                      "winWorks":  "монтаж",
+                                      "winAddonSeatProfile":  "true",
+                                      "winAddonDorsill":  "true",
+                                      "winAddonCornerJamb":  "true",
+                                      "winGlass":  "простое 4-6-4-6-4"
+                                  }
+                    },
+                    {
+                        "ops":  "OPEN_TOP_LEFT OPEN_NONE",
+                        "nets":  "true false",
+                        "code":  "wblock{vsx{0.0 750.0 1800.0}vsx vsy{0.0 1400.0}vsy pns{0:0 1:0 1:1 2:1}pns frs{0:3}frs ops{0:2 1:3}ops imps{1:2}imps opsfrs{0|1}opsfrs impsfrs{0}impsfrs}wblock",
+                        "doors":  "false false",
+                        "extra":  {
+                                      "winAddonExtender20":  "false true false true",
+                                      "winAddonJointProfile":  "true false true false",
+                                      "winAddonGapProfile":  "false true false false",
+                                      "winGlass":  "простое 4-6-4-6-4",
+                                      "winAddonExtender100":  "true false false false"
+                                  }
+                    },
+                    {
+                        "ops":  "OPEN_RIGHT OPEN_NONE OPEN_LEFT",
+                        "nets":  "false false false",
+                        "code":  "wblock{vsx{0.0 600.0 1200.0 2400.0}vsx vsy{0.0 1500.0}vsy pns{0:0 1:0 1:1 2:0 2:1 3:1}pns frs{0:5}frs ops{0:2 1:4 3:5}ops imps{1:2 3:4}imps opsfrs{0|1|2}opsfrs impsfrs{0|1}impsfrs}wblock",
+                        "doors":  "false false false",
+                        "extra":  {
+                                      "winInnerSill":  "белый 300",
+                                      "winLaminationInner":  "светлый дуб",
+                                      "winGlass":  "простое 4-6-4-6-4"
+                                  }
+                    },
+                    {
+                        "ops":  "OPEN_BOTTOM",
+                        "nets":  "false",
+                        "code":  "wblock{vsx{0.0 1000.0}vsx vsy{0.0 1000.0}vsy pns{0:0 1:1}pns frs{0:1}frs ops{0:1}ops imps{}imps opsfrs{0}opsfrs impsfrs{-1}impsfrs}wblock",
+                        "doors":  "false",
+                        "extra":  {
+                                      "winAddonExtender60":  "false false true false",
+                                      "winGlass":  "простое 4-6-4-6-4",
+                                      "winAddonExtender80":  "false true false false",
+                                      "winAddonJointProfile90deg":  "true true true true",
+                                      "winAddonJointProfile135deg":  "false false true true",
+                                      "winAddonExtender15":  "true false false false"
+                                  }
+                    },
+                    {
+                        "ops":  "OPEN_NONE",
+                        "nets":  "false",
+                        "code":  "wblock{vsx{0.0 900.0}vsx vsy{0.0 1200.0}vsy pns{0:0 1:1}pns frs{0:1}frs ops{0:1}ops imps{}imps opsfrs{0}opsfrs impsfrs{-1}impsfrs}wblock",
+                        "doors":  "false",
+                        "extra":  {
+                                      "winIsSandwiches":  "true false false",
+                                      "winGlass":  "простое 4-6-4-6-4"
+                                  }
+                    }
+                ],
+    "expected":  [
+                     13989.2,
+                     10808.48,
+                     15143.65,
+                     20854.55,
+                     7589.67,
+                     3088.52
+                 ]
+}

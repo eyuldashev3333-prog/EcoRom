@@ -30,8 +30,8 @@ describe('quoteItem', () => {
   it('рама: 5.64 м × 45 120 = 254 476.8 (как в WinStudio владельца: 254 476.83)', () => {
     expect(line('6000-Куатро (Ок) — rama')?.sum).toBe(254476.8)
   })
-  it('импост: 1.52 м × 53 277', () => {
-    expect(line('6000-Куатро (Ок) — impost')?.sum).toBe(80981.04)
+  it('импост: цена по точным метрам (1.524 м на экране 1.52) × 53 277 — WinStudio умножает на неокруглённые (живые пробы 23.11.2026)', () => {
+    expect(line('6000-Куатро (Ок) — impost')?.sum).toBe(81194.15)
   })
   it('стекло по площади стёкол, подоконник и отлив по ширине окна', () => {
     expect(line('Пакет (Ок+Серий)')?.qty).toBe(m.glass_m2)
@@ -42,7 +42,7 @@ describe('quoteItem', () => {
   it('фурнитура на каждую створку, сетка м² + профиль', () => {
     expect(line('Оконный (Откидной)')?.qty).toBe(1)
     expect(line('Сетка белая')?.qty).toBe(m.nets_m2)
-    expect(line('Сетка белая — profil')?.qty).toBe(m.nets_m)
+    expect(line('Сетка белая — profil')?.qty).toBeCloseTo(m.exact.nets_m, 3)
   })
   it('себестоимость = сумма строк', () => {
     expect(q.cost).toBeCloseTo(q.lines.reduce((s, l) => s + l.sum, 0), 2)

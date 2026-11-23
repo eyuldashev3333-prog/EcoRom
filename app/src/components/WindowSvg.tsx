@@ -1,6 +1,6 @@
-﻿import { useId } from 'react'
+import { useId } from 'react'
 import { fmtLen } from '../lib/units'
-import { arcLength, DEFAULT_DIMS, frameSides, layout, leafLayers, splitBoxes, type Opening, type Rect, type WindowDesign } from '../lib/window'
+import { arcLength, DEFAULT_DIMS, frameSides, isPanel, layout, leafLayers, splitBoxes, subLayout, type Opening, type Rect, type WindowDesign } from '../lib/window'
 
 interface Props {
   design: WindowDesign
@@ -9,6 +9,7 @@ interface Props {
   onSelect?: (leafId: string) => void
   onPartClick?: (splitId: string, index: number, current: number) => void
   onSizeClick?: (axis: 'w' | 'h', current: number) => void
+  onSubClick?: (leafId: string, index: number, current: number) => void // размер части ячейки с импостом внутри
   maxHeight?: number
   fontScale?: number // крупнее подписи для печатного листа
   legend?: string[] // выбранные опции окна (режим «контроль» и PDF с подробностями)
@@ -77,7 +78,7 @@ function handleSide(o: Opening): 'r' | 'l' | 'b' | 't' | null {
   }
 }
 
-export default function WindowSvg({ design, frameColor = '#f4f4f2', selectedId, onSelect, onPartClick, onSizeClick, maxHeight = 420, fontScale = 1, legend, badge, note }: Props) {
+export default function WindowSvg({ design, frameColor = '#f4f4f2', selectedId, onSelect, onPartClick, onSizeClick, onSubClick, maxHeight = 420, fontScale = 1, legend, badge, note }: Props) {
   // свой id на каждый чертёж: на одной странице (PDF заказа) их несколько
   const uidRaw = useId().replace(/[^a-zA-Z0-9]/g, '')
   const clipId = `clip${uidRaw}`
@@ -119,7 +120,7 @@ export default function WindowSvg({ design, frameColor = '#f4f4f2', selectedId, 
   const inner = archPath(FRAME, FRAME, W - 2 * FRAME, H - 2 * FRAME, Math.max(0, rise - FRAME * 0.6))
 
   const Label = ({ cx, cy, text, onClick }: { cx: number; cy: number; text: string; onClick?: () => void }) => (
-    <g onClick={onClick} style={{ cursor: onClick ? 'pointer' : 'default' }}>
+    <g onClick={onClick ? (e) => { e.stopPropagation(); onClick() } : undefined} style={{ cursor: onClick ? 'pointer' : 'default' }}>
       <rect x={cx - labW(text) / 2} y={cy - labH / 2} width={labW(text)} height={labH} rx={labH * 0.3} fill="#ffffff" stroke="#d9d9d9" strokeWidth={stroke * 0.5} />
       <text x={cx} y={cy + font * 0.35} textAnchor="middle" fill="#15201a">
         {text}
@@ -174,6 +175,7 @@ export default function WindowSvg({ design, frameColor = '#f4f4f2', selectedId, 
           if (leaf.void) return null
           const fs = frameSides(cells, rect, W, H, joins)
           const ly = leafLayers(rect, fs, leaf)
+          const sb = subLayout(leaf, ly)
           const sel = leaf.id === selectedId
           const side = leaf.opening !== 'fixed' ? handleSide(leaf.opening) : null
           const sashBody = leaf.door ? DEFAULT_DIMS.glassDoor : DEFAULT_DIMS.glassSash
@@ -183,9 +185,29 @@ export default function WindowSvg({ design, frameColor = '#f4f4f2', selectedId, 
               <rect x={rect.x} y={rect.y} width={rect.w} height={rect.h} fill="transparent" />
               {ly.sash && <rect x={ly.sash.x} y={ly.sash.y} width={ly.sash.w} height={ly.sash.h} fill={sashFill} stroke={C.line} strokeWidth={stroke * 1.2} />}
               {/* контур стекла/панели (по нему считается штапик) и светлая полоска штапика */}
-              <rect x={ly.contour.x} y={ly.contour.y} width={ly.contour.w} height={ly.contour.h} fill={band} stroke={ly.sash ? C.contourLine : C.line} strokeWidth={stroke} />
-              <rect x={ly.glass.x} y={ly.glass.y} width={ly.glass.w} height={ly.glass.h} fill={leaf.panel ? C.panel : C.glass} stroke={C.line} strokeWidth={stroke * 1.1} />
-              {leaf.net && <rect x={ly.glass.x} y={ly.glass.y} width={ly.glass.w} height={ly.glass.h} fill={`url(#${netId})`} opacity={0.6} />}
+              {sb ? (
+                <>
+                  {/* импосты внутри ячейки: тело импоста между отдельными стёклами */}
+                  <rect x={ly.contour.x} y={ly.contour.y} width={ly.contour.w} height={ly.contour.h} fill={ly.sash ? sashFill : body} stroke={ly.sash ? C.contourLine : C.line} strokeWidth={stroke} />
+                  {sb.panes.map((pr, k) => {
+                    const bw = DEFAULT_DIMS.beadWidth
+                    const gl = { x: pr.x + bw, y: pr.y + bw, w: pr.w - 2 * bw, h: pr.h - 2 * bw }
+                    return (
+                      <g key={k}>
+                        <rect x={pr.x} y={pr.y} width={pr.w} height={pr.h} fill={band} stroke={C.line} strokeWidth={stroke} />
+                        <rect x={gl.x} y={gl.y} width={gl.w} height={gl.h} fill={isPanel(leaf, k) ? C.panel : C.glass} stroke={C.line} strokeWidth={stroke * 1.1} />
+                        {leaf.net && <rect x={gl.x} y={gl.y} width={gl.w} height={gl.h} fill={`url(#${netId})`} opacity={0.6} />}
+                      </g>
+                    )
+                  })}
+                </>
+              ) : (
+                <>
+                  <rect x={ly.contour.x} y={ly.contour.y} width={ly.contour.w} height={ly.contour.h} fill={band} stroke={ly.sash ? C.contourLine : C.line} strokeWidth={stroke} />
+                  <rect x={ly.glass.x} y={ly.glass.y} width={ly.glass.w} height={ly.glass.h} fill={leaf.panel ? C.panel : C.glass} stroke={C.line} strokeWidth={stroke * 1.1} />
+                  {leaf.net && <rect x={ly.glass.x} y={ly.glass.y} width={ly.glass.w} height={ly.glass.h} fill={`url(#${netId})`} opacity={0.6} />}
+                </>
+              )}
               {!leaf.panel && openingLines(leaf.opening, ly.glass).map((d, i) => (
                 <path key={i} d={d} fill="none" stroke="#1a1a1a" strokeWidth={stroke * 1.1} />
               ))}
@@ -216,6 +238,25 @@ export default function WindowSvg({ design, frameColor = '#f4f4f2', selectedId, 
                 />
               )}
               {ly.sash && side && handle(ly.sash, side, sashBody, `h${leaf.id}`)}
+              {sb && leaf.sub && (
+                <g>
+                  {leaf.sub.dir === 'v' ? (
+                    <>
+                      <line x1={sb.ref.x} y1={rect.y + rect.h * 0.72} x2={sb.ref.x + sb.sizes[0]} y2={rect.y + rect.h * 0.72} stroke="#111111" strokeWidth={stroke * 0.8} />
+                      <Dot x={sb.ref.x} y={rect.y + rect.h * 0.72} />
+                      <Dot x={sb.ref.x + sb.sizes[0]} y={rect.y + rect.h * 0.72} />
+                      <Label cx={sb.ref.x + sb.sizes[0] / 2} cy={rect.y + rect.h * 0.72} text={fmtLen(sb.sizes[0])} onClick={onSubClick ? () => onSubClick(leaf.id, 0, sb.sizes[0]) : undefined} />
+                    </>
+                  ) : (
+                    <>
+                      <line x1={rect.x + rect.w * 0.28} y1={sb.ref.y} x2={rect.x + rect.w * 0.28} y2={sb.ref.y + sb.sizes[0]} stroke="#111111" strokeWidth={stroke * 0.8} />
+                      <Dot x={rect.x + rect.w * 0.28} y={sb.ref.y} />
+                      <Dot x={rect.x + rect.w * 0.28} y={sb.ref.y + sb.sizes[0]} />
+                      <Label cx={rect.x + rect.w * 0.28} cy={sb.ref.y + sb.sizes[0] / 2} text={fmtLen(sb.sizes[0])} onClick={onSubClick ? () => onSubClick(leaf.id, 0, sb.sizes[0]) : undefined} />
+                    </>
+                  )}
+                </g>
+              )}
               {sel && <rect x={rect.x + stroke * 2} y={rect.y + stroke * 2} width={rect.w - stroke * 4} height={rect.h - stroke * 4} fill="none" stroke="#0e9a2f" strokeWidth={stroke * 3} strokeDasharray={`${font} ${font * 0.5}`} />}
             </g>
           )
