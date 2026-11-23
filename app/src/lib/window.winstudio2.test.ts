@@ -10,12 +10,12 @@ describe('Г-образное окно (пустая ячейка)', () => {
     const m = measure(d)
     expect(m.area_m2).toBe(1.88) // 2.25 − вырез 500×750 (0.375), округление до сотых
     expect(m.frame_m).toBe(6)
-    // вертикаль слева|центр: только нижние 750 → 750−100; вертикаль центр|право: 1500−100; горизонталь у выреза — не импост
-    expect(m.impost_m).toBe(2.05)
+    // вертикаль слева|центр: только нижние 750 (концы у выреза и у рамы по 48) → 654; вертикаль центр|право: 1500−96 = 1404
+    expect(m.impost_m).toBe(2.06)
     expect(m.panes).toHaveLength(3)
-    // нижняя левая ячейка: рама слева, снизу и сверху (вырез), импост справа → 500−47.5−27.5 × 750−95
+    // нижняя левая ячейка: рама слева, снизу и сверху (вырез, как рама), импост справа → 500−48−26 × 750−48−48
     const p = m.panes[0]
-    expect([p.w, p.h]).toEqual([425, 655])
+    expect([p.w, p.h]).toEqual([426, 654])
   })
 })
 
@@ -33,14 +33,14 @@ describe('деление сеткой и сэндвич-панель', () => {
     d = (() => { const b = newDesign(1500, 1500); const s = splitLeaf(b, b.root.id, 'v'); return gridLeaf(s, layout(s).cells[1].leaf.id, 1, 3) })()
     expect(layout(d).cells.map((c) => [c.rect.x, c.rect.w, c.rect.h])).toEqual([[0, 750, 1500], [750, 750, 500], [750, 750, 500], [750, 750, 500]])
   })
-  it('панель: нет стекла и штапика, площадь в sandwich_m2', () => {
+  it('панель: нет стекла, штапик как у стекла (WinStudio), площадь в sandwich_m2', () => {
     const b = newDesign(1500, 1500)
     const s = splitLeaf(b, b.root.id, 'h')
     const withPanel = updateLeaf(s, layout(s).cells[1].leaf.id, { panel: true })
     const m = measure(withPanel)
     expect(m.panes).toHaveLength(1)
     expect(m.sandwich_m2).toBeGreaterThan(0.9)
-    expect(m.bead_m).toBeLessThan(measure(s).bead_m)
+    expect(m.bead_m).toBe(measure(s).bead_m)
   })
 })
 

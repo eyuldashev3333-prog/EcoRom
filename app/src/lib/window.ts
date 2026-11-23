@@ -31,6 +31,8 @@ export interface Split {
   dir: 'v' | 'h' // v — вертикальные импосты (колонки), h — горизонтальные (ряды)
   sizes: number[] // мм, сумма = ширина (v) или высота (h) области
   children: Node[]
+  /** рамы соединены: это не импост, а граница отдельных рам составного окна (Г-, Т-, ступенчатые шаблоны WinStudio); метры считаются по каждой раме */
+  join?: boolean
 }
 export type Node = Leaf | Split
 
@@ -42,16 +44,48 @@ export interface WindowDesign {
   root: Node
 }
 
-/** Параметры профильной системы (мм). Значения по умолчанию подобраны по окнам WinStudio. */
+/**
+ * Параметры профильной системы (мм) — все отступы считаются от края ячейки (у рамы — от наружной кромки габарита,
+ * у импоста — от его оси). Значения сняты замерами WinStudio V44.4 на сотнях изделий (docs/winstudio-study/FINDINGS.md).
+ */
 export interface Dims {
-  frameCut: number // вычет просвета у рамы, на сторону
-  impostCut: number // вычет длины импоста, на конец
-  sashOverlap: number // нахлёст створки на просвет, на сторону
-  sashFace: number // ширина створки до стекла, на сторону
-  impostGlass: number // вычет глухого стекла у импоста, на сторону (половина импоста)
+  frameFace: number // глухое стекло/панель: отступ от рамы, на сторону
+  impostFace: number // глухое стекло/панель: отступ от оси импоста, на сторону
+  impostCut: number // вычет длины импоста на конце у рамы или выреза
+  impostCutT: number // вычет длины импоста на конце, упирающемся в другой импост (Т-стык)
+  sashFrame: number // габарит створки: отступ от рамы, на сторону
+  sashImpost: number // габарит створки: отступ от оси импоста, на сторону
+  glassSash: number // стекло/панель в створке окна: отступ от наружного края створки, на сторону
+  glassDoor: number // то же в дверной створке
+  beadWidth: number // только чертёж: светлая полоска штапика между контуром и видимым стеклом
+  /** видимая ширина профиля для площади ламинации, мм: внутренняя и внешняя сторона (подобрано по замерам WinStudio) */
+  lamIn: { frame: number; sash: number; door: number; impost: number }
+  lamOut: { frame: number; sash: number; door: number; impost: number }
 }
-// sashFace 61.25 и impostGlass 27.5 — по трём окнам WinStudio (1200×1620 и два окна 1500×1500 из записи 13.11.2026).
-export const DEFAULT_DIMS: Dims = { frameCut: 47.5, impostCut: 50, sashOverlap: 5.625, sashFace: 61.25, impostGlass: 27.5 }
+export const DEFAULT_DIMS: Dims = { frameFace: 48, impostFace: 26, impostCut: 48, impostCutT: 26, sashFrame: 35, sashImpost: 13, glassSash: 62, glassDoor: 94, beadWidth: 15,
+  lamIn: { frame: 72, sash: 72.5, door: 103, impost: 103 },
+  lamOut: { frame: 75, sash: 76, door: 107, impost: 104 },
+}
+
+/** слои одной ячейки на чертеже: створка (если есть), контур стекла/панели (по нему считаются штапик и стекло) и видимое стекло */
+export interface LeafLayers {
+  sash: Rect | null
+  contour: Rect
+  glass: Rect
+}
+export function leafLayers(rect: Rect, fs: { l: boolean; t: boolean; r: boolean; b: boolean }, lf: Leaf, dims: Dims = DEFAULT_DIMS): LeafLayers {
+  const side = (touchesFrame: boolean, atFrame: number, atImpost: number) => (touchesFrame ? atFrame : atImpost)
+  const grow = (r: Rect, l: number, t: number, rr: number, b: number): Rect => ({ x: r.x + l, y: r.y + t, w: r.w - l - rr, h: r.h - t - b })
+  const bead = (r: Rect): Rect => grow(r, dims.beadWidth, dims.beadWidth, dims.beadWidth, dims.beadWidth)
+  if (hasSash(lf.opening)) {
+    const sash = grow(rect, side(fs.l, dims.sashFrame, dims.sashImpost), side(fs.t, dims.sashFrame, dims.sashImpost), side(fs.r, dims.sashFrame, dims.sashImpost), side(fs.b, dims.sashFrame, dims.sashImpost))
+    const g = lf.door ? dims.glassDoor : dims.glassSash
+    const contour = grow(sash, g, g, g, g)
+    return { sash, contour, glass: bead(contour) }
+  }
+  const contour = grow(rect, side(fs.l, dims.frameFace, dims.impostFace), side(fs.t, dims.frameFace, dims.impostFace), side(fs.r, dims.frameFace, dims.impostFace), side(fs.b, dims.frameFace, dims.impostFace))
+  return { sash: null, contour, glass: bead(contour) }
+}
 
 export const hasSash = (o: Opening) => o !== 'fixed'
 export const OPENINGS: Opening[] = ['fixed', 'fixed_sash', 'turn_l', 'turn_r', 'tilt', 'top', 'tt_l', 'tt_r', 'slide_l', 'slide_r']
@@ -83,26 +117,34 @@ export interface Divider {
   y2: number
 }
 
-export function layout(d: WindowDesign): { cells: CellBox[]; dividers: Divider[] } {
+export function layout(d: WindowDesign): { cells: CellBox[]; dividers: Divider[]; joins: Divider[]; frames: Rect[] } {
   const cells: CellBox[] = []
-  const dividers: Divider[] = []
-  const walk = (n: Node, r: Rect) => {
+  const dividers: Divider[] = [] // импосты внутри рамы
+  const joins: Divider[] = [] // границы между соединёнными рамами
+  const frames: Rect[] = [] // прямоугольники отдельных рам (у обычного окна — одна, по габариту)
+  const walk = (n: Node, r: Rect, atFrameLevel: boolean) => {
     if (n.kind === 'leaf') {
+      if (atFrameLevel && !n.void) frames.push(r)
       cells.push({ leaf: n, rect: r })
       return
     }
+    const isJoin = !!n.join
+    // деление-импост верхнего уровня открывает раму; дальше вниз границы рам не ищем
+    if (atFrameLevel && !isJoin) frames.push(r)
     let pos = n.dir === 'v' ? r.x : r.y
     n.children.forEach((child, i) => {
       const size = n.sizes[i]
       const cr = n.dir === 'v' ? { x: pos, y: r.y, w: size, h: r.h } : { x: r.x, y: pos, w: r.w, h: size }
-      walk(child, cr)
+      walk(child, cr, atFrameLevel && isJoin)
       pos += size
-      if (i < n.children.length - 1)
-        dividers.push(n.dir === 'v' ? { dir: 'v', x1: pos, y1: r.y, x2: pos, y2: r.y + r.h } : { dir: 'h', x1: r.x, y1: pos, x2: r.x + r.w, y2: pos })
+      if (i < n.children.length - 1) {
+        const line: Divider = n.dir === 'v' ? { dir: 'v', x1: pos, y1: r.y, x2: pos, y2: r.y + r.h } : { dir: 'h', x1: r.x, y1: pos, x2: r.x + r.w, y2: pos }
+        ;(isJoin ? joins : dividers).push(line)
+      }
     })
   }
-  walk(d.root, { x: 0, y: 0, w: d.width, h: d.height })
-  return { cells, dividers }
+  walk(d.root, { x: 0, y: 0, w: d.width, h: d.height }, true)
+  return { cells, dividers, joins, frames }
 }
 
 /** деления с их областями — для подписей размеров частей на чертеже */
@@ -135,6 +177,13 @@ export interface Pane {
   h: number
   sash: boolean
 }
+/** габарит створки (внешний размер профиля створки), мм */
+export interface SashRect {
+  leafId: string
+  w: number
+  h: number
+  door: boolean
+}
 export interface Measure {
   area_m2: number // габарит
   frame_m: number
@@ -149,10 +198,14 @@ export interface Measure {
   nets_m: number // периметр створок с сеткой (профиль сетки)
   sandwich_m2: number // площадь сэндвич-панелей
   door_sash_m: number // периметр дверных створок (входит в sash_m; в таблице WinStudio вынесен в свою колонку)
+  lam_in_m2: number // площадь ламинации внутри (видимый профиль: длина × ширина), колонка «ламин.внутр.»
+  lam_out_m2: number // площадь ламинации снаружи, колонка «ламин.внеш.»
   imposts: number // число отрезков импоста (для коннекторов импоста)
   nets: number // число москитных сеток
-  sash_by: Partial<Record<Opening, number>> // оконные (не дверные) створки по типам открывания — для комплектов механики
+  sash_by: Partial<Record<Opening, number>> // оконные (не дверные) створки по типам открывания
+  sash_all_by: Partial<Record<Opening, number>> // все створки (и дверные) по типам открывания — для комплектов механики и ручек (как в WinStudio)
   panes: Pane[]
+  sashRects: SashRect[] // габариты всех створок (для раскроя)
 }
 
 const r2 = (n: number) => Math.round(n * 100) / 100
@@ -167,29 +220,41 @@ export function arcLength(chord: number, rise: number): number {
 
 const inside = (r: Rect, x: number, y: number) => x > r.x && x < r.x + r.w && y > r.y && y < r.y + r.h
 
-/** какие стороны ячейки идут по раме: край габарита или граница с пустой ячейкой (вырез Г/Т) */
-export function frameSides(cells: CellBox[], r: Rect, W: number, H: number) {
+/**
+ * какие стороны ячейки идут по раме: край габарита, граница с пустой ячейкой (вырез Г/Т)
+ * или граница соединённых рам (joins: у каждой рамы свой профиль)
+ */
+export function frameSides(cells: CellBox[], r: Rect, W: number, H: number, joins: Divider[] = []) {
   const voids = cells.filter((c) => c.leaf.void).map((c) => c.rect)
   const ov = (a1: number, a2: number, b1: number, b2: number) => Math.max(0, Math.min(a2, b2) - Math.max(a1, b1))
   // сторона идёт по раме, если вырез занимает не меньше половины соседней длины
   const vSide = (x: number) => voids.filter((v) => x > v.x && x < v.x + v.w).reduce((s, v) => s + ov(r.y, r.y + r.h, v.y, v.y + v.h), 0) >= r.h / 2
   const hSide = (y: number) => voids.filter((v) => y > v.y && y < v.y + v.h).reduce((s, v) => s + ov(r.x, r.x + r.w, v.x, v.x + v.w), 0) >= r.w / 2
+  // сторона лежит на линии соединения рам: вертикальная линия x с покрытием по y, горизонтальная — по x
+  const onJoin = (dir: 'v' | 'h', pos: number) =>
+    joins.some((j) => j.dir === dir && (dir === 'v' ? j.x1 === pos && j.y1 <= r.y && j.y2 >= r.y + r.h : j.y1 === pos && j.x1 <= r.x && j.x2 >= r.x + r.w))
   return {
-    l: r.x <= 0 || vSide(r.x - 1),
-    t: r.y <= 0 || hSide(r.y - 1),
-    r: r.x + r.w >= W || vSide(r.x + r.w + 1),
-    b: r.y + r.h >= H || hSide(r.y + r.h + 1),
+    l: r.x <= 0 || vSide(r.x - 1) || onJoin('v', r.x),
+    t: r.y <= 0 || hSide(r.y - 1) || onJoin('h', r.y),
+    r: r.x + r.w >= W || vSide(r.x + r.w + 1) || onJoin('v', r.x + r.w),
+    b: r.y + r.h >= H || hSide(r.y + r.h + 1) || onJoin('h', r.y + r.h),
   }
 }
 
-/** длина импоста: на каждом делении учитываются только участки, где по обе стороны есть стекло (не вырез) */
-export function impostPieces(cells: CellBox[], dividers: Divider[], cut: number): number[] {
+/**
+ * Длины деталей импоста. На каждом делении учитываются только участки, где по обе стороны есть стекло (не вырез).
+ * Конец у рамы или у выреза короче на impostCut (48), конец, упирающийся в другой импост (Т-стык), — на impostCutT (26).
+ * Правило подтверждено на всех шаблонах каталога WinStudio (68 схем с импостами, 0 расхождений).
+ */
+export function impostPieces(cells: CellBox[], dividers: Divider[], W: number, H: number, dims: Dims = DEFAULT_DIMS, joins: Divider[] = []): number[] {
   const at = (x: number, y: number) => cells.find((c) => inside(c.rect, x, y))
+  const solid = (c: CellBox | undefined) => !!c && !c.leaf.void
   const out: number[] = []
   for (const dv of dividers) {
     const v = dv.dir === 'v'
     const a = v ? dv.y1 : dv.x1
     const b = v ? dv.y2 : dv.x2
+    const lim = v ? H : W
     const pts = new Set<number>([a, b])
     for (const c of cells) {
       const lo = v ? c.rect.y : c.rect.x
@@ -197,39 +262,56 @@ export function impostPieces(cells: CellBox[], dividers: Divider[], cut: number)
       for (const p of [lo, hi]) if (p > a && p < b) pts.add(p)
     }
     const s = [...pts].sort((x, y) => x - y)
-    let run = 0
-    const flush = () => {
-      if (run > 0) out.push(run - 2 * cut)
-      run = 0
+    // конец упирается в границу соединённых рам: это рама, а не импост
+    const atJoin = (p: number) =>
+      joins.some((j) => (v ? j.dir === 'h' && j.y1 === p && j.x1 <= dv.x1 && j.x2 >= dv.x1 : j.dir === 'v' && j.x1 === p && j.y1 <= dv.y1 && j.y2 >= dv.y1))
+    // вычет на конце отрезка p: у габарита, выреза и границы рам — как у рамы, у конца деления внутри окна — как у импоста
+    const endCut = (p: number) => {
+      if (p <= 0 || p >= lim || atJoin(p)) return dims.impostCut
+      if (p !== a && p !== b) return dims.impostCut // граница выреза
+      const beyond = p === a ? p - 1 : p + 1
+      const c1 = v ? at(dv.x1 - 1, beyond) : at(beyond, dv.y1 - 1)
+      const c2 = v ? at(dv.x1 + 1, beyond) : at(beyond, dv.y1 + 1)
+      return solid(c1) && solid(c2) ? dims.impostCutT : dims.impostCut
+    }
+    let start: number | null = null
+    const flush = (end: number) => {
+      if (start !== null) out.push(end - start - endCut(start) - endCut(end))
+      start = null
     }
     for (let i = 0; i < s.length - 1; i++) {
       const mid = (s[i] + s[i + 1]) / 2
       const c1 = v ? at(dv.x1 - 1, mid) : at(mid, dv.y1 - 1)
       const c2 = v ? at(dv.x1 + 1, mid) : at(mid, dv.y1 + 1)
-      if (c1 && c2 && !c1.leaf.void && !c2.leaf.void) run += s[i + 1] - s[i]
-      else flush()
+      if (solid(c1) && solid(c2)) {
+        if (start === null) start = s[i]
+      } else flush(s[i])
     }
-    flush()
+    flush(s[s.length - 1])
   }
   return out
 }
-const impostLength = (cells: CellBox[], dividers: Divider[], cut: number) => impostPieces(cells, dividers, cut).reduce((a, b) => a + b, 0)
 
 export function measure(d: WindowDesign, dims: Dims = DEFAULT_DIMS): Measure {
-  const { cells, dividers } = layout(d)
+  const { cells, dividers, joins, frames } = layout(d)
   const W = d.width
   const H = d.height
   const rise = d.shape === 'arch' ? Math.min(d.archRise ?? 0, W / 2, H) : 0
 
-  // периметр Г-/Т-образного (ортогонально-выпуклого) контура равен периметру габарита
-  const framePerimeter = rise > 0 ? 2 * (H - rise) + W + arcLength(W, rise) : 2 * (W + H)
-  const impostList = impostPieces(cells, dividers, dims.impostCut)
+  // рама одна: периметр габарита (у Г-/Т-образного выреза он тот же); у соединённых рам — сумма периметров каждой рамы
+  const framePerimeter = rise > 0 ? 2 * (H - rise) + W + arcLength(W, rise) : frames.reduce((s, f) => s + 2 * (f.w + f.h), 0)
+  const framesArea = frames.reduce((s, f) => s + f.w * f.h, 0)
+  const impostList = impostPieces(cells, dividers, W, H, dims, joins)
   const impost = impostList.reduce((a, b) => a + b, 0)
   const sashBy: Partial<Record<Opening, number>> = {}
+  const sashAllBy: Partial<Record<Opening, number>> = {}
   let netCount = 0
-  const voidArea = cells.filter((c) => c.leaf.void).reduce((s, c) => s + c.rect.w * c.rect.h, 0)
+  // вырезы (пустые ячейки) внутри рам вычитаются из площади; вырезы вне рам составного окна в площадь не входят
+  const ovl = (a: Rect, b: Rect) => Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x)) * Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y))
+  const voidArea = cells.filter((c) => c.leaf.void).reduce((s, c) => s + frames.reduce((t, f) => t + ovl(c.rect, f), 0), 0)
 
   const panes: Pane[] = []
+  const sashRects: SashRect[] = []
   let bead = 0
   let sashPerim = 0
   let sashes = 0
@@ -240,42 +322,39 @@ export function measure(d: WindowDesign, dims: Dims = DEFAULT_DIMS): Measure {
   let doorPerim = 0
   for (const { leaf: lf, rect } of cells) {
     if (lf.void) continue
-    const fs = frameSides(cells, rect, W, H)
-    const cut = (touchesFrame: boolean) => (touchesFrame ? dims.frameCut : 0)
-    const cw = rect.w - cut(fs.l) - cut(fs.r)
-    const ch = rect.h - cut(fs.t) - cut(fs.b)
-    if (lf.panel) {
-      sandwich += (cw * ch) / 1e6
-      continue
-    }
-    if (hasSash(lf.opening)) {
-      const sw = cw + 2 * dims.sashOverlap
-      const sh = ch + 2 * dims.sashOverlap
-      const gw = sw - 2 * dims.sashFace
-      const gh = sh - 2 * dims.sashFace
+    const fs = frameSides(cells, rect, W, H, joins)
+    // слои ячейки: створка 35 мм от рамы / 13 от оси импоста; стекло/панель в створке 62 (в двери 94) от её края;
+    // глухое стекло/панель 48 от рамы, 26 от оси импоста
+    const layers = leafLayers(rect, fs, lf, dims)
+    const gw = layers.contour.w
+    const gh = layers.contour.h
+    if (layers.sash) {
+      const sw = layers.sash.w
+      const sh = layers.sash.h
       sashPerim += 2 * (sw + sh)
       if (lf.door) doorPerim += 2 * (sw + sh)
       else sashBy[lf.opening] = (sashBy[lf.opening] ?? 0) + 1
+      sashAllBy[lf.opening] = (sashAllBy[lf.opening] ?? 0) + 1
       if (lf.net) netCount += 1
-      bead += 2 * (gw + gh)
-      panes.push({ leafId: lf.id, w: gw, h: gh, sash: true })
       sashes += 1
+      sashRects.push({ leafId: lf.id, w: sw, h: sh, door: !!lf.door })
       if (lf.net) {
         nets += (sw * sh) / 1e6
         netsPerim += 2 * (sw + sh)
       }
-    } else {
-      // глухое стекло: у импоста вычет половины импоста (у рамы — frameCut, он уже учтён в cw/ch)
-      const gw = cw - dims.impostGlass * ((fs.l ? 0 : 1) + (fs.r ? 0 : 1))
-      const gh = ch - dims.impostGlass * ((fs.t ? 0 : 1) + (fs.b ? 0 : 1))
-      bead += 2 * (gw + gh)
-      panes.push({ leafId: lf.id, w: gw, h: gh, sash: false })
     }
+    // штапик идёт и у сэндвич-панели (как у стекла); площадь панели считается отдельно от стекла
+    bead += 2 * (gw + gh)
+    if (lf.panel) sandwich += (gw * gh) / 1e6
+    else panes.push({ leafId: lf.id, w: gw, h: gh, sash: hasSash(lf.opening) })
     if (lf.door) doors += 1
   }
 
+  // ламинация: видимый профиль = длина детали × его ширина (рама, створка, дверная створка, импост)
+  const lamArea = (w: Dims['lamIn']) => (framePerimeter * w.frame + (sashPerim - doorPerim) * w.sash + doorPerim * w.door + impost * w.impost) / 1e6
+
   return {
-    area_m2: r2((W * H - voidArea) / 1e6),
+    area_m2: r2((framesArea - voidArea) / 1e6),
     frame_m: r2(framePerimeter / 1000),
     impost_m: r2(impost / 1000),
     sash_m: r2(sashPerim / 1000),
@@ -288,10 +367,14 @@ export function measure(d: WindowDesign, dims: Dims = DEFAULT_DIMS): Measure {
     nets_m: r2(netsPerim / 1000),
     sandwich_m2: r3(sandwich),
     door_sash_m: r2(doorPerim / 1000),
+    lam_in_m2: r3(lamArea(dims.lamIn)),
+    lam_out_m2: r3(lamArea(dims.lamOut)),
     imposts: impostList.length,
     nets: netCount,
     sash_by: sashBy,
+    sash_all_by: sashAllBy,
     panes,
+    sashRects,
   }
 }
 

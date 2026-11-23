@@ -1,6 +1,6 @@
-import { useId } from 'react'
+﻿import { useId } from 'react'
 import { fmtLen } from '../lib/units'
-import { arcLength, frameSides, layout, splitBoxes, type Opening, type Rect, type WindowDesign } from '../lib/window'
+import { arcLength, DEFAULT_DIMS, frameSides, layout, leafLayers, splitBoxes, type Opening, type Rect, type WindowDesign } from '../lib/window'
 
 interface Props {
   design: WindowDesign
@@ -16,19 +16,33 @@ interface Props {
   note?: string // заметка к окну
 }
 
-const FRAME = 60 // видимая ширина рамы на чертеже, мм
-const IMPOST = 35 // половина видимого импоста, мм
-const SASH = 55 // видимая ширина створки, мм
+// Геометрия и цвета сняты с чертежа WinStudio V44.4 (docs/winstudio-study/FINDINGS.md): слои ячейки считает leafLayers() в lib/window.ts,
+// там же те же отступы идут в расчёт метров, поэтому чертёж и штапик/стекло не расходятся.
+const FRAME = DEFAULT_DIMS.frameFace // видимая ширина рамы, мм
 
-// внутренний просвет ячейки на чертеже (рама — по краю габарита и по границе с вырезом)
-function clearRect(r: Rect, fs: { l: boolean; t: boolean; r: boolean; b: boolean }): Rect {
-  const l = fs.l ? FRAME : IMPOST
-  const t = fs.t ? FRAME : IMPOST
-  const rr = fs.r ? FRAME : IMPOST
-  const b = fs.b ? FRAME : IMPOST
-  return { x: r.x + l, y: r.y + t, w: r.w - l - rr, h: r.h - t - b }
+const C = {
+  frameOuter: '#939393',
+  line: '#353535',
+  contourLine: '#666666',
+  glass: '#cddbeb',
+  panel: '#e9e9e9', // сэндвич-панель: сплошная светлая заливка (как у WinStudio)
+  sashFill: '#f5f5f5',
+  band: '#dfdfdf',
+  frameDefault: '#e9e9e9',
 }
-const inset = (r: Rect, d: number): Rect => ({ x: r.x + d, y: r.y + d, w: r.w - 2 * d, h: r.h - 2 * d })
+
+// размеры ручки WinStudio, мм (не зависят от размера окна): пластина и рычаг
+const HANDLE = { plateW: 37, plateH: 81, gripW: 24.5, gripH: 132, gripTop: 27.5 }
+const CROSS = 150 // полуразмер креста глухого стекла, мм
+
+/** смешать цвет с белым (t>0) или чёрным (t<0) */
+function shade(hex: string, t: number): string {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim())
+  if (!m) return hex
+  const n = parseInt(m[1], 16)
+  const ch = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => Math.round(t >= 0 ? v + (255 - v) * t : v * (1 + t)))
+  return `#${ch.map((v) => v.toString(16).padStart(2, '0')).join('')}`
+}
 
 export function openingLines(o: Opening, g: Rect) {
   const { x, y, w, h } = g
@@ -52,18 +66,48 @@ export function openingLines(o: Opening, g: Rect) {
   }
 }
 
+/** сторона, где стоит ручка (там сходятся линии открывания): r/l — на боковой стойке створки, b/t — на нижней/верхней */
+function handleSide(o: Opening): 'r' | 'l' | 'b' | 't' | null {
+  switch (o) {
+    case 'turn_r': case 'tt_r': return 'r'
+    case 'turn_l': case 'tt_l': return 'l'
+    case 'tilt': return 'b'
+    case 'top': return 't'
+    default: return null
+  }
+}
+
 export default function WindowSvg({ design, frameColor = '#f4f4f2', selectedId, onSelect, onPartClick, onSizeClick, maxHeight = 420, fontScale = 1, legend, badge, note }: Props) {
   // свой id на каждый чертёж: на одной странице (PDF заказа) их несколько
   const uidRaw = useId().replace(/[^a-zA-Z0-9]/g, '')
   const clipId = `clip${uidRaw}`
   const netId = `net${uidRaw}`
-  const panelId = `pnl${uidRaw}`
   const { width: W, height: H } = design
-  const { cells } = layout(design)
+  const { cells, joins, frames } = layout(design)
+  // составное окно (Г, Т, ступени): несколько отдельных рам, рамы рисуются каждая со своим контуром
+  const composite = frames.length > 1 || frames.some((f) => f.w !== design.width || f.h !== design.height)
   const splits = splitBoxes(design)
-  const pad = Math.max(W, H) * 0.14 * Math.max(1, fontScale * 0.8)
-  const font = Math.max(W, H) * 0.035 * fontScale
+  const M = Math.max(W, H)
+  const font = M * 0.031 * fontScale
   const rise = design.shape === 'arch' ? Math.min(design.archRise ?? 0, W / 2, H) : 0
+  const stroke = M * 0.0022
+
+  // цвета: белый «по умолчанию» заменяем серым WinStudio, цветная рама (ламинация) задаёт тон всем слоям
+  const isDefault = frameColor.toLowerCase() === '#f4f4f2'
+  const body = isDefault ? C.frameDefault : frameColor
+  const sashFill = isDefault ? C.sashFill : shade(frameColor, 0.45)
+  const band = isDefault ? C.band : shade(frameColor, -0.08)
+
+  // размерные линии: отступы пропорциональны габариту (как у WinStudio: общий размер дальше, размеры частей ближе)
+  const offO = M * 0.1427
+  const offP = M * 0.0703
+  const dotR = M * 0.0086
+  const labH = font * 1.75
+  const labW = (text: string) => font * (text.length * 0.62 + 1.2)
+  const padL = offO + font * 3
+  const padT = font * 1.2
+  const padR = font * 2 + (rise > 0 ? font * 6 : 0)
+  const padB = offO + labH
 
   // контур: прямоугольник или арка
   const archPath = (x: number, y: number, w: number, h: number, rs: number) => {
@@ -73,11 +117,38 @@ export default function WindowSvg({ design, frameColor = '#f4f4f2', selectedId, 
   }
   const outer = archPath(0, 0, W, H, rise)
   const inner = archPath(FRAME, FRAME, W - 2 * FRAME, H - 2 * FRAME, Math.max(0, rise - FRAME * 0.6))
-  const stroke = Math.max(W, H) * 0.004
+
+  const Label = ({ cx, cy, text, onClick }: { cx: number; cy: number; text: string; onClick?: () => void }) => (
+    <g onClick={onClick} style={{ cursor: onClick ? 'pointer' : 'default' }}>
+      <rect x={cx - labW(text) / 2} y={cy - labH / 2} width={labW(text)} height={labH} rx={labH * 0.3} fill="#ffffff" stroke="#d9d9d9" strokeWidth={stroke * 0.5} />
+      <text x={cx} y={cy + font * 0.35} textAnchor="middle" fill="#15201a">
+        {text}
+      </text>
+    </g>
+  )
+  const Dot = ({ x, y }: { x: number; y: number }) => <circle cx={x} cy={y} r={dotR} fill="#111111" />
+
+  const handle = (sash: Rect, side: 'r' | 'l' | 'b' | 't', bodyW: number, key: string) => {
+    // ручка: пластина и длинный рычаг, по центру профиля створки (ширина профиля bodyW); у нижней/верхней стойки повёрнута на 90°
+    const horizontal = side === 'b' || side === 't'
+    const cx = side === 'r' ? sash.x + sash.w - bodyW / 2 : side === 'l' ? sash.x + bodyW / 2 : sash.x + sash.w / 2
+    const cy = side === 'b' ? sash.y + sash.h - bodyW / 2 : side === 't' ? sash.y + bodyW / 2 : sash.y + sash.h / 2
+    return (
+      <g key={key} transform={`translate(${cx} ${cy})${horizontal ? ' rotate(-90)' : ''}`} fill="#ffffff" strokeWidth={stroke * 0.9}>
+        <rect x={-HANDLE.plateW / 2} y={-HANDLE.plateH / 2} width={HANDLE.plateW} height={HANDLE.plateH} stroke="#555555" />
+        <rect x={-HANDLE.gripW / 2} y={-HANDLE.plateH / 2 + HANDLE.gripTop} width={HANDLE.gripW} height={HANDLE.gripH} stroke="#8c8c8c" />
+      </g>
+    )
+  }
+
+  // линии сетки: границы всех ячеек и рам (позиции импостов и соединений), по возрастанию
+  const uniq = (xs: number[]) => [...new Set(xs.map((v) => Math.round(v * 100) / 100))].sort((a, b) => a - b)
+  const gridX = uniq([0, W, ...cells.flatMap((c) => [c.rect.x, c.rect.x + c.rect.w])])
+  const gridY = uniq([0, H, ...cells.flatMap((c) => [c.rect.y, c.rect.y + c.rect.h])])
 
   return (
     <svg
-      viewBox={`${-pad} ${-pad * 0.35} ${W + pad * 1.35} ${H + pad * 1.35}`}
+      viewBox={`${-padL} ${-padT} ${W + padL + padR} ${H + padT + padB}`}
       style={{ width: '100%', maxHeight, display: 'block' }}
       fontSize={font}
       fontFamily="system-ui, sans-serif"
@@ -86,77 +157,65 @@ export default function WindowSvg({ design, frameColor = '#f4f4f2', selectedId, 
         <clipPath id={clipId}>
           <path d={inner} />
         </clipPath>
-        <pattern id={netId}width={font * 0.6} height={font * 0.6} patternUnits="userSpaceOnUse">
-          <path d={`M0,0 L${font * 0.6},${font * 0.6} M${font * 0.6},0 L0,${font * 0.6}`} stroke="#5a6b62" strokeWidth={stroke * 0.5} />
-        </pattern>
-        <pattern id={panelId} width={font * 0.9} height={font * 0.9} patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-          <rect width={font * 0.9} height={font * 0.9} fill="#eceee9" />
-          <path d={`M0,0 V${font * 0.9}`} stroke="#8a948d" strokeWidth={stroke * 0.7} />
+        <pattern id={netId} width={M * 0.02} height={M * 0.02} patternUnits="userSpaceOnUse">
+          <path d={`M0,0 H${M * 0.02} M0,0 V${M * 0.02}`} stroke="#4a4f55" strokeWidth={stroke * 0.5} />
         </pattern>
       </defs>
 
-      {/* рама */}
-      <path d={outer} fill={frameColor} stroke="#3c4a42" strokeWidth={stroke} />
-      <path d={inner} fill={frameColor} stroke="#3c4a42" strokeWidth={stroke * 0.6} />
+      {/* рама (у составного окна — каждая рама отдельно) */}
+      {composite ? (
+        frames.map((f, i) => <rect key={`fr${i}`} x={f.x} y={f.y} width={f.w} height={f.h} fill={body} stroke={C.frameOuter} strokeWidth={stroke * 1.2} />)
+      ) : (
+        <path d={outer} fill={body} stroke={C.frameOuter} strokeWidth={stroke * 1.2} />
+      )}
 
-      <g clipPath={`url(#${clipId})`}>
+      <g clipPath={rise > 0 ? `url(#${clipId})` : undefined}>
         {cells.map(({ leaf, rect }) => {
           if (leaf.void) return null
-          const c = clearRect(rect, frameSides(cells, rect, W, H))
-          const sash = leaf.opening !== 'fixed' && !leaf.panel
-          const glass = sash ? inset(c, SASH) : c
+          const fs = frameSides(cells, rect, W, H, joins)
+          const ly = leafLayers(rect, fs, leaf)
           const sel = leaf.id === selectedId
+          const side = leaf.opening !== 'fixed' ? handleSide(leaf.opening) : null
+          const sashBody = leaf.door ? DEFAULT_DIMS.glassDoor : DEFAULT_DIMS.glassSash
           return (
             <g key={leaf.id} onClick={() => onSelect?.(leaf.id)} style={{ cursor: onSelect ? 'pointer' : 'default' }}>
-              {/* импост/фон ячейки */}
-              <rect x={rect.x} y={rect.y} width={rect.w} height={rect.h} fill={frameColor} stroke="#3c4a42" strokeWidth={stroke * 0.5} />
-              {sash && <rect x={c.x} y={c.y} width={c.w} height={c.h} fill={frameColor} stroke="#3c4a42" strokeWidth={stroke * 0.7} />}
-              <rect x={glass.x} y={glass.y} width={glass.w} height={glass.h} fill={leaf.panel ? `url(#${panelId})` : '#cfe4f2'} stroke="#3c4a42" strokeWidth={stroke * 0.5} />
-              {leaf.net && <rect x={glass.x} y={glass.y} width={glass.w} height={glass.h} fill={`url(#${netId})`} opacity={0.5} />}
-              {!leaf.panel && openingLines(leaf.opening, glass).map((d, i) => (
-                <path key={i} d={d} fill="none" stroke="#3c4a42" strokeWidth={stroke * 0.6} />
+              {/* невидимая область нажатия на всю ячейку */}
+              <rect x={rect.x} y={rect.y} width={rect.w} height={rect.h} fill="transparent" />
+              {ly.sash && <rect x={ly.sash.x} y={ly.sash.y} width={ly.sash.w} height={ly.sash.h} fill={sashFill} stroke={C.line} strokeWidth={stroke * 1.2} />}
+              {/* контур стекла/панели (по нему считается штапик) и светлая полоска штапика */}
+              <rect x={ly.contour.x} y={ly.contour.y} width={ly.contour.w} height={ly.contour.h} fill={band} stroke={ly.sash ? C.contourLine : C.line} strokeWidth={stroke} />
+              <rect x={ly.glass.x} y={ly.glass.y} width={ly.glass.w} height={ly.glass.h} fill={leaf.panel ? C.panel : C.glass} stroke={C.line} strokeWidth={stroke * 1.1} />
+              {leaf.net && <rect x={ly.glass.x} y={ly.glass.y} width={ly.glass.w} height={ly.glass.h} fill={`url(#${netId})`} opacity={0.6} />}
+              {!leaf.panel && openingLines(leaf.opening, ly.glass).map((d, i) => (
+                <path key={i} d={d} fill="none" stroke="#1a1a1a" strokeWidth={stroke * 1.1} />
               ))}
               {leaf.opening === 'fixed' && !leaf.panel && (
                 <path
-                  d={`M${glass.x + glass.w / 2 - font},${glass.y + glass.h / 2} h${font * 2} M${glass.x + glass.w / 2},${glass.y + glass.h / 2 - font} v${font * 2}`}
-                  stroke="#7b8c83"
-                  strokeWidth={stroke * 0.6}
+                  d={`M${ly.glass.x + ly.glass.w / 2 - CROSS},${ly.glass.y + ly.glass.h / 2} h${CROSS * 2} M${ly.glass.x + ly.glass.w / 2},${ly.glass.y + ly.glass.h / 2 - CROSS} v${CROSS * 2}`}
+                  stroke="#1a1a1a"
+                  strokeWidth={stroke * 1.1}
                 />
               )}
               {leaf.opening === 'fixed_sash' && (
                 <path
-                  d={`M${glass.x + glass.w / 2 - font * 0.7},${glass.y + glass.h / 2 - font * 0.7} l${font * 1.4},${font * 1.4} m0,${-font * 1.4} l${-font * 1.4},${font * 1.4}`}
-                  stroke="#3c4a42"
-                  strokeWidth={stroke * 0.6}
+                  d={`M${ly.glass.x + ly.glass.w / 2 - CROSS},${ly.glass.y + ly.glass.h / 2} h${CROSS * 2} M${ly.glass.x + ly.glass.w / 2},${ly.glass.y + ly.glass.h / 2 - CROSS} v${CROSS * 2}`}
+                  stroke="#1a1a1a"
+                  strokeWidth={stroke * 1.1}
                 />
               )}
               {(leaf.opening === 'slide_l' || leaf.opening === 'slide_r') && (
                 <path
                   d={
                     leaf.opening === 'slide_r'
-                      ? `M${glass.x + glass.w * 0.25},${glass.y + glass.h / 2} h${glass.w * 0.5} l${-font},${-font * 0.6} m${font},${font * 0.6} l${-font},${font * 0.6}`
-                      : `M${glass.x + glass.w * 0.75},${glass.y + glass.h / 2} h${-glass.w * 0.5} l${font},${-font * 0.6} m${-font},${font * 0.6} l${font},${font * 0.6}`
+                      ? `M${ly.glass.x + ly.glass.w * 0.25},${ly.glass.y + ly.glass.h / 2} h${ly.glass.w * 0.5} l${-font},${-font * 0.6} m${font},${font * 0.6} l${-font},${font * 0.6}`
+                      : `M${ly.glass.x + ly.glass.w * 0.75},${ly.glass.y + ly.glass.h / 2} h${-ly.glass.w * 0.5} l${font},${-font * 0.6} m${-font},${font * 0.6} l${font},${font * 0.6}`
                   }
                   fill="none"
-                  stroke="#3c4a42"
-                  strokeWidth={stroke * 0.7}
+                  stroke="#1a1a1a"
+                  strokeWidth={stroke * 1.1}
                 />
               )}
-              {leaf.door && (
-                <rect
-                  x={leaf.opening.endsWith('_r') ? glass.x + font * 0.55 : glass.x + glass.w - font * 1.1}
-                  y={glass.y + glass.h / 2 - font * 1.6}
-                  width={font * 0.55}
-                  height={font * 3.2}
-                  rx={font * 0.2}
-                  fill="#3c4a42"
-                />
-              )}
-              {leaf.door && (
-                <text x={glass.x + glass.w / 2} y={glass.y + font * 1.6} textAnchor="middle" fill="#3c4a42" fontWeight={700}>
-                  ESHIK
-                </text>
-              )}
+              {ly.sash && side && handle(ly.sash, side, sashBody, `h${leaf.id}`)}
               {sel && <rect x={rect.x + stroke * 2} y={rect.y + stroke * 2} width={rect.w - stroke * 4} height={rect.h - stroke * 4} fill="none" stroke="#0e9a2f" strokeWidth={stroke * 3} strokeDasharray={`${font} ${font * 0.5}`} />}
             </g>
           )
@@ -167,53 +226,59 @@ export default function WindowSvg({ design, frameColor = '#f4f4f2', selectedId, 
       {cells
         .filter((c) => c.leaf.void)
         .map(({ leaf, rect }) => (
-          <rect key={leaf.id} x={rect.x - stroke} y={rect.y - stroke} width={rect.w + 2 * stroke} height={rect.h + 2 * stroke} fill="#ffffff" onClick={() => onSelect?.(leaf.id)} style={{ cursor: onSelect ? 'pointer' : 'default' }} />
+          <rect
+            key={leaf.id}
+            x={rect.x - stroke}
+            y={rect.y - stroke}
+            width={rect.w + 2 * stroke}
+            height={rect.h + 2 * stroke}
+            fill={composite ? 'transparent' : '#ffffff'}
+            onClick={() => onSelect?.(leaf.id)}
+            style={{ cursor: onSelect ? 'pointer' : 'default' }}
+          />
         ))}
 
-      {/* размеры частей делений (нажать — изменить) */}
-      {splits.map(({ split, parts }) => (
-        <g key={split.id}>
-        {parts.map((p, i) => {
-          const v = split.dir === 'v'
-          const cx = v ? p.x + p.w / 2 : p.x + FRAME + font * 1.6
-          const cy = v ? p.y + p.h - FRAME - font * 1.2 : p.y + p.h / 2
-          const label = fmtLen(split.sizes[i])
-          return (
-            <g key={`${split.id}-${i}`} onClick={() => onPartClick?.(split.id, i, split.sizes[i])} style={{ cursor: onPartClick ? 'pointer' : 'default' }}>
-              <rect x={cx - font * 1.4} y={cy - font * 0.75} width={font * 2.8} height={font * 1.3} rx={font * 0.3} fill="#ffffff" stroke="#9aaba1" strokeWidth={stroke * 0.5} />
-              <text x={cx} y={cy + font * 0.3} textAnchor="middle" fill="#15201a">
-                {label}
-              </text>
-            </g>
-          )
-        })}
-        </g>
-      ))}
+      {/* размеры частей по всем линиям сетки окна (импосты и границы рам), как у WinStudio: ряд под окном и столбец слева */}
+      {[
+        { v: true, lines: gridX },
+        { v: false, lines: gridY },
+      ].map(({ v, lines }) =>
+        lines.length > 2 ? (
+          <g key={v ? 'gx' : 'gy'}>
+            <line stroke="#111111" strokeWidth={stroke * 0.8} x1={v ? lines[0] : -offP} y1={v ? H + offP : lines[0]} x2={v ? lines[lines.length - 1] : -offP} y2={v ? H + offP : lines[lines.length - 1]} />
+            {lines.map((p, i) => (
+              <Dot key={`d${i}`} x={v ? p : -offP} y={v ? H + offP : p} />
+            ))}
+            {lines.slice(0, -1).map((p, i) => {
+              const size = lines[i + 1] - p
+              // нажатие меняет размер, если часть совпадает с частью какого-то деления; иначе только показ
+              const hit = splits.flatMap((s) => s.parts.map((pr, k) => ({ s, pr, k }))).find(({ s, pr }) => s.split.dir === (v ? 'v' : 'h') && (v ? pr.x === p && pr.w === size : pr.y === p && pr.h === size))
+              return (
+                <Label
+                  key={`l${i}`}
+                  cx={v ? p + size / 2 : -offP}
+                  cy={v ? H + offP : p + size / 2}
+                  text={fmtLen(size)}
+                  onClick={hit ? () => onPartClick?.(hit.s.split.id, hit.k, size) : undefined}
+                />
+              )
+            })}
+          </g>
+        ) : null,
+      )}
 
       {/* общие размеры */}
-      <g stroke="#3c4a42" strokeWidth={stroke * 0.6}>
-        <line x1={0} y1={H + pad * 0.45} x2={W} y2={H + pad * 0.45} />
-        <line x1={0} y1={H + pad * 0.3} x2={0} y2={H + pad * 0.6} />
-        <line x1={W} y1={H + pad * 0.3} x2={W} y2={H + pad * 0.6} />
-        <line x1={-pad * 0.45} y1={0} x2={-pad * 0.45} y2={H} />
-        <line x1={-pad * 0.3} y1={0} x2={-pad * 0.6} y2={0} />
-        <line x1={-pad * 0.3} y1={H} x2={-pad * 0.6} y2={H} />
+      <g stroke="#111111" strokeWidth={stroke * 0.8}>
+        <line x1={0} y1={H + offO} x2={W} y2={H + offO} />
+        <line x1={-offO} y1={0} x2={-offO} y2={H} />
       </g>
-      <text x={W / 2} y={H + pad * 0.45 + font * 1.2} textAnchor="middle" fill="#15201a" fontWeight={700} onClick={() => onSizeClick?.('w', W)} style={{ cursor: onSizeClick ? 'pointer' : 'default' }}>
-        {fmtLen(W)}
-      </text>
-      <text
-        x={-pad * 0.45 - font * 0.5}
-        y={H / 2}
-        textAnchor="middle"
-        fill="#15201a"
-        fontWeight={700}
-        transform={`rotate(-90 ${-pad * 0.45 - font * 0.5} ${H / 2})`}
-        onClick={() => onSizeClick?.('h', H)}
-        style={{ cursor: onSizeClick ? 'pointer' : 'default' }}
-      >
-        {fmtLen(H)}
-      </text>
+      <Dot x={0} y={H + offO} />
+      <Dot x={W} y={H + offO} />
+      <Dot x={-offO} y={0} />
+      <Dot x={-offO} y={H} />
+      <Label cx={W / 2} cy={H + offO} text={fmtLen(W)} onClick={() => onSizeClick?.('w', W)} />
+      <Label cx={-offO} cy={H / 2} text={fmtLen(H)} onClick={() => onSizeClick?.('h', H)} />
+
       {legend && legend.length > 0 && (
         <g fontSize={font * 0.8} fill="#15201a" pointerEvents="none">
           {legend.map((line, i) => (
@@ -238,10 +303,11 @@ export default function WindowSvg({ design, frameColor = '#f4f4f2', selectedId, 
         </g>
       )}
       {rise > 0 && (
-        <text x={W + pad * 0.1} y={rise / 2} fill="#62736a" fontSize={font * 0.8}>
+        <text x={W + font * 0.6} y={rise / 2} fill="#62736a" fontSize={font * 0.8}>
           ⌒ {fmtLen(rise)} · {fmtLen(arcLength(W, rise))}
         </text>
       )}
     </svg>
   )
 }
+

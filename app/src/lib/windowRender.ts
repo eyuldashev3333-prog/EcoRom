@@ -1,11 +1,9 @@
-// Реалистичная картинка окна для наложения на фото (не чертёж): рама цвета каталога с фасками, створки, ручки,
+﻿// Реалистичная картинка окна для наложения на фото (не чертёж): рама цвета каталога с фасками, створки, ручки,
 // стекло с оттенком/бликом (прозрачное — через него видна фотография), подоконник и мягкая тень.
 // Размеры берутся из конструктора (layout) — те же деления, что в заказе.
-import { layout, type Leaf, type Opening, type Rect, type WindowDesign } from './window'
+import { DEFAULT_DIMS, frameSides, layout, leafLayers, type Leaf, type Opening, type Rect, type WindowDesign } from './window'
 
-const FRAME = 60 // видимая ширина рамы, мм (как на чертеже)
-const IMPOST = 35
-const SASH = 55
+const FRAME = DEFAULT_DIMS.frameFace // видимая ширина рамы, мм (как на чертеже WinStudio)
 
 export type Tint = 'clear' | 'blue' | 'bronze' | 'grey'
 export const TINTS: Record<Tint, string> = { clear: '210,232,245', blue: '120,170,215', bronze: '150,115,70', grey: '120,128,135' }
@@ -37,14 +35,6 @@ function shade(hex: string, k: number): string {
   return `rgb(${r},${g},${b})`
 }
 
-function clearRect(r: Rect, W: number, H: number): Rect {
-  const l = r.x <= 0 ? FRAME : IMPOST
-  const t = r.y <= 0 ? FRAME : IMPOST
-  const rr = r.x + r.w >= W ? FRAME : IMPOST
-  const b = r.y + r.h >= H ? FRAME : IMPOST
-  return { x: r.x + l, y: r.y + t, w: r.w - l - rr, h: r.h - t - b }
-}
-const inset = (r: Rect, d: number): Rect => ({ x: r.x + d, y: r.y + d, w: r.w - 2 * d, h: r.h - 2 * d })
 
 function archPath(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, rise: number) {
   ctx.beginPath()
@@ -76,13 +66,14 @@ function profile(ctx: CanvasRenderingContext2D, r: Rect, color: string, bevel: n
 
 function handle(ctx: CanvasRenderingContext2D, leaf: Leaf, sash: Rect, color: string) {
   const o: Opening = leaf.opening
+  const body = (leaf.door ? DEFAULT_DIMS.glassDoor : DEFAULT_DIMS.glassSash) * 0.5 // середина профиля створки
   let x = 0
   let y = 0
   let vertical = true
-  if (o === 'turn_l' || o === 'tt_l') { x = sash.x + SASH * 0.45; y = sash.y + sash.h / 2 }
-  else if (o === 'turn_r' || o === 'tt_r') { x = sash.x + sash.w - SASH * 0.45; y = sash.y + sash.h / 2 }
-  else if (o === 'tilt') { x = sash.x + sash.w / 2; y = sash.y + SASH * 0.45; vertical = false }
-  else if (o === 'top') { x = sash.x + sash.w / 2; y = sash.y + sash.h - SASH * 0.45; vertical = false }
+  if (o === 'turn_l' || o === 'tt_l') { x = sash.x + body; y = sash.y + sash.h / 2 }
+  else if (o === 'turn_r' || o === 'tt_r') { x = sash.x + sash.w - body; y = sash.y + sash.h / 2 }
+  else if (o === 'tilt') { x = sash.x + sash.w / 2; y = sash.y + body; vertical = false }
+  else if (o === 'top') { x = sash.x + sash.w / 2; y = sash.y + sash.h - body; vertical = false }
   else return
   const len = leaf.door ? 160 : 110
   const wd = 22
@@ -115,43 +106,56 @@ export function renderWindow(design: WindowDesign, o: RenderOpts): Rendered {
   const bevel = Math.max(5, Math.min(W, H) * 0.006)
   const color = o.frameColor
 
+  const { cells, joins, frames } = layout(design)
+  // составное окно (Г, Т, ступени): каждая рама отдельно, вырезы прозрачные
+  const composite = frames.length > 1 || frames.some((f) => f.w !== W || f.h !== H)
+  const shape = (inset = 0) => {
+    if (!composite) return archPath(ctx, inset, inset, W - 2 * inset, H - 2 * inset, inset ? innerRise : rise)
+    ctx.beginPath()
+    for (const f of frames) ctx.rect(f.x + inset, f.y + inset, f.w - 2 * inset, f.h - 2 * inset)
+  }
+
   // мягкая тень от окна на стену (вправо-вниз)
   ctx.save()
   ctx.shadowColor = 'rgba(0,0,0,0.38)'
   ctx.shadowBlur = Math.max(W, H) * 0.03
   ctx.shadowOffsetX = W * 0.012
   ctx.shadowOffsetY = H * 0.012
-  archPath(ctx, 0, 0, W, H, rise)
+  shape()
   ctx.fillStyle = color
   ctx.fill()
   ctx.restore()
 
   // рама
-  archPath(ctx, 0, 0, W, H, rise)
+  shape()
   ctx.fillStyle = color
   ctx.fill()
   ctx.save()
-  archPath(ctx, 0, 0, W, H, rise)
+  shape()
   ctx.clip()
-  const inner: Rect = { x: FRAME, y: FRAME, w: W - 2 * FRAME, h: H - 2 * FRAME }
-  profile(ctx, { x: 0, y: 0, w: W, h: H }, color, bevel * 1.6)
+  if (composite) for (const f of frames) profile(ctx, f, color, bevel * 1.6)
+  else profile(ctx, { x: 0, y: 0, w: W, h: H }, color, bevel * 1.6)
   ctx.restore()
 
   // ячейки: импосты/створки/стекло внутри внутреннего контура
   ctx.save()
-  archPath(ctx, inner.x, inner.y, inner.w, inner.h, innerRise)
+  shape(FRAME)
   ctx.clip()
-  const { cells } = layout(design)
   const tint = TINTS[o.tint]
   const glassRects: Rect[] = []
   const netRects: Rect[] = []
+  const sashRects = new Map<string, Rect>()
   for (const { leaf, rect } of cells) {
-    const c = clearRect(rect, W, H)
-    const sash = leaf.opening !== 'fixed'
+    if (leaf.void) continue
+    // слои ячейки те же, что на чертеже и в расчёте: створка, контур, стекло
+    const ly = leafLayers(rect, frameSides(cells, rect, W, H, joins), leaf)
     profile(ctx, rect, color, bevel)
-    if (sash) profile(ctx, c, color, bevel * 1.2)
-    glassRects.push(sash ? inset(c, SASH) : c)
-    if (sash && !leaf.door) netRects.push(inset(c, SASH))
+    if (ly.sash) {
+      profile(ctx, ly.sash, color, bevel * 1.2)
+      sashRects.set(leaf.id, ly.sash)
+    }
+    glassRects.push(ly.glass)
+    if (ly.sash && !leaf.door) netRects.push(ly.glass)
   }
   // стекло: сначала «вырезаем» дырку (сквозь неё видно фото), затем оттенок
   for (const gr of glassRects) ctx.clearRect(gr.x, gr.y, gr.w, gr.h)
@@ -204,8 +208,9 @@ export function renderWindow(design: WindowDesign, o: RenderOpts): Rendered {
   }
   // ручки
   const handleColor = shade(color === '#f4f4f2' ? '#d8d8d4' : '#cfcfcf', 1)
-  for (const { leaf, rect } of cells) {
-    if (leaf.opening !== 'fixed') handle(ctx, leaf, clearRect(rect, W, H), handleColor)
+  for (const { leaf } of cells) {
+    const sash = sashRects.get(leaf.id)
+    if (sash) handle(ctx, leaf, sash, handleColor)
   }
   ctx.restore()
 
@@ -246,3 +251,6 @@ export function renderWindow(design: WindowDesign, o: RenderOpts): Rendered {
 
   return { canvas, range: { u0: -mx / W, u1: 1 + mx / W, v0: -mt / H, v1: 1 + mb / H } }
 }
+
+
+

@@ -103,9 +103,10 @@ describe('Блок 2: настройки окна', () => {
     const q = quoteItem(measure(newDesign(1200, 1800)), { system: 'sys2', sides: { dobor: { '20': ['l'] } } }, cat, 1200, 1800)
     expect(l(q, 'PVX A — dobor 20 mm')?.qty).toBe(1.8)
   })
-  it('ламинация внутри и снаружи — по площади, отдельными строками', () => {
+  it('ламинация внутри и снаружи — по площади видимого профиля (как WinStudio), отдельными строками', () => {
     const q = quoteItem(m, { lamination_in: 'lam', lamination_out: 'lam' }, cat, 1500, 1500)
-    expect(q.lines.filter((x) => x.item_id === 'lam').map((x) => [x.part, x.qty])).toEqual([['ichki', 2.25], ['tashqi', 2.25]])
+    expect(q.lines.filter((x) => x.item_id === 'lam').map((x) => [x.part, x.qty])).toEqual([['ichki', m.lam_in_m2], ['tashqi', m.lam_out_m2]])
+    expect(m.lam_in_m2).toBeLessThan(m.area_m2) // профиль, а не вся площадь окна
   })
   it('несколько подоконников и заглушки', () => {
     const q = quoteItem(m, { sills: [{ id: 'sill2' }, { id: 'sill', length_mm: 1000 }] }, cat, 1500, 1500)
@@ -154,9 +155,10 @@ describe('Блок 3: колонки прайса WinStudio', () => {
     d = (() => { const b = newDesign(1500, 1500); const s = splitLeaf(b, b.root.id, 'v'); const c = layout(s).cells; return updateLeaf(updateLeaf(s, c[0].leaf.id, { opening: 'tt_l' }), c[1].leaf.id, { opening: 'tilt' }) })()
     const m = measure(d)
     const q = quoteItem(m, { system: 'S' }, cat, 1500, 1500)
+    // WinStudio: поворотно-откидная → «tt», откидная → «горизонтальный» (h), поворотная → «вертикальный» (v)
     expect(line(q, 'Sys — mexanika tt')).toMatchObject({ qty: 1, sum: 1000, unit: 'pcs' })
-    expect(line(q, 'Sys — mexanika v')).toMatchObject({ qty: 1, sum: 600 })
-    expect(line(q, 'Sys — mexanika h')).toBeUndefined()
+    expect(line(q, 'Sys — mexanika h')).toMatchObject({ qty: 1, sum: 700 })
+    expect(line(q, 'Sys — mexanika v')).toBeUndefined()
     expect(line(q, 'Sys — burchak kuchaytirgich rama')?.sum).toBe(20)
     expect(line(q, 'Sys — burchak kuchaytirgich tavaqa')?.qty).toBe(8)
     expect(line(q, 'Sys — impost konnektor')?.qty).toBe(2)
@@ -182,8 +184,23 @@ describe('Блок 3: колонки прайса WinStudio', () => {
     expect(line(q, 'Hw — ruchka')?.sum).toBe(10)
     expect(line(q, 'Net — burchak')?.qty).toBe(4)
     expect(line(q, 'Net — ushlagich')?.qty).toBe(4)
-    expect(line(q, 'Net — ruchka-petelka')?.sum).toBe(3)
+    expect(line(q, 'Net — ruchka-petelka')?.sum).toBe(6) // две ручки на сетку (проверено пробами WinStudio)
     expect(q.work_cost).toBe(200)
+  })
+  it('дверь: механика и ручка ставятся и на дверную створку, ручка та же, что у окна (WinStudio V44.4)', () => {
+    const base = newDesign(1000, 2100)
+    const single = updateLeaf(base, base.root.id, { opening: 'turn_r', door: true })
+    const q = quoteItem(measure(single), { system: 'S', hardware: 'H' }, cat, 1000, 2100)
+    expect(line(q, 'Sys — mexanika v')).toMatchObject({ qty: 1, sum: 600 })
+    expect(line(q, 'Hw — ruchka')?.sum).toBe(10)
+    expect(line(q, 'Hw — ruchka balkon')).toBeUndefined()
+  })
+  it('угловой наличник считается по высоте, подставочный профиль и порог — по ширине', () => {
+    const k = new Map([['S', { id: 'S', kind: 'system', name: 'Sys', unit: 'm', price: 0, params: { corner: 10, support: 10, threshold: 10 } } as CatalogItem]])
+    const q = quoteItem(measure(newDesign(1000, 1200)), { system: 'S', sides: { corner: true, support: true, threshold: true } }, k, 1000, 1200)
+    expect(line(q, 'Sys — burchak peshtoq')?.qty).toBe(1.2)
+    expect(line(q, 'Sys — tayanch profil')?.qty).toBe(1)
+    expect(line(q, "Sys — bo'sag'a")?.qty).toBe(1)
   })
   it('колонки без цены не создают «нет цены»', () => {
     const q = quoteItem(measure(newDesign(1500, 1500)), { system: 'S' }, new Map([['S', { id: 'S', kind: 'system', name: 'Sys', unit: 'm', price: 0, params: { frame: 100, impost: 100, sash: 100, bead: 1, gasket: 1 } } as CatalogItem]]), 1500, 1500)

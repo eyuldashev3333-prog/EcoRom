@@ -1,6 +1,6 @@
 // Раскрой профиля: длины деталей окна → резка из обрезков и хлыстов.
 // Длины деталей — наружные (как в расчёте метров): рама = стороны, импост = пролёт − 2×impostCut, створка = просвет + нахлёст, штапик = стекло.
-import { arcLength, DEFAULT_DIMS, frameSides, hasSash, impostPieces, layout, measure, type Dims, type WindowDesign } from './window'
+import { arcLength, DEFAULT_DIMS, impostPieces, layout, measure, type Dims, type WindowDesign } from './window'
 
 export type ProfPart = 'rama' | 'impost' | 'tavaqa' | 'shtapik'
 export const PROF_PARTS: ProfPart[] = ['rama', 'impost', 'tavaqa', 'shtapik']
@@ -12,18 +12,12 @@ export function windowPieces(d: WindowDesign, dims: Dims = DEFAULT_DIMS): Record
   const rise = d.shape === 'arch' ? Math.min(d.archRise ?? 0, W / 2, H) : 0
   const rama = rise > 0 ? [W, H - rise, H - rise, arcLength(W, rise)] : [W, W, H, H]
   const { cells, dividers } = layout(d)
-  const impost = impostPieces(cells, dividers, dims.impostCut)
+  const impost = impostPieces(cells, dividers, W, H, dims)
+  const m = measure(d, dims)
   const tavaqa: number[] = []
-  for (const { leaf, rect } of cells) {
-    if (leaf.void || !hasSash(leaf.opening)) continue
-    const fs = frameSides(cells, rect, W, H)
-    const cut = (t: boolean) => (t ? dims.frameCut : 0)
-    const sw = rect.w - cut(fs.l) - cut(fs.r) + 2 * dims.sashOverlap
-    const sh = rect.h - cut(fs.t) - cut(fs.b) + 2 * dims.sashOverlap
-    tavaqa.push(sw, sw, sh, sh)
-  }
+  for (const s of m.sashRects) tavaqa.push(s.w, s.w, s.h, s.h)
   const shtapik: number[] = []
-  for (const p of measure(d, dims).panes) shtapik.push(p.w, p.w, p.h, p.h)
+  for (const p of m.panes) shtapik.push(p.w, p.w, p.h, p.h)
   const clean = (xs: number[]) => xs.map((x) => Math.round(x)).filter((x) => x > 0)
   return { rama: clean(rama), impost: clean(impost), tavaqa: clean(tavaqa), shtapik: clean(shtapik) }
 }

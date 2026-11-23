@@ -1,12 +1,12 @@
-import { describe, expect, it } from 'vitest'
+﻿import { describe, expect, it } from 'vitest'
 import { CONFIGS } from './configs'
 import { designProblems, layout, measure } from './window'
 
 describe('каталог конфигураций', () => {
-  it('ключи уникальны, не меньше 80 схем (в WinStudio ≈80–100)', () => {
+  it('ключи уникальны, 78 схем WinStudio + арочные', () => {
     const keys = CONFIGS.map((c) => c.key)
     expect(new Set(keys).size).toBe(keys.length)
-    expect(CONFIGS.length).toBeGreaterThanOrEqual(80)
+    expect(CONFIGS.length).toBeGreaterThanOrEqual(78)
   })
   it('каждая схема: части дают габарит, нет проблем чертежа, площадь стекла > 0', () => {
     for (const c of CONFIGS) {
@@ -20,3 +20,4 @@ describe('каталог конфигураций', () => {
     }
   })
 })
+

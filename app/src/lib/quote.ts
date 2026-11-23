@@ -96,7 +96,9 @@ const SYS_PARTS: { key: string; label: string; m: (x: Measure) => number }[] = [
 // Колонки таблицы оконных систем, которые считаются только если в прайсе стоит цена (>0): иначе строка не добавляется и не даёт «нет цены».
 // Предположения (подтвердить у владельца): комплект механики — на каждую оконную створку по типу открывания; армировка — по длине профиля;
 // усилитель угла рамы — 4 на окно, угла створки — по 4 на створку; коннектор импоста — 2 на отрезок импоста.
-const MECH_BY_OPENING: Record<string, string> = { tt_l: 'mech_tt', tt_r: 'mech_tt', turn_l: 'mech_h', turn_r: 'mech_h', tilt: 'mech_v', top: 'mech_v', slide_l: 'mech_slide', slide_r: 'mech_slide' }
+// Сопоставление сняли пробами в WinStudio V44.4: поворотно-откидная → «поворотно-откидной», откидная/фрамуга → «горизонтальный», поворотная → «вертикальный».
+// Механика ставится на все створки, включая дверные.
+const MECH_BY_OPENING: Record<string, string> = { tt_l: 'mech_tt', tt_r: 'mech_tt', turn_l: 'mech_v', turn_r: 'mech_v', tilt: 'mech_h', top: 'mech_h', slide_l: 'mech_slide', slide_r: 'mech_slide' }
 
 const r3 = (n: number) => Math.round(n * 1000) / 1000
 
@@ -179,7 +181,7 @@ export function quoteItem(m: Measure, opt: ItemOptions, catalog: Map<string, Cat
     addIf(sys, 'armor_impost', m.impost_m, 'armatura impost', 'm')
     addIf(sys, 'armor_sash', r3(m.sash_m - m.door_sash_m), 'armatura tavaqa', 'm')
     addIf(sys, 'armor_door', m.door_sash_m, 'armatura eshik', 'm')
-    for (const [o, n] of Object.entries(m.sash_by)) {
+    for (const [o, n] of Object.entries(m.sash_all_by)) {
       const key = MECH_BY_OPENING[o]
       if (key && n) addIf(sys, key, n, `mexanika ${key.slice(5)}`, 'pcs')
     }
@@ -213,31 +215,29 @@ export function quoteItem(m: Measure, opt: ItemOptions, catalog: Map<string, Cat
   add(hw, windowSashes)
   const dhw = opt.door_hardware ? catalog.get(opt.door_hardware) : hw
   add(dhw, m.doors)
-  // ручки: простая — на оконную створку, балконная — на дверную (предположение, подтвердить у владельца)
+  // ручка: одна на каждую створку, оконную и дверную (так считает WinStudio V44.4: «балконная» ручка в расчёте не участвует)
   addIf(hw, 'handle_simple', windowSashes, 'ruchka', 'pcs')
-  // у двери ручка есть всегда: балконная, а если её цена не задана — простая
-  if (Number(dhw?.params?.handle_balcony ?? 0) > 0) addIf(dhw, 'handle_balcony', m.doors, 'ruchka balkon', 'pcs')
-  else addIf(dhw, 'handle_simple', m.doors, 'ruchka', 'pcs')
+  addIf(dhw, 'handle_simple', m.doors, 'ruchka', 'pcs')
 
   const net = opt.net ? catalog.get(opt.net) : undefined
   if (net && m.nets_m2 > 0) {
     add(net, m.nets_m2)
     if (Number(net.params?.profile)) add(net, m.nets_m, 'profil', Number(net.params.profile))
     if (Number(net.params?.gasket)) add(net, m.nets_m, 'rezina', Number(net.params.gasket))
-    // уголки — 4 на сетку, держатели — 4, ручка-петелька — 1 (предположение)
+    // на каждую сетку: 4 уголка, 4 держателя, 2 ручки (проверено пробами в WinStudio V44.4)
     addIf(net, 'corner', 4 * m.nets, 'burchak', 'pcs')
     addIf(net, 'holder', 4 * m.nets, 'ushlagich', 'pcs')
-    addIf(net, 'pull', m.nets, 'ruchka-petelka', 'pcs')
+    addIf(net, 'pull', 2 * m.nets, 'ruchka-petelka', 'pcs')
   }
 
   for (const id of [opt.color, opt.lamination, ...(opt.misc ?? []), ...(opt.works ?? [])]) {
     const it = id ? catalog.get(id) : undefined
     if (it) add(it, qtyOf(it, m, widthMm, heightMm))
   }
-  // ламинация внутри/снаружи — каждая по площади окна
-  for (const [id, label] of [[opt.lamination_in, 'ichki'], [opt.lamination_out, 'tashqi']] as const) {
+  // ламинация внутри/снаружи — по площади видимого профиля (длина × ширина), а не по площади окна: так считает WinStudio V44.4
+  for (const [id, label, area] of [[opt.lamination_in, 'ichki', m.lam_in_m2], [opt.lamination_out, 'tashqi', m.lam_out_m2]] as const) {
     const it = id ? catalog.get(id) : undefined
-    if (it) add(it, m.area_m2, label)
+    if (it) add(it, area, label)
   }
 
   // профили по сторонам: цена метра берётся из параметров оконной системы
@@ -246,7 +246,8 @@ export function quoteItem(m: Measure, opt: ItemOptions, catalog: Map<string, Cat
     if (!sys) missing.push("Tizim tanlanmagan (profil qo'shimchalari)")
     else {
       const addM = (key: string, label: string, meters: number) => meters > 0 && add(sys, meters, label, Number(sys.params?.[key] ?? 0))
-      for (const r of FLAG_ROLES) if (sd[r.key]) addM(r.key, r.label, widthMm / 1000)
+      // подставочный профиль и порог — по ширине, угловой наличник — по высоте (WinStudio V44.4)
+      for (const r of FLAG_ROLES) if (sd[r.key]) addM(r.key, r.label, (r.key === 'corner' ? heightMm : widthMm) / 1000)
       for (const r of SIDE_ROLES) addM(r.key, r.label, sideMeters(sd[r.key], widthMm, heightMm))
       for (const d of DOBOR) addM(`dobor${d}`, `dobor ${d} mm`, sideMeters(sd.dobor?.[d], widthMm, heightMm))
     }
