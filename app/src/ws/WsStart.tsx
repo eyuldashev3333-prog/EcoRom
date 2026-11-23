@@ -32,6 +32,17 @@ const writeDraft = (d: Draft) => {
   }
 }
 
+/** ввод даты цифрами: 25032027 → 25.03.2027 */
+const maskDate = (s: string) => {
+  const d = s.replace(/\D/g, '').slice(0, 8)
+  return d.length > 4 ? `${d.slice(0, 2)}.${d.slice(2, 4)}.${d.slice(4)}` : d.length > 2 ? `${d.slice(0, 2)}.${d.slice(2)}` : d
+}
+/** ДД.ММ.ГГГГ → ГГГГ-ММ-ДД; неполная дата — пусто */
+const dateIso = (s: string) => {
+  const m = /^(\d{2})\.(\d{2})\.(\d{4})$/.exec(s)
+  return m ? `${m[3]}-${m[2]}-${m[1]}` : ''
+}
+
 const Brand = () => <div className="ws-brand">{t.brand}</div>
 
 // 1) НОВЫЙ ЗАКАЗ: две кнопки
@@ -137,7 +148,7 @@ export function WsOrderForm() {
   const nav = useNavigate()
   const draft = readDraft()
   const [address, setAddress] = useState(draft?.address ?? '')
-  const [deadline, setDeadline] = useState('')
+  const [deadline, setDeadline] = useState('') // ДД.ММ.ГГГГ (ввод цифрами, точки ставятся сами)
   const [notes, setNotes] = useState('')
   const [msg, setMsg] = useState('')
   useEffect(() => {
@@ -147,7 +158,7 @@ export function WsOrderForm() {
   // заказ уходит в базу вместе с первым окном (сервер не принимает заказ без окон): пока что это черновик в памяти вкладки
   const create = () => {
     if (!address.trim()) return setMsg(t.mustAddress)
-    writeDraft({ ...draft, address: address.trim(), deadline, notes })
+    writeDraft({ ...draft, address: address.trim(), deadline: dateIso(deadline), notes })
     nav('/ws/edit', { replace: true })
   }
   return (
@@ -172,7 +183,7 @@ export function WsOrderForm() {
           </label>
           <label className="ws-field">
             <span>{t.deadline}</span>
-            <input type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} />
+            <input inputMode="numeric" placeholder="KK.OO.YYYY" maxLength={10} value={deadline} onChange={(e) => setDeadline(maskDate(e.target.value))} autoComplete="off" />
           </label>
           <label className="ws-field">
             <span>{t.note}</span>
@@ -218,7 +229,11 @@ export function WsOrders() {
     groups.set(c.id, g)
   }
   const list = [...groups.values()].sort((a, b) => (az ? a.name.localeCompare(b.name, 'ru') : b.at.localeCompare(a.at)))
-  const fmt = (s: string) => new Date(s).toLocaleString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+  const p2 = (n: number) => String(n).padStart(2, '0')
+  const fmt = (s: string) => {
+    const d = new Date(s)
+    return `${p2(d.getDate())}.${p2(d.getMonth() + 1)}.${d.getFullYear()} ${p2(d.getHours())}:${p2(d.getMinutes())}`
+  }
   return (
     <Phone>
       <div className="ws-listhead" style={{ background: '#facc6e' }}>

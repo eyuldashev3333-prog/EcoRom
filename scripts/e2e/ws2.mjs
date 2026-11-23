@@ -25,7 +25,7 @@ await page.waitForTimeout(3500)
 await step('wizard', async () => {
   await page.goto(BASE + '/orders/new'); await page.waitForURL(/ws\/new/, { timeout: 20000 }); await page.waitForSelector('text=YANGI MIJOZ', { timeout: 20000 })
   await page.click('text=YANGI MIJOZ'); await page.fill('.ws-field input >> nth=0', 'TEST WS Chuqur'); await page.click('.ws-submit')
-  await page.fill('.ws-field input >> nth=0', 'Chuqur test 5'); await page.fill('.ws-field input[type=date]', '2027-03-01'); await page.fill('.ws-field input >> nth=2', 'izoh matni'); await page.click('.ws-submit')
+  await page.fill('.ws-field input >> nth=0', 'Chuqur test 5'); await page.fill('.ws-field input >> nth=1', '01032027'); await page.fill('.ws-field input >> nth=2', 'izoh matni'); await page.click('.ws-submit')
   await page.waitForURL(/ws\/edit/); await page.waitForTimeout(1200)
 })
 await step('first window 2 vertical', async () => {

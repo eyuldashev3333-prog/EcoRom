@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { fmtLen, lenToMm, lenUnit } from '../lib/units'
 import type { Side } from '../lib/quote'
 
@@ -40,9 +40,84 @@ export function SidePic({ side, on }: { side: Side; on?: boolean }) {
 }
 
 // ---- рамка телефона ----
+interface TgWebApp {
+  initData?: string
+  viewportStableHeight?: number
+  viewportHeight?: number
+  safeAreaInset?: { top: number; bottom: number }
+  contentSafeAreaInset?: { top: number; bottom: number }
+  expand?: () => void
+  disableVerticalSwipes?: () => void
+  enableVerticalSwipes?: () => void
+  setHeaderColor?: (c: string) => void
+  onEvent?: (e: string, cb: () => void) => void
+  offEvent?: (e: string, cb: () => void) => void
+}
+const tgApp = (): TgWebApp | null => {
+  const w = (window as unknown as { Telegram?: { WebApp?: TgWebApp } }).Telegram?.WebApp
+  return w && w.initData !== undefined && w.initData !== '' ? w : null
+}
+
+/** Высота и безопасные зоны экрана: видимая область (клавиатура учитывается), Telegram (шапка, нижняя панель), вырезы телефона.
+ *  Значения кладутся в CSS-переменные --ws-h, --ws-st, --ws-sb на корне экрана. */
+function useViewportVars(el: React.RefObject<HTMLDivElement | null>) {
+  useEffect(() => {
+    const root = el.current
+    if (!root) return
+    const tg = tgApp()
+    const apply = () => {
+      const vv = window.visualViewport
+      // Telegram отдаёт стабильную высоту (без клавиатуры), visualViewport — текущую видимую (с клавиатурой): берём меньшую
+      const h = Math.min(vv?.height ?? Infinity, tg?.viewportStableHeight ?? Infinity, window.innerHeight)
+      root.style.setProperty('--ws-h', `${Math.round(Number.isFinite(h) ? h : window.innerHeight)}px`)
+      const top = (tg?.safeAreaInset?.top ?? 0) + (tg?.contentSafeAreaInset?.top ?? 0)
+      const bottom = (tg?.safeAreaInset?.bottom ?? 0) + (tg?.contentSafeAreaInset?.bottom ?? 0)
+      root.style.setProperty('--ws-st', `${top}px`)
+      root.style.setProperty('--ws-sb', `${bottom}px`)
+    }
+    apply()
+    window.visualViewport?.addEventListener('resize', apply)
+    window.visualViewport?.addEventListener('scroll', apply)
+    window.addEventListener('resize', apply)
+    tg?.onEvent?.('viewportChanged', apply)
+    tg?.onEvent?.('safeAreaChanged', apply)
+    tg?.onEvent?.('contentSafeAreaChanged', apply)
+    try {
+      tg?.expand?.()
+      tg?.disableVerticalSwipes?.() // свайп вниз по чертежу и таблице не должен закрывать приложение
+      tg?.setHeaderColor?.('#55aaff')
+    } catch {
+      /* старая версия Telegram: без этих функций */
+    }
+    // поле ввода под клавиатурой: прокручиваем к нему
+    const onFocus = (e: FocusEvent) => {
+      const t = e.target as HTMLElement | null
+      if (t && /^(INPUT|TEXTAREA)$/.test(t.tagName)) setTimeout(() => t.scrollIntoView({ block: 'center', behavior: 'smooth' }), 250)
+    }
+    root.addEventListener('focusin', onFocus)
+    return () => {
+      window.visualViewport?.removeEventListener('resize', apply)
+      window.visualViewport?.removeEventListener('scroll', apply)
+      window.removeEventListener('resize', apply)
+      tg?.offEvent?.('viewportChanged', apply)
+      tg?.offEvent?.('safeAreaChanged', apply)
+      tg?.offEvent?.('contentSafeAreaChanged', apply)
+      root.removeEventListener('focusin', onFocus)
+      try {
+        tg?.enableVerticalSwipes?.()
+      } catch {
+        /* не страшно */
+      }
+    }
+  }, [el])
+}
+
+// ---- рамка экрана: телефон / Telegram / компьютер (вид выбирает ws.css по ширине) ----
 export function Phone({ children }: { children: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null)
+  useViewportVars(ref)
   return (
-    <div className="ws-root">
+    <div className={tgApp() ? 'ws-root is-tg' : 'ws-root'} ref={ref}>
       <div className="ws-phone">{children}</div>
     </div>
   )
