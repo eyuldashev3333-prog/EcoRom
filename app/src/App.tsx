@@ -26,6 +26,7 @@ import Report from './pages/Report'
 import Payroll from './pages/Payroll'
 import PayRules from './pages/PayRules'
 import MyPay from './pages/MyPay'
+import MyWorks from './pages/MyWorks'
 import Service from './pages/Service'
 import ServiceWork from './pages/ServiceWork'
 import Stock from './pages/Stock'
@@ -108,6 +109,7 @@ export default function App() {
           <Route path="/payroll" element={me.role === 'rahbar' ? <Payroll /> : <Navigate to="/" />} />
           <Route path="/pay-rules" element={me.role === 'rahbar' ? <PayRules /> : <Navigate to="/" />} />
           <Route path="/my-pay" element={<MyPay />} />
+          <Route path="/my-works" element={me.role === 'ishlab' || me.role === 'montajchi' ? <MyWorks /> : <Navigate to="/" />} />
           <Route path="/expenses" element={me.role === 'rahbar' ? <Expenses /> : <Navigate to="/" />} />
           <Route path="/service" element={me.role === 'rahbar' ? <Service /> : <Navigate to="/" />} />
           <Route path="/servis/:id" element={me.role === 'montajchi' ? <ServiceWork /> : <Navigate to="/" />} />

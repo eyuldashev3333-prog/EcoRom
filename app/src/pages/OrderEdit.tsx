@@ -10,6 +10,7 @@ import OrderMoney from '../components/OrderMoney'
 import StockHint from '../components/StockHint'
 import GlassStatus from '../components/GlassStatus'
 import InstallPhotos from '../components/InstallPhotos'
+import StatusHistory from '../components/StatusHistory'
 import ServicePanel from '../components/ServicePanel'
 import BreakageForm from '../components/BreakageForm'
 import BreakageList from '../components/BreakageList'
@@ -427,6 +428,8 @@ export default function OrderEdit() {
       {id && loaded && !imported && !['unknown', 'cancelled'].includes(status) && <GlassStatus key={`${items.filter((x) => x.id).length}${glassTick}`} orderId={id} status={status} onChanged={reloadCards} />}
 
       {id && loaded && !imported && ['installed', 'closed', 'unknown'].includes(status) && <InstallPhotos key={glassTick} orderId={id} />}
+
+      {id && loaded && !imported && <StatusHistory key={status} orderId={id} />}
 
       {id && loaded && ((imported && status !== 'cancelled') || ['installed', 'closed'].includes(status)) && (
         <ServicePanel

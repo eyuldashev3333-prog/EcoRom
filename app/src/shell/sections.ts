@@ -80,6 +80,7 @@ export function sectionsFor(role: Role): SectionDef[] {
       },
     ]
   const mine: NavItem[] = [
+    { to: '/my-works', label: uz.mywork.title, icon: ClipboardList, tone: 'orange' },
     { to: '/my-pay', label: h.myPay, icon: Wallet, tone: 'green' },
     { to: '/password', label: h.password, icon: KeyRound, tone: 'gray' },
   ]

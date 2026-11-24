@@ -224,6 +224,7 @@ label.btn { width: 100%; }
 .ocard-solo { max-width: 480px; display: grid; gap: 10px; margin-bottom: 16px; }
 .install-items { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
 .install-item { display: grid; gap: 6px; align-content: start; }
+.my-works { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); margin: 12px 0; }
 .photo-strip { display: flex; gap: 8px; flex-wrap: wrap; }
 .photo-strip img { height: 110px; border-radius: var(--r-md); border: 1px solid var(--line); display: block; }
 /* цех: чертёж крупно, ниже размеры стекла и опции без цен */

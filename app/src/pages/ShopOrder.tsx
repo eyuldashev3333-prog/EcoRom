@@ -26,7 +26,7 @@ interface Item {
 // заказ глазами цеха: та же карточка с кнопками («Qabul qildim / Material yetmaydi», «Tayyor»), чертежи и материалы (без цен)
 export default function ShopOrder() {
   const { id } = useParams()
-  const { cards, reload } = useWorkCards('ishlab')
+  const { cards, reload } = useWorkCards('ishlab', id)
   const [items, setItems] = useState<Item[]>([])
   const [notes, setNotes] = useState<string | null>(null)
   useEffect(() => {

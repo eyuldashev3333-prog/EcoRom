@@ -67,6 +67,22 @@ export const uz = {
     byMonth: 'Oy bo‘yicha',
     sortDeadline: 'Muddat',
   },
+  // «Mening ishlarim» и цифры на главной цеха/монтажника
+  mywork: {
+    title: 'Mening ishlarim',
+    thisMonth: 'Shu oy',
+    orders: 'Buyurtmalar',
+    windows: 'Oynalar',
+    m2: 'm²',
+    installed: "O'rnatilgan buyurtmalar",
+    service: 'Servis bajarilgan',
+    progress: 'Jarayonda',
+    done: 'Bajarilgan',
+    doneAt: 'Bajarildi',
+    empty: "Bu oyda hozircha yo'q",
+    serviceTitle: 'Servis',
+    history: 'Tarix',
+  },
   // кнопки под карточкой заказа (канбан): у каждой колонки и роли свои
   flow: {
     toShop: 'Zavodga yuborish',

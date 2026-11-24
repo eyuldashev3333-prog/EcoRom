@@ -8,6 +8,7 @@ export interface CardData {
   order_no: number
   status: string
   created_at: string
+  status_at: string | null // когда статус сменился в последний раз
   deadline: string | null
   install_date: string | null
   address: string | null
@@ -66,6 +67,7 @@ interface OrderRow {
   order_no: number
   status: string
   created_at: string
+  status_at: string | null
   deadline: string | null
   install_date: string | null
   address: string | null
@@ -77,7 +79,7 @@ interface OrderRow {
   clients: { full_name: string; phone: string | null } | null
   order_items?: { pos: number; design: WindowDesign; glass_status: string | null }[]
 }
-const SELECT = 'id, order_no, status, created_at, deadline, install_date, address, contract_price, windows_count, area_m2, is_imported, shop_sent_at, clients(full_name, phone)'
+const SELECT = 'id, order_no, status, created_at, status_at, deadline, install_date, address, contract_price, windows_count, area_m2, is_imported, shop_sent_at, clients(full_name, phone)'
 
 export function useOrderCards(): { cards: CardData[] | null; names: Map<string, string>; reload: () => void } {
   const [cards, setCards] = useState<CardData[] | null>(null)
@@ -133,6 +135,7 @@ export function useOrderCards(): { cards: CardData[] | null; names: Map<string, 
             order_no: o.order_no,
             status: o.status,
             created_at: o.created_at,
+            status_at: o.status_at,
             deadline: o.deadline,
             install_date: o.install_date,
             address: o.address,
@@ -172,19 +175,20 @@ export interface WorkCard extends CardData {
   accepted: boolean // цех: «Qabul qildim» нажато (кем-то из команды)
   jobAccepted: string | null // монтаж: кто принял
 }
-export function useWorkCards(role: 'ishlab' | 'montajchi'): { cards: WorkCard[] | null; reload: () => void } {
+// onlyId — страница одного заказа: берём заказ в любом статусе (в т.ч. завершённый), без фильтра очереди
+export function useWorkCards(role: 'ishlab' | 'montajchi', onlyId?: string): { cards: WorkCard[] | null; reload: () => void } {
   const [cards, setCards] = useState<WorkCard[] | null>(null)
   const [tick, setTick] = useState(0)
   const reload = useCallback(() => setTick((x) => x + 1), [])
   useEffect(() => {
     let live = true
     ;(async () => {
-      const { data: os } = await supabase
+      let q = supabase
         .from('w_orders')
-        .select('id, order_no, status, deadline, address, contact_phone, client_name, windows_count, area_m2, install_date, shop_accepted_at')
-        .in('status', role === 'ishlab' ? ['in_production', 'ready'] : ['ready', 'installing', 'installed'])
-        .order('deadline', { ascending: true, nullsFirst: false })
-      const orders = (os as { id: string; order_no: number; status: string; deadline: string | null; address: string | null; contact_phone: string | null; client_name: string | null; windows_count: number; area_m2: number; install_date: string | null; shop_accepted_at: string | null }[]) ?? []
+        .select('id, order_no, status, status_at, deadline, address, contact_phone, client_name, windows_count, area_m2, install_date, shop_accepted_at')
+      q = onlyId ? q.eq('id', onlyId) : q.in('status', role === 'ishlab' ? ['in_production', 'ready'] : ['ready', 'installing', 'installed'])
+      const { data: os } = await q.order('deadline', { ascending: true, nullsFirst: false })
+      const orders = (os as { id: string; order_no: number; status: string; status_at: string | null; deadline: string | null; address: string | null; contact_phone: string | null; client_name: string | null; windows_count: number; area_m2: number; install_date: string | null; shop_accepted_at: string | null }[]) ?? []
       if (!orders.length) {
         if (live) setCards([])
         return
@@ -205,7 +209,7 @@ export function useWorkCards(role: 'ishlab' | 'montajchi'): { cards: WorkCard[] 
       setCards(
         orders
           .filter((o) => role === 'ishlab' || job.has(o.id))
-          .filter((o) => o.status !== 'installed' || !withPhoto.has(o.id) || (items.get(o.id) ?? []).some((i) => i.glass_status !== 'installed'))
+          .filter((o) => !!onlyId || o.status !== 'installed' || !withPhoto.has(o.id) || (items.get(o.id) ?? []).some((i) => i.glass_status !== 'installed'))
           .map((o) => {
             const it = (items.get(o.id) ?? []).sort((a, b) => a.pos - b.pos)
             const j = job.get(o.id)
@@ -215,6 +219,7 @@ export function useWorkCards(role: 'ishlab' | 'montajchi'): { cards: WorkCard[] 
               order_no: o.order_no,
               status: o.status,
               created_at: '',
+              status_at: o.status_at,
               deadline: o.deadline,
               install_date: o.install_date,
               address: o.address,
@@ -246,6 +251,6 @@ export function useWorkCards(role: 'ishlab' | 'montajchi'): { cards: WorkCard[] 
     return () => {
       live = false
     }
-  }, [role, tick])
+  }, [role, tick, onlyId])
   return { cards, reload }
 }

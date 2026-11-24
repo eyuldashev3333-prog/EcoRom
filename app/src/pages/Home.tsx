@@ -5,6 +5,7 @@ import Tile, { type Tone } from '../ui/Tile'
 import { useAuth } from '../auth'
 import { supabase } from '../supabase'
 import OrderCard from '../components/OrderCard'
+import MyStats from '../components/MyStats'
 import { InstallActions, ShopActions } from '../components/OrderActions'
 import { OrdersBoard } from './Orders'
 import { useWorkCards, type WorkCard } from '../lib/orderCards'
@@ -320,6 +321,7 @@ function ShopPane({ sec }: { sec: SectionDef }) {
   return (
     <>
       <SectionHead sec={sec} />
+      <MyStats role="ishlab" first={[{ label: uz.shop.tabRequest, value: req.length }, { label: uz.shop.tabWork, value: (cards ?? []).filter((c) => c.status === 'in_production' && c.accepted).length }]} />
       <MyMoney />
       <div className="montaj-board">
         {col(uz.shop.tabRequest, req)}
@@ -356,6 +358,7 @@ function InstallPane({ sec }: { sec: SectionDef }) {
   return (
     <>
       <SectionHead sec={sec} />
+      <MyStats role="montajchi" first={[{ label: uz.install.today, value: (cards ?? []).filter(isNow).length }, { label: uz.install.next, value: (cards ?? []).filter((c) => !isNow(c)).length }]} />
       <MyMoney />
       <div className="montaj-board">
         {col(uz.install.today, (cards ?? []).filter(isNow))}
@@ -378,7 +381,7 @@ function ProfilPane({ sec }: { sec: SectionDef }) {
     <>
       <SectionHead sec={sec} />
       <Panel title={me?.full_name ?? ''}>
-        <Row title={uz.roles[me?.role ?? 'ishlab']} />
+        <Row to="/my-works" title={uz.mywork.title} />
         <Row to="/my-pay" title={uz.home.myPay} />
         <Row to="/password" title={uz.home.password} />
         <Row onClick={signOut} title={uz.signOut} />

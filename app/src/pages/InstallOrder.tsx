@@ -26,7 +26,7 @@ interface Item {
 // заказ глазами монтажника: та же карточка с кнопками («Qabul qildim», «O'rnatildi»), куда ехать, чертежи, стекло
 export default function InstallOrder() {
   const { id } = useParams()
-  const { cards, reload } = useWorkCards('montajchi')
+  const { cards, reload } = useWorkCards('montajchi', id)
   const [items, setItems] = useState<Item[]>([])
   const [notes, setNotes] = useState<string | null>(null)
   useEffect(() => {

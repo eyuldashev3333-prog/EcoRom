@@ -9,10 +9,17 @@ import { uz } from '../uz'
 const t = uz.cards
 const f = uz.flow
 const dmy = (d: string | null) => (d ? d.split('-').reverse().join('.') : '')
+// дата и время смены статуса (Ташкент): «24.11 16:20»
+export const whenText = (iso: string | null | undefined) => {
+  if (!iso) return ''
+  const d = new Date(iso)
+  const f = (o: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat('ru-RU', { timeZone: 'Asia/Tashkent', ...o }).format(d)
+  return f({ day: '2-digit', month: '2-digit' }) + ' ' + f({ hour: '2-digit', minute: '2-digit' })
+}
 
 // Одна карточка заказа — одинаковая у всех: чертёж, клиент, срок, где заказ сейчас. Кнопки своей колонки/роли — снизу (children).
 // client=false — цех: без имени, телефона и адреса клиента
-export default function OrderCard({ c, names, children, to, money = true, client = true }: { c: CardData; names?: Map<string, string>; children?: ReactNode; to?: string; money?: boolean; client?: boolean }) {
+export default function OrderCard({ c, names, children, to, money = true, client = true, note, chips = true }: { c: CardData; names?: Map<string, string>; children?: ReactNode; to?: string; money?: boolean; client?: boolean; note?: ReactNode; chips?: boolean }) {
   const left = daysLeft(c)
   const urgency = left === null ? '' : left < 0 ? 'late' : left <= 3 ? 'soon' : ''
   const extra = Math.max(0, (c.itemsCount || (c.windows_count ? 1 : 0)) - 1)
@@ -35,6 +42,8 @@ export default function OrderCard({ c, names, children, to, money = true, client
             <b>№{c.order_no}</b>
             <span className={`status s-${c.status}`}>{uz.order.statuses[c.status]}</span>
           </div>
+          {c.status_at && <div className="ocard-line muted small">{whenText(c.status_at)}</div>}
+          {note && <div className="ocard-line small">{note}</div>}
           {client ? (
             <>
               <div className="ocard-name">{c.client}</div>
@@ -57,7 +66,7 @@ export default function OrderCard({ c, names, children, to, money = true, client
               <span className="muted">{t.noDeadline}</span>
             )}
           </div>
-          <div className="ocard-line ocard-chips">
+          <div className="ocard-line ocard-chips" hidden={!chips}>
             {c.status === 'in_production' &&
               (c.shop ? (
                 c.shop.result === 'enough' ? (
