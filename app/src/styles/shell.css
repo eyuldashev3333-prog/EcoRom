@@ -402,3 +402,10 @@ a.r:hover, button.r:hover { background: var(--hover); color: var(--ink); }
 .fin-list li { display: flex; align-items: center; gap: 4px; }
 .fin-list li span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @media (max-width: 899px) { .fin-grid { grid-template-columns: 1fr; } }
+
+/* телефон: разделы переключаются нижней панелью, без бокового листания (экран не «ездит» влево-вправо) */
+@media (max-width: 1023px) {
+  .pager { display: block; overflow: hidden; scroll-snap-type: none; }
+  .pane { height: 100%; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; }
+  .pane[aria-hidden='true'] { display: none; }
+}

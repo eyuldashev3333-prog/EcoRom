@@ -5,6 +5,9 @@ import { WS_COLS, type CostMap, type QtyMap } from './columns'
 const t = uz.ws
 
 const f2 = (n: number) => (Math.round(n * 100) / 100).toFixed(2)
+// деньги коротко и читаемо: «1 240 458» (с неразрывными пробелами, без копеек от 1000), мелкие суммы — с копейками
+// (длинные «1240458.49 so'm» налезали друг на друга в узких колонках Telegram)
+const money = (n: number) => (Math.abs(n) >= 1000 ? Math.round(n).toLocaleString('ru-RU') : f2(n))
 
 export interface TableData {
   // выбранное окно (строки «окно» и «цена»)
@@ -26,18 +29,19 @@ export default function WsTable({ data, currency }: { data: TableData | null; cu
     if (x.unit === 'm') return `${fmtM(x.v).toFixed(2)} ${mUnit()}`
     return String(x.v)
   }
-  const costText = (m: CostMap | undefined, col: (typeof WS_COLS)[number]) => (m?.[col] ? `${f2(m[col]!)}  ${currency}` : '')
+  const costText = (m: CostMap | undefined, col: (typeof WS_COLS)[number]) => (m?.[col] ? money(m[col]!) : '')
   const pctOne = `(-${Math.round((one?.price.discountPct ?? 0) * 100) / 100}%)`
   const tax = data?.taxPct ?? 0
   const pctAllNum = all && all.noDiscount > 0 ? Math.round((1 - all.withDiscount / all.noDiscount) * 10000) / 100 : 0
   const pctAll = `(-${pctAllNum}%${tax > 0 ? `+${tax}%` : ''})`
   const allTotal = (all?.withDiscount ?? 0) * (1 + tax / 100)
   const dash = (s: string) => (s === '' ? '-' : s)
-  const rows: { cls: string; cells: (col: (typeof WS_COLS)[number]) => string; label: string; labelCls?: string; total: string; totalCls: string }[] = [
-    { cls: 'ws-r1', label: t.rowOne, cells: (col) => dash(qtyText(one?.qty, col)), total: `${f2(one?.price.noDiscount ?? 0)} ${currency}`, totalCls: 'ws-val-blue' },
-    { cls: 'ws-r2', label: t.rowPrice, labelCls: 'ws-lbl-price', cells: (col) => dash(costText(one?.cost, col)), total: `${f2(one?.price.withDiscount ?? 0)} ${pctOne}`, totalCls: 'ws-val-blue' },
-    { cls: 'ws-r3', label: t.rowAll, cells: (col) => dash(qtyText(all?.qty, col)), total: `${f2(all?.noDiscount ?? 0)} ${currency}`, totalCls: 'ws-val-red' },
-    { cls: 'ws-r4', label: t.rowCost, labelCls: 'ws-lbl-cost', cells: (col) => dash(costText(all?.cost, col)), total: `${f2(allTotal)} ${pctAll}`, totalCls: 'ws-val-red' },
+  // колонка «jami»: сумма крупно, под ней мелко валюта или скидка — две строки вместо одной длинной, которая налезала на соседей
+  const rows: { cls: string; cells: (col: (typeof WS_COLS)[number]) => string; label: string; labelCls?: string; total: string; sub: string; totalCls: string }[] = [
+    { cls: 'ws-r1', label: t.rowOne, cells: (col) => dash(qtyText(one?.qty, col)), total: money(one?.price.noDiscount ?? 0), sub: currency, totalCls: 'ws-val-blue' },
+    { cls: 'ws-r2', label: t.rowPrice, labelCls: 'ws-lbl-price', cells: (col) => dash(costText(one?.cost, col)), total: money(one?.price.withDiscount ?? 0), sub: pctOne, totalCls: 'ws-val-blue' },
+    { cls: 'ws-r3', label: t.rowAll, cells: (col) => dash(qtyText(all?.qty, col)), total: money(all?.noDiscount ?? 0), sub: currency, totalCls: 'ws-val-red' },
+    { cls: 'ws-r4', label: t.rowCost, labelCls: 'ws-lbl-cost', cells: (col) => dash(costText(all?.cost, col)), total: money(allTotal), sub: pctAll, totalCls: 'ws-val-red' },
   ]
   const yel = one?.ownPrice ? 'ws-val-yellow' : ''
   return (
@@ -76,7 +80,8 @@ export default function WsTable({ data, currency }: { data: TableData | null; cu
         <div className="ws-trow ws-r0 ws-th-all">{t.total}</div>
         {rows.map((r, i) => (
           <div key={r.label} className={`ws-trow ${r.cls} ${r.totalCls} ${i < 2 ? yel : ''}`}>
-            {r.total}
+            <span className="v">{r.total}</span>
+            <small>{r.sub}</small>
           </div>
         ))}
       </div>

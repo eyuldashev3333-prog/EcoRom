@@ -377,3 +377,17 @@ input.cell.color { padding: 2px; min-width: 56px; height: 32px; cursor: pointer;
 .diff-new legend { color: var(--accent); }
 .diff-changed legend { color: var(--orange); }
 .diff-same legend { color: var(--blue); }
+
+/* ---- никакого бокового скролла страницы; внутри Telegram — документ неподвижен, вертикально листается только #root ---- */
+html, body { max-width: 100%; overflow-x: hidden; }
+html.tg, html.tg body { height: 100%; overflow: hidden; overscroll-behavior: none; }
+html.tg body { position: fixed; inset: 0; width: 100%; }
+html.tg #root { position: absolute; inset: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+
+/* печатный лист на телефоне: обёртка по ширине экрана, сам лист масштабируется (см. OrderPrint) */
+.sheets-fit { width: 100%; overflow: hidden; }
+@media print { .sheets-fit { height: auto !important; overflow: visible; } .sheets { transform: none !important; width: auto !important; } }
+
+/* телефон: вкладки переносятся на новую строку, а не листаются вбок */
+@media (max-width: 640px) { .tabs { flex-wrap: wrap; overflow-x: visible; border-bottom: 0; gap: 4px; } .tabs .tab { border: 1px solid var(--line); border-radius: 8px; } }
+@media (max-width: 640px) { .tabs .tab.on { background: var(--ink); color: #fff; border-color: var(--ink); } }

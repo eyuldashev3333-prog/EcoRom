@@ -360,3 +360,61 @@ html, body { overscroll-behavior: none; }
   .ws-root .ws-menu button { min-height: 42px; font-size: 14px; }
 }
 .ws-root .ws-menu-list { padding-bottom: var(--ws-sb, 0px); }
+
+/* =========================================================================
+   v3 (24.11.2026, по снимкам iPhone в Telegram): безопасные зоны закрашены, таблица и диалоги не вылезают за экран
+   ========================================================================= */
+/* полосы под кнопками Telegram и «домой» — цвета шапки и ленты окон, а не серый фон */
+.ws-root {
+  background:
+    linear-gradient(var(--ws-blue), var(--ws-blue)) top / 100% var(--ws-st, 0px) no-repeat,
+    linear-gradient(var(--ws-blue), var(--ws-blue)) bottom / 100% var(--ws-sb, 0px) no-repeat,
+    #ededed;
+}
+/* таблица: правая колонка по ширине содержимого, суммы в две строки, текст не налезает на соседей */
+.ws-root .ws-tl { overflow: hidden; }
+.ws-root .ws-tl .ws-trow { overflow: hidden; text-overflow: ellipsis; }
+.ws-root .ws-tr { width: max-content; min-width: 92px; max-width: 46%; overflow: hidden; }
+.ws-root .ws-tr .ws-trow { display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 12px; padding: 0 6px; height: 28px; white-space: nowrap; }
+.ws-root .ws-tr .ws-trow.ws-th-all { line-height: 28px; }
+.ws-root .ws-tr .ws-trow .v { font-weight: 700; font-size: 12px; }
+.ws-root .ws-tr .ws-trow small { font-size: 9px; font-weight: 400; opacity: 0.85; }
+.ws-root .ws-ts { touch-action: pan-x; overscroll-behavior-x: contain; }
+.ws-root .ws-ts td, .ws-root .ws-ts th { padding: 0 7px; }
+@media (max-height: 700px) {
+  .ws-root .ws-tr .ws-trow { height: 24px; line-height: 11px; }
+  .ws-root .ws-tr .ws-trow.ws-th-all { line-height: 24px; }
+  .ws-root .ws-tr .ws-trow .v { font-size: 11px; }
+  .ws-root .ws-tr .ws-trow small { font-size: 8.5px; }
+}
+@media (max-height: 560px) {
+  .ws-root .ws-tr .ws-trow { height: 19px; }
+  .ws-root .ws-tr .ws-trow.ws-th-all { line-height: 19px; }
+  .ws-root .ws-tr .ws-trow small { display: none; }
+}
+@media (min-width: 900px) {
+  .ws-root .ws-tr { min-width: 150px; }
+  .ws-root .ws-tr .ws-trow { height: 32px; line-height: 14px; }
+  .ws-root .ws-tr .ws-trow.ws-th-all { line-height: 32px; }
+  .ws-root .ws-tr .ws-trow .v { font-size: 14px; }
+  .ws-root .ws-tr .ws-trow small { font-size: 11px; }
+}
+/* диалоги: сетки внутри окна, ничего не растягивает ширину */
+.ws-root .ws-dlg { width: min(98%, 380px); }
+.ws-root .ws-dlg-body { overflow-x: hidden; }
+.ws-root .ws-cell { min-width: 0; }
+.ws-root .ws-cell .left { flex: 0 0 38%; min-width: 0; overflow: hidden; }
+.ws-root .ws-cell .right { min-width: 0; }
+.ws-root .ws-igrid.c2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.ws-root .ws-igrid.c3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.ws-root .ws-tile { min-width: 0; width: 100%; box-sizing: border-box; }
+.ws-root .ws-chk { min-width: 0; flex-wrap: nowrap; overflow-wrap: anywhere; }
+.ws-root .ws-cfg { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.ws-root .ws-cfg button, .ws-root .ws-cfg .mini { min-width: 0; }
+@media (min-width: 900px) {
+  .ws-root .ws-dlg { width: min(94%, 560px); }
+  .ws-root .ws-igrid.c2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ws-root .ws-cfg { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+
+.ws-root .ws-chk > span[aria-hidden] { display: inline-block; width: 16px; text-align: center; flex: none; }

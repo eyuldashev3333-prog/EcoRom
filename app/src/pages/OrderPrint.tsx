@@ -65,6 +65,23 @@ export default function OrderPrint() {
   const [busy, setBusy] = useState('')
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
   const pagesRef = useRef<HTMLDivElement>(null)
+  const wrapRef = useRef<HTMLDivElement>(null)
+  // лист A4 (794 px) вписываем в ширину экрана масштабом — без бокового листания; экспорт берёт сам лист без масштаба
+  const [fit, setFit] = useState({ s: 1, h: 0 })
+  useEffect(() => {
+    const w = wrapRef.current
+    const inner = pagesRef.current
+    if (!w || !inner) return
+    const calc = () => {
+      const s = Math.min(1, w.clientWidth / 794)
+      setFit((f) => (Math.abs(f.s - s) < 0.001 && (s === 1 || Math.abs(f.h - inner.scrollHeight * s) < 1) ? f : { s, h: s < 1 ? inner.scrollHeight * s : 0 }))
+    }
+    calc()
+    const ro = new ResizeObserver(calc)
+    ro.observe(w)
+    ro.observe(inner)
+    return () => ro.disconnect()
+  }, [order, items.length])
 
   useEffect(() => {
     ;(async () => {
@@ -143,7 +160,8 @@ export default function OrderPrint() {
         {msg && <div className={msg.ok ? 'card note ok' : 'card note bad'}>{msg.text}</div>}
       </div>
 
-      <div ref={pagesRef} className="sheets">
+      <div ref={wrapRef} className="sheets-fit" style={fit.s < 1 ? { height: fit.h } : undefined}>
+      <div ref={pagesRef} className="sheets" style={fit.s < 1 ? { transform: `scale(${fit.s})`, transformOrigin: 'top left', width: 794 } : undefined}>
         {pages.map((chunk, pi) => (
           <div key={pi} className="sheet">
             <header className="sheet-head">
@@ -231,6 +249,7 @@ export default function OrderPrint() {
             </div>
           </div>
         ))}
+      </div>
       </div>
     </>
   )
