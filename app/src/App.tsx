@@ -13,6 +13,7 @@ import Employees from './pages/Employees'
 import Password from './pages/Password'
 import Designer from './pages/Designer'
 import Orders from './pages/Orders'
+import OrdersDone from './pages/OrdersDone'
 import OrderEdit from './pages/OrderEdit'
 import ShopOrder from './pages/ShopOrder'
 import InstallOrder from './pages/InstallOrder'
@@ -126,6 +127,7 @@ export default function App() {
           <Route path="/ws/customers" element={me.role === 'rahbar' ? <WsCustomers /> : <Navigate to="/" />} />
           <Route path="/ws/order" element={me.role === 'rahbar' ? <WsOrderForm /> : <Navigate to="/" />} />
           <Route path="/ws/edit/:id?" element={me.role === 'rahbar' ? <WsEditor /> : <Navigate to="/" />} />
+          <Route path="/orders/done" element={me.role === 'rahbar' ? <OrdersDone /> : <Navigate to="/" />} />
           <Route path="/orders/:id" element={me.role === 'rahbar' ? <OrderEdit /> : <Navigate to="/" />} />
           <Route
             path="/orders/:id/print"

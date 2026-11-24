@@ -34,6 +34,7 @@ export function sectionsFor(role: Role): SectionDef[] {
         id: 'savdo', label: s.savdo, short: s.savdo, icon: Store, tone: 'blue',
         items: [
           { to: '/orders', label: h.orders, icon: ClipboardList, tone: 'blue' },
+          { to: '/orders/done', label: uz.cards.doneScreen, icon: CalendarCheck, tone: 'blue' },
           { to: '/photo', label: h.photo, icon: Camera, tone: 'blue' },
         ],
       },

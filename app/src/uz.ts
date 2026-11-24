@@ -63,7 +63,7 @@ export const uz = {
     montaj: "O'rnatish",
     servis: 'Servis',
     notAccepted: 'qabul qilinmagan',
-    showDone: 'Yakunlanganlarni ko‘rsatish',
+    doneScreen: 'Yakunlanganlar',
     byMonth: 'Oy bo‘yicha',
     sortDeadline: 'Muddat',
   },
