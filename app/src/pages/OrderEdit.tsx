@@ -5,8 +5,6 @@ import WindowSvg from '../components/WindowSvg'
 import OrderCard from '../components/OrderCard'
 import { RahbarActions } from '../components/OrderActions'
 import { useOrderCards } from '../lib/orderCards'
-import { download } from '../lib/export'
-import { buildWindowsFile } from '../lib/exchange'
 import OrderMoney from '../components/OrderMoney'
 import StockHint from '../components/StockHint'
 import GlassStatus from '../components/GlassStatus'
@@ -163,11 +161,6 @@ export default function OrderEdit() {
     } else setClient((x) => ({ ...x, full_name: label }))
   }
 
-  // выгрузка окон заказа файлом (id опций переносятся по названиям)
-  const exportWindows = () => {
-    const f = buildWindowsFile(items.map(({ title, qty, design, options, note }) => ({ title, qty, design, options, note })), catalog.byId)
-    download(new Blob([JSON.stringify(f, null, 1)], { type: 'application/json' }), `ecorom-oynalar-${orderNo ?? 'yangi'}.json`)
-  }
 
   const locked = !!id && !['new', 'in_production'].includes(status)
 
@@ -336,13 +329,6 @@ export default function OrderEdit() {
           </div>
         </div>
       ))}
-      {items.length > 0 && (
-        <p>
-          <button type="button" className="ghost" onClick={exportWindows}>
-            ↓ {uz.exchange.exportWindows}
-          </button>
-        </p>
-      )}
 
       {/* склад: пока заказ не ушёл в цех (после — материалы уже списаны) */}
       {status === 'new' && items.length > 0 && <StockHint items={items.map((it, i) => ({ qty: it.qty, materials: calc[i].q.materials }))} />}

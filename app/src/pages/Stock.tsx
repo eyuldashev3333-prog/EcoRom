@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
 import { supabase } from '../supabase'
+import { Dialog } from '../components/Dialog'
 import { formatSum } from '../lib/pricing'
 import { fmtQty, loadStock, stockKey, unitLabel, type StockRow } from '../lib/stock'
 import { uz } from '../uz'
@@ -21,6 +21,36 @@ export default function Stock() {
   const [busy, setBusy] = useState(false)
   const [adding, setAdding] = useState(false)
   const [nm, setNm] = useState({ name: '', unit: '', qty: '', price: '' })
+  // приход прямо из строки: «+ Kirim» → сколько куплено и на какую сумму
+  const [recv, setRecv] = useState<StockRow | null>(null)
+  const [rv, setRv] = useState({ qty: '', total: '', note: '' })
+  const [lastRecv, setLastRecv] = useState<string | null>(null) // id закупки — чтобы можно было отменить
+
+  const num = (v: string) => (v.trim() ? Number(v.replace(/\s/g, '').replace(',', '.')) : NaN)
+  const receive = async () => {
+    if (!recv) return
+    const qty = num(rv.qty)
+    const total = num(rv.total)
+    if (!(qty > 0) || !(total > 0)) return setMsg({ ok: false, text: uz.money.badAmount })
+    setBusy(true)
+    const { data, error } = await supabase.rpc('stock_receive', { p_item: recv.item_id, p_part: recv.part, p_qty: qty, p_total: total, p_note: rv.note })
+    setBusy(false)
+    if (error) return setMsg({ ok: false, text: error.message })
+    setMsg({ ok: true, text: `${t.recvDone}: ${recv.name} +${fmtQty(qty)} ${unitLabel(recv.unit)} · ${formatSum(total)} so‘m` })
+    setLastRecv(data as string)
+    setRecv(null)
+    setRv({ qty: '', total: '', note: '' })
+    load()
+  }
+  const undoRecv = async () => {
+    if (!lastRecv) return
+    setBusy(true)
+    const { error } = await supabase.rpc('stock_receive_undo', { p_purchase: lastRecv })
+    setBusy(false)
+    setMsg(error ? { ok: false, text: error.message } : { ok: true, text: t.recvUndone })
+    if (!error) setLastRecv(null)
+    load()
+  }
 
   const addItem = async () => {
     const n = (v: string) => (v.trim() ? Number(v.replace(/\s/g, '').replace(',', '.')) : 0)
@@ -111,7 +141,48 @@ export default function Stock() {
           </div>
         </div>
       )}
-      {msg && <div className={msg.ok ? 'card note ok' : 'card note bad'}>{msg.text}</div>}
+      {msg && (
+        <div className={msg.ok ? 'card note ok' : 'card note bad'}>
+          {msg.text}{' '}
+          {msg.ok && lastRecv && msg.text.startsWith(t.recvDone) && (
+            <button type="button" className="ghost small-btn" disabled={busy} onClick={undoRecv}>
+              {t.cancel}
+            </button>
+          )}
+        </div>
+      )}
+      {recv && (
+        <Dialog title={`${t.recvTitle}: ${recv.name}`} onClose={() => setRecv(null)}>
+          <div className="form">
+            <label>
+              {t.recvQty} ({unitLabel(recv.unit)})
+              <input inputMode="decimal" autoFocus value={rv.qty} onChange={(e) => setRv({ ...rv, qty: e.target.value })} />
+            </label>
+            <label>
+              {t.recvTotal}
+              <input inputMode="decimal" value={rv.total} onChange={(e) => setRv({ ...rv, total: e.target.value })} />
+            </label>
+            {num(rv.qty) > 0 && num(rv.total) > 0 && (
+              <p className="muted small">
+                1 {unitLabel(recv.unit)} = {formatSum(Math.round((num(rv.total) / num(rv.qty)) * 100) / 100)} so‘m
+              </p>
+            )}
+            <label>
+              {t.recvNote}
+              <input value={rv.note} onChange={(e) => setRv({ ...rv, note: e.target.value })} />
+            </label>
+            <p className="muted small">{t.recvHint}</p>
+            <div className="dialog-actions">
+              <button type="button" className="ghost" onClick={() => setRecv(null)}>
+                {t.cancel}
+              </button>
+              <button type="button" disabled={busy || !(num(rv.qty) > 0) || !(num(rv.total) > 0)} onClick={receive}>
+                {t.recvSave}
+              </button>
+            </div>
+          </div>
+        </Dialog>
+      )}
       <div className="grid">
         <div className="card stat">
           <small>{t.total}</small>
@@ -164,7 +235,10 @@ export default function Stock() {
                   <th className="num">{t.diff}</th>
                 </>
               ) : (
-                <th className="num">{t.value}</th>
+                <>
+                  <th className="num">{t.value}</th>
+                  <th />
+                </>
               )}
             </tr>
           </thead>
@@ -187,7 +261,14 @@ export default function Stock() {
                       <td className={`num ${diff !== null && diff < 0 ? 'debt-tag' : ''}`}>{diff === null ? '' : `${diff > 0 ? '+' : ''}${fmtQty(diff)}`}</td>
                     </>
                   ) : (
-                    <td className="num">{r.value ? formatSum(r.value) : ''}</td>
+                    <>
+                      <td className="num">{r.value ? formatSum(r.value) : ''}</td>
+                      <td className="num">
+                        <button type="button" className="ghost small-btn" onClick={() => { setRv({ qty: '', total: '', note: '' }); setRecv(r) }}>
+                          + {t.recvBtn}
+                        </button>
+                      </td>
+                    </>
                   )}
                 </tr>
               )
