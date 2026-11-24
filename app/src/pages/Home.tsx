@@ -5,10 +5,12 @@ import Tile, { type Tone } from '../ui/Tile'
 import { useAuth } from '../auth'
 import { supabase } from '../supabase'
 import { progressPct } from '../components/StageGrid'
-import { attentionCount, type Leaks } from '../lib/leaks'
-import { bottleneck, stationOf, type ZavodState } from '../lib/zavod'
+import { type Leaks } from '../lib/leaks'
+import { stationOf, type ZavodState } from '../lib/zavod'
 import { setSection, useSection } from '../shell/pager'
 import { sectionsFor, type SectionDef } from '../shell/sections'
+import MontajBoard from '../components/MontajBoard'
+import FinanceCharts from '../components/FinanceCharts'
 import { uz } from '../uz'
 
 const s = uz.shell
@@ -23,16 +25,16 @@ interface RahbarData {
   debt: number | null
   supDebt: number | null
   openService: number | null
-  attention: number | null
+  leaks: Leaks | null
   recent: { id: string; order_no: number; status: string; contract_price: number; created_at: string; clients: { full_name: string } | null }[]
   zavod: ZavodState | null
 }
 function useRahbarData(enabled: boolean): RahbarData {
-  const [d, setD] = useState<RahbarData>({ cash: null, since: '', orders: null, debt: null, supDebt: null, openService: null, attention: null, recent: [], zavod: null })
+  const [d, setD] = useState<RahbarData>({ cash: null, since: '', orders: null, debt: null, supDebt: null, openService: null, leaks: null, recent: [], zavod: null })
   useEffect(() => {
     if (!enabled) return
     const up = (p: Partial<RahbarData>) => setD((x) => ({ ...x, ...p }))
-    supabase.rpc('leaks_report').then(({ data }) => data && up({ attention: attentionCount(data as Leaks) }))
+    supabase.rpc('leaks_report').then(({ data }) => data && up({ leaks: data as Leaks }))
     supabase.rpc('workshop_state').then(({ data }) => data && up({ zavod: data as ZavodState }))
     supabase.from('service_tickets').select('id', { count: 'exact', head: true }).neq('status', 'closed').then(({ count }) => up({ openService: count ?? 0 }))
     supabase.from('v_supplier_debt').select('debt').then(({ data }) => up({ supDebt: ((data as { debt: string }[]) ?? []).reduce((a, x) => a + Math.max(0, Number(x.debt)), 0) }))
@@ -107,7 +109,6 @@ function Row({ to, title, sub, right, onClick }: { to?: string; title: ReactNode
   return <div className="r">{inner}</div>
 }
 const Empty = ({ text }: { text: string }) => <div className="r r-empty">{text}</div>
-const Count = ({ n }: { n: number | null }) => (n ? <span className="count">{n}</span> : <span className="muted">0</span>)
 const Pct = ({ v, late }: { v: number; late?: boolean }) => (
   <span className="pct-cell">
     <span className={`bar ${late ? 'late' : ''}`}>
@@ -153,9 +154,26 @@ function inShopOf(d: RahbarData) {
   return (d.zavod?.orders ?? []).filter((o) => !['new', 'ready', 'install'].includes(stationOf(o)))
 }
 
+// «Diqqat talab»: показываем только то, что реально требует действия, обычными словами (без кнопок-счётчиков)
+function attentionRows(l: Leaks | null): { key: string; to: string; text: string; n?: number }[] {
+  if (!l) return []
+  const t = uz.leaks
+  const rows = [
+    { key: 'overdue', to: '/leaks', text: t.overdue, n: l.overdue.count },
+    { key: 'material', to: '/leaks', text: t.material, n: l.material.count },
+    { key: 'stuck', to: '/leaks', text: t.stuck, n: l.stuck.count },
+    { key: 'stock', to: '/stock', text: t.stockNeg, n: l.stock_negative.count },
+    { key: 'service', to: '/service', text: t.service, n: l.service.count },
+    { key: 'unpaid', to: '/leaks', text: t.installedUnpaid, n: l.installed_unpaid.count },
+    { key: 'breakage', to: '/breakages', text: t.breakage, n: l.breakage_undecided.count },
+  ].filter((r) => r.n > 0)
+  if (l.cash.negative) rows.push({ key: 'cash', to: '/leaks', text: t.cashNeg, n: 0 })
+  return rows
+}
+
 function ZavodPane({ sec, d }: { sec: SectionDef; d: RahbarData }) {
-  const neck = d.zavod ? bottleneck(d.zavod.orders) : null
   const inShop = inShopOf(d)
+  const alerts = attentionRows(d.leaks)
   return (
     <>
       <SectionHead sec={sec} actions={<Link to="/workshop" className="btn-link">{uz.shell.open3d}</Link>} />
@@ -169,9 +187,11 @@ function ZavodPane({ sec, d }: { sec: SectionDef; d: RahbarData }) {
       />
       <div className="cols">
         <Panel title={s.attention} tone="red" icon={AlertTriangle}>
-          <Row to="/leaks" title={uz.home.leaks} right={<Count n={d.attention} />} />
-          <Row to="/service" title={uz.home.service} right={<Count n={d.openService} />} />
-          <Row title={s.neck} right={neck ? `${uz.workshop.stations[neck.station]} · ${neck.windows} ${uz.home.windows}` : <span className="muted">—</span>} />
+          {!d.leaks && <Empty text={uz.loading} />}
+          {d.leaks && alerts.length === 0 && <Empty text={uz.leaks.ok} />}
+          {alerts.map((a) => (
+            <Row key={a.key} to={a.to} title={a.text} right={a.n ? <span className="count">{a.n}</span> : undefined} />
+          ))}
         </Panel>
         <Panel title={s.inShop} action={{ to: '/zavod', label: s.open }} tone="orange" icon={Hammer}>
           {inShop.length === 0 && <Empty text={d.zavod ? s.nothing : uz.loading} />}
@@ -219,12 +239,11 @@ function SavdoPane({ sec, d }: { sec: SectionDef; d: RahbarData }) {
 
 function IshlabPane({ sec, d }: { sec: SectionDef; d: RahbarData }) {
   const inShop = inShopOf(d)
-  const neck = d.zavod ? bottleneck(d.zavod.orders) : null
   return (
     <>
       <SectionHead sec={sec} />
       <Links sec={sec} />
-      <Panel title={s.inShop} action={{ to: '/zavod', label: s.open }} tone="orange" icon={Hammer} foot={neck ? `${s.neck}: ${uz.workshop.stations[neck.station]} · ${neck.windows} ${uz.home.windows}` : undefined}>
+      <Panel title={s.inShop} action={{ to: '/zavod', label: s.open }} tone="orange" icon={Hammer}>
         {inShop.length === 0 && <Empty text={d.zavod ? s.nothing : uz.loading} />}
         {inShop.map((o) => (
           <Row
@@ -241,28 +260,15 @@ function IshlabPane({ sec, d }: { sec: SectionDef; d: RahbarData }) {
 }
 
 function MontajPane({ sec, d }: { sec: SectionDef; d: RahbarData }) {
-  const ready = (d.zavod?.orders ?? []).filter((o) => ['ready', 'install'].includes(stationOf(o)))
   return (
     <>
       <SectionHead sec={sec} />
-      <Kpis items={[{ label: uz.home.service, value: d.openService ?? <span className="skel" />, tone: d.openService ? 'orange' : undefined }, { label: s.readyInstall, value: ready.length, tone: 'purple' }]} />
+      <Kpis items={[{ label: uz.home.service, value: d.openService ?? <span className="skel" />, tone: d.openService ? 'orange' : undefined }]} />
       <Links sec={sec} />
-      <Panel title={s.readyInstall} tone="purple" icon={Hammer}>
-        {ready.length === 0 && <Empty text={d.zavod ? s.nothing : uz.loading} />}
-        {ready.map((o) => (
-          <Row
-            key={o.order_id}
-            to={`/orders/${o.order_id}`}
-            title={`№${o.order_no} · ${o.client}`}
-            sub={`${o.windows} ${uz.home.windows}${o.deadline ? ` · ${uz.home.deadline}: ${dmy(o.deadline)}` : ''}`}
-            right={<span className={`status s-${o.status}`}>{uz.order.statuses[o.status]}</span>}
-          />
-        ))}
-      </Panel>
+      <MontajBoard />
     </>
   )
 }
-
 function PulPane({ sec, d }: { sec: SectionDef; d: RahbarData }) {
   return (
     <>
@@ -272,9 +278,9 @@ function PulPane({ sec, d }: { sec: SectionDef; d: RahbarData }) {
           { label: uz.home.cash, value: sum(d.cash), tone: d.cash !== null && d.cash < 0 ? 'red' : 'green' },
           { label: uz.home.clientDebt, value: sum(d.debt), tone: d.debt ? 'red' : undefined },
           { label: uz.home.supplierDebt, value: sum(d.supDebt), tone: d.supDebt ? 'red' : undefined },
-          { label: uz.home.leaks, value: d.attention ?? <span className="skel" />, tone: d.attention ? 'red' : undefined },
         ]}
       />
+      <FinanceCharts />
       <Links sec={sec} />
     </>
   )
@@ -323,15 +329,17 @@ interface ShopRow {
   deadline: string | null
   client_name: string | null
   windows_count: number
+  shop_accepted_at: string | null
   pct: number
 }
 function ShopPane({ sec }: { sec: SectionDef }) {
   const [rows, setRows] = useState<ShopRow[] | null>(null)
+  const [tab, setTab] = useState<'req' | 'work'>('req')
   useEffect(() => {
     ;(async () => {
       const { data: os } = await supabase
         .from('w_orders')
-        .select('id, order_no, status, deadline, client_name, windows_count')
+        .select('id, order_no, status, deadline, client_name, windows_count, shop_accepted_at')
         .in('status', ['in_production', 'ready'])
         .order('deadline', { ascending: true, nullsFirst: false })
       const orders = (os as Omit<ShopRow, 'pct'>[]) ?? []
@@ -356,10 +364,18 @@ function ShopPane({ sec }: { sec: SectionDef }) {
     <>
       <SectionHead sec={sec} />
       <MyMoney />
-      <Panel title={uz.stages.shopList} tone="orange" icon={Hammer}>
+      <div className="seg seg-wide">
+        <button type="button" className={tab === 'req' ? 'on' : ''} onClick={() => setTab('req')}>
+          {uz.shop.tabRequest} <b>{(rows ?? []).filter((o) => !o.shop_accepted_at).length}</b>
+        </button>
+        <button type="button" className={tab === 'work' ? 'on' : ''} onClick={() => setTab('work')}>
+          {uz.shop.tabWork} <b>{(rows ?? []).filter((o) => o.shop_accepted_at).length}</b>
+        </button>
+      </div>
+      <Panel title={tab === 'req' ? uz.shop.tabRequest : uz.shop.tabWork} tone="orange" icon={Hammer}>
         {rows === null && <Empty text={uz.loading} />}
-        {rows?.length === 0 && <Empty text={uz.stages.noShop} />}
-        {rows?.map((o) => (
+        {rows && rows.filter((o) => (tab === 'work') === !!o.shop_accepted_at).length === 0 && <Empty text={uz.stages.noShop} />}
+        {rows?.filter((o) => (tab === 'work') === !!o.shop_accepted_at).map((o) => (
           <Row
             key={o.id}
             to={`/shop/${o.id}`}

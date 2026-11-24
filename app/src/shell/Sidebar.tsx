@@ -36,13 +36,6 @@ export default function Sidebar({ badges = {} }: { badges?: Record<string, numbe
                 <span>{s.label}</span>
                 {!!badges[s.id] && <span className="side-badge">{badges[s.id]}</span>}
               </button>
-              {(active || childActive) &&
-                s.items.map((i) => (
-                  <Link key={i.to} to={i.to} className={`side-item ${loc.pathname.startsWith(i.to) ? 'on' : ''}`}>
-                    <Tile icon={i.icon} tone={i.tone} size="sm" />
-                    {i.label}
-                  </Link>
-                ))}
             </div>
           )
         })}

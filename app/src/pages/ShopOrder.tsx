@@ -4,6 +4,7 @@ import { supabase } from '../supabase'
 import StageGrid, { type StageItem } from '../components/StageGrid'
 import GlassStatus from '../components/GlassStatus'
 import BreakageForm from '../components/BreakageForm'
+import ShopAnswer from '../components/ShopAnswer'
 import type { WindowDesign } from '../lib/window'
 import { uz } from '../uz'
 
@@ -76,6 +77,8 @@ export default function ShopOrder() {
         {order.deadline && ` · ${uz.home.deadline}: ${order.deadline.split('-').reverse().join('.')}`}
       </p>
       {order.notes && <div className="card note">{order.notes}</div>}
+
+      {id && <ShopAnswer orderId={id} onChanged={loadOrder} />}
 
       <StageGrid items={items} status={order.status} drawings onChanged={loadOrder} />
 

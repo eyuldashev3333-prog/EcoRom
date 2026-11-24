@@ -16,6 +16,7 @@ interface T {
   work_note: string | null
   due_date: string | null
   status: string
+  assigned_to: string | null
   order_no: number
   client_name: string | null
   address: string | null
@@ -43,6 +44,14 @@ export default function ServiceWork() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
 
+  const accept = async () => {
+    if (!tk) return
+    setBusy(true)
+    const { data, error } = await supabase.rpc('service_accept', { p_id: tk.id })
+    setBusy(false)
+    setMsg(error ? { ok: false, text: error.message } : data?.ok ? null : { ok: false, text: data?.error ?? '' })
+    await load()
+  }
   const act = async (action: 'start' | 'done') => {
     if (!tk) return
     setBusy(true)
@@ -99,7 +108,14 @@ export default function ServiceWork() {
         {links(tk.photo_paths)}
       </div>
       {msg && <div className={msg.ok ? 'card note ok' : 'card note bad'}>{msg.text}</div>}
-      {tk.work_done_at ? (
+      {!tk.assigned_to ? (
+        <div className="card note">
+          <b>{t.acceptAsk}</b>
+          <button type="button" disabled={busy} onClick={accept}>
+            {t.accept}
+          </button>
+        </div>
+      ) : tk.work_done_at ? (
         <div className="card">
           <b>✔ {t.done}</b>
           {tk.work_note && <p>{tk.work_note}</p>}

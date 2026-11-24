@@ -50,6 +50,7 @@ interface TgWebApp {
   disableVerticalSwipes?: () => void
   enableVerticalSwipes?: () => void
   setHeaderColor?: (c: string) => void
+  requestFullscreen?: () => void
   onEvent?: (e: string, cb: () => void) => void
   offEvent?: (e: string, cb: () => void) => void
 }
@@ -86,6 +87,7 @@ function useViewportVars(el: React.RefObject<HTMLDivElement | null>) {
       tg?.expand?.()
       tg?.disableVerticalSwipes?.() // свайп вниз по чертежу и таблице не должен закрывать приложение
       tg?.setHeaderColor?.('#55aaff')
+      tg?.requestFullscreen?.() // редактор тоже на весь экран (если ещё не открыт так)
     } catch {
       /* старая версия Telegram: без этих функций */
     }
@@ -105,6 +107,7 @@ function useViewportVars(el: React.RefObject<HTMLDivElement | null>) {
       root.removeEventListener('focusin', onFocus)
       try {
         tg?.enableVerticalSwipes?.()
+        tg?.setHeaderColor?.('#ffffff') // вернуть цвет шапки обычным экранам
       } catch {
         /* не страшно */
       }

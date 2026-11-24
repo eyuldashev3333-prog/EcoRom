@@ -1,8 +1,8 @@
 // Разделы и пункты меню по ролям — общие для боковой панели (ПК), нижней навигации (телефон) и главной.
 // tone — цвет плитки с иконкой: зелёный деньги, синий заказы, оранжевый склад/цех, фиолетовый монтаж/сервис, красный риски, серый настройки.
 import {
-  ArrowLeftRight, BarChart3, BookOpen, Box, CalendarCheck, Camera, ClipboardList, Factory, Hammer, KeyRound, LayoutGrid, PencilRuler,
-  Receipt, ScrollText, Scissors, Settings2, ShieldAlert, ShoppingCart, SlidersHorizontal, Store, Table2, TriangleAlert, Truck, User, Users,
+  ArrowLeftRight, BarChart3, BookOpen, Box, CalendarCheck, Camera, ClipboardList, Factory, Hammer, KeyRound, LayoutGrid,
+  Receipt, ScrollText, Scissors, Settings2, ShoppingCart, SlidersHorizontal, Store, Table2, TriangleAlert, Truck, User, Users,
   Wallet, Wrench, type LucideIcon,
 } from 'lucide-react'
 import type { Role } from '../auth'
@@ -34,7 +34,6 @@ export function sectionsFor(role: Role): SectionDef[] {
         id: 'savdo', label: s.savdo, short: s.savdo, icon: Store, tone: 'blue',
         items: [
           { to: '/orders', label: h.orders, icon: ClipboardList, tone: 'blue' },
-          { to: '/designer', label: h.designer, icon: PencilRuler, tone: 'blue' },
           { to: '/photo', label: h.photo, icon: Camera, tone: 'blue' },
         ],
       },
@@ -61,7 +60,6 @@ export function sectionsFor(role: Role): SectionDef[] {
           { to: '/payroll', label: h.payroll, icon: Users, tone: 'green' },
           { to: '/pay-rules', label: uz.payroll.rules, icon: ScrollText, tone: 'green' },
           { to: '/report', label: h.report, icon: BarChart3, tone: 'green' },
-          { to: '/leaks', label: h.leaks, icon: ShieldAlert, tone: 'red' },
         ],
       },
       {

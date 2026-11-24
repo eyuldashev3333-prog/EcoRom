@@ -78,6 +78,11 @@ export default function InstallPlan({ orderId, status }: { orderId: string; stat
           </div>
           <fieldset className="multi">
             <legend>{t.crew}</legend>
+            {!locked && (
+              <button type="button" className="ghost small-btn" onClick={() => setCrew(crew.length === men.length ? [] : men.map((m) => m.id))}>
+                {t.wholeCrew}
+              </button>
+            )}
             <div className="crew">
               {men.map((m) => (
                 <label key={m.id} className="check">

@@ -2,6 +2,7 @@
 // (2) внутренний вызов из базы — отправить уведомление из таблицы notifications.
 import { createClient } from 'npm:@supabase/supabase-js@2.45.4'
 import { parseExpense } from './parse-expense.ts'
+import { isPurchase, parsePurchase } from './parse-purchase.ts'
 
 const BOT = Deno.env.get('TELEGRAM_BOT_TOKEN')!
 const SECRET = Deno.env.get('TG_WEBHOOK_SECRET')!
@@ -58,6 +59,42 @@ function draftCard(d: Draft) {
   if (d.category_id) row.push({ text: '✅ Tasdiqlash', callback_data: `ex:ok:${d.id}` })
   row.push({ text: d.category_id ? '🔁 Kategoriya' : '📂 Kategoriyani tanlang', callback_data: `ex:cat:${d.id}` })
   return { text, reply_markup: { inline_keyboard: [row, [{ text: '❌ Bekor', callback_data: `ex:no:${d.id}` }]] } }
+}
+
+// закупка («xarid …»): карточка с материалом со склада; если материал не определился — выбор кнопками или «новый материал»
+interface PurchaseDraft {
+  id: string
+  name: string
+  qty: number
+  unit: string | null
+  total: number
+  unit_price: number
+  item: { id: string; part: string; name: string; unit: string; qty: number } | null
+  candidates: { name: string; unit: string }[]
+}
+const normUnit = (u: string | null) => {
+  const x = (u ?? '').trim().toLowerCase().replace('²', '2')
+  if (['m', 'metr', 'м', 'метр', 'mp'].includes(x)) return 'm'
+  if (['m2', 'kv', 'kv.m', 'м2'].includes(x)) return 'm2'
+  if (['pcs', 'dona', 'ta', 'шт', 'sht'].includes(x)) return 'pcs'
+  return x
+}
+function purchaseCard(d: PurchaseDraft) {
+  const unitTxt = d.item?.unit ?? d.unit ?? ''
+  let text =
+    `🛒 Xarid: ${d.name}\n` +
+    `Miqdor: ${d.qty}${d.unit ? ` ${d.unit}` : ''}\n` +
+    `Summa: ${fmtSum(Number(d.total))} so‘m (narx: ${fmtSum(Number(d.unit_price))}${unitTxt ? ` / ${unitTxt}` : ''})\n` +
+    (d.item ? `Ombor: ${d.item.name} (hozir ${d.item.qty} ${d.item.unit})` : '❓ Omborda aniq material topilmadi — tanlang')
+  if (d.item && d.unit && normUnit(d.unit) !== normUnit(d.item.unit)) text += `\n⚠️ Birlik farq qiladi: xabarda «${d.unit}», omborda «${d.item.unit}»`
+  const rows: { text: string; callback_data: string }[][] = []
+  if (d.item) rows.push([{ text: '✅ Tasdiqlash', callback_data: `px:ok:${d.id}` }])
+  else {
+    d.candidates.forEach((c, i) => rows.push([{ text: `${c.name} (${c.unit})`.slice(0, 60), callback_data: `px:pick:${d.id}:${i}` }]))
+    rows.push([{ text: '➕ Yangi material yaratish', callback_data: `px:new:${d.id}` }])
+  }
+  rows.push([{ text: '❌ Bekor', callback_data: `px:no:${d.id}` }])
+  return { text, reply_markup: { inline_keyboard: rows } }
 }
 
 const tashkentTime = () => new Date().toLocaleTimeString('ru-RU', { timeZone: 'Asia/Tashkent', hour: '2-digit', minute: '2-digit' })
@@ -213,6 +250,45 @@ Deno.serve(async (req) => {
     return new Response('ok')
   }
 
+  // закупки Rahbar: выбрать материал / создать новый / подтвердить / отменить / отменить уже записанное
+  if (cq?.data?.startsWith('px:')) {
+    const [, act, id, extra] = cq.data.split(':')
+    const chat = cq.message?.chat?.id
+    const mid = cq.message?.message_id
+    const fail = (e: { message?: string } | null) => tg('answerCallbackQuery', { callback_query_id: cq.id, text: e?.message ?? 'Xatolik', show_alert: true })
+    const edit = (text: string, reply_markup?: unknown) => tg('editMessageText', { chat_id: chat, message_id: mid, text, reply_markup: reply_markup ?? { inline_keyboard: [] } })
+    if (act === 'ok') {
+      const { data, error } = await admin.rpc('purchase_confirm', { p_tg: cq.from.id, p_id: id })
+      if (error) await fail(error)
+      else {
+        await tg('answerCallbackQuery', { callback_query_id: cq.id, text: 'Yozildi' })
+        await edit(`✅ Xarid yozildi: ${data.name}\n+${data.qty} ${data.unit ?? ''} · ${fmtSum(Number(data.total))} so‘m (kassadan ayrildi, omborga qo‘shildi)`, {
+          inline_keyboard: [[{ text: '↩ Bekor qilish', callback_data: `px:undo:${data.purchase_id}` }]],
+        })
+      }
+    } else if (act === 'pick' || act === 'new') {
+      const { data, error } = act === 'pick' ? await admin.rpc('purchase_draft_pick', { p_tg: cq.from.id, p_id: id, p_idx: Number(extra) }) : await admin.rpc('purchase_draft_new', { p_tg: cq.from.id, p_id: id })
+      if (error) await fail(error)
+      else {
+        const c = purchaseCard(data as PurchaseDraft)
+        await tg('answerCallbackQuery', { callback_query_id: cq.id })
+        await edit(c.text, c.reply_markup)
+      }
+    } else if (act === 'no') {
+      await admin.rpc('purchase_discard', { p_tg: cq.from.id, p_id: id })
+      await tg('answerCallbackQuery', { callback_query_id: cq.id })
+      await edit('❌ Bekor qilindi')
+    } else if (act === 'undo') {
+      const { error } = await admin.rpc('purchase_undo', { p_tg: cq.from.id, p_purchase: id })
+      if (error) await fail(error)
+      else {
+        await tg('answerCallbackQuery', { callback_query_id: cq.id, text: 'Bekor qilindi' })
+        await edit(`${cq.message?.text ?? ''}\n\n↩ Bekor qilindi (ombor va kassa qaytarildi)`)
+      }
+    }
+    return new Response('ok')
+  }
+
   const msg = update.message
   if (msg?.text?.startsWith('/start')) {
     const { data: emp } = await admin.from('employees').select('full_name, is_active').eq('telegram_id', msg.chat.id).maybeSingle()
@@ -229,6 +305,20 @@ Deno.serve(async (req) => {
     }
     // расход от Rahbar: «obed 150000» → черновик с кнопками (запись — только после «Tasdiqlash»)
     const { data: boss } = await admin.from('employees').select('id').eq('telegram_id', msg.from.id).eq('role', 'rahbar').eq('is_active', true).maybeSingle()
+    if (boss && isPurchase(msg.text)) {
+      const pp = parsePurchase(msg.text)
+      if (!pp.ok) {
+        await tg('sendMessage', { chat_id: msg.chat.id, text: pp.error })
+        return new Response('ok')
+      }
+      const { data: d, error } = await admin.rpc('purchase_draft_create', { p_tg: msg.from.id, p_name: pp.value.name, p_qty: pp.value.qty, p_unit: pp.value.unit, p_total: pp.value.total })
+      if (error) await tg('sendMessage', { chat_id: msg.chat.id, text: `Xatolik: ${error.message}` })
+      else {
+        const c = purchaseCard(d as PurchaseDraft)
+        await tg('sendMessage', { chat_id: msg.chat.id, text: c.text, reply_markup: c.reply_markup })
+      }
+      return new Response('ok')
+    }
     if (boss) {
       const [{ data: cats }, { data: people }] = await Promise.all([
         admin.from('expense_categories').select('id, name, keywords').eq('is_active', true),
@@ -236,7 +326,7 @@ Deno.serve(async (req) => {
       ])
       const p = parseExpense(msg.text, cats ?? [], people ?? [])
       if (!p.amount) {
-        await tg('sendMessage', { chat_id: msg.chat.id, text: 'Summani topa olmadim. Masalan: «obed 150000», «benzin 200 000», «remont 1,5 mln».' })
+        await tg('sendMessage', { chat_id: msg.chat.id, text: 'Summani topa olmadim. Masalan: «obed 150000», «benzin 200 000», «remont 1,5 mln». Material xaridi uchun «xarid» so‘zi bilan boshlang: «xarid Otliv oq 200 30 m 600000».' })
         return new Response('ok')
       }
       const { data: d, error } = await admin.rpc('expense_draft_create', { p_tg: msg.from.id, p_amount: p.amount, p_category: p.categoryId, p_note: p.note, p_for: p.employeeId })

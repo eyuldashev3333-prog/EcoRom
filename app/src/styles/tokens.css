@@ -62,6 +62,7 @@
   --top-h: 56px;
   --side-w: 248px;
   --tab-h: 60px;
-  --safe-t: env(safe-area-inset-top, 0px);
-  --safe-b: env(safe-area-inset-bottom, 0px);
+  /* верх: вырез телефона (или отступ Telegram, что больше) + кнопки самого Telegram в полноэкранном режиме; низ: полоса «домой» */
+  --safe-t: calc(max(env(safe-area-inset-top, 0px), var(--tg-safe-area-inset-top, 0px)) + var(--tg-content-safe-area-inset-top, 0px));
+  --safe-b: max(env(safe-area-inset-bottom, 0px), var(--tg-safe-area-inset-bottom, 0px));
 }

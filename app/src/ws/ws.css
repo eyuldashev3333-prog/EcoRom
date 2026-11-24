@@ -175,7 +175,12 @@
 
 /* меню ☰ */
 .ws-root .ws-menu { position: absolute; inset: 0; z-index: 30; background: rgba(0, 0, 0, 0.45); display: flex; flex-direction: column; }
-.ws-root .ws-menu .t { background: var(--ws-blue); color: #fff; text-align: center; font-size: 12px; line-height: 18px; }
+.ws-root .ws-menu .t { background: var(--ws-blue); color: #fff; font-size: 13px; min-height: 40px; flex: none; display: flex; align-items: center; justify-content: space-between; padding: 0 6px 0 14px; text-transform: uppercase; }
+.ws-root .ws-menu .t .x { width: 44px; height: 36px; min-height: 0; padding: 0; box-shadow: none; background: rgba(255, 255, 255, 0.18); display: flex; align-items: center; justify-content: center; font-size: 20px; color: #fff; border-radius: 8px; }
+.ws-root .ws-menu-list { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; -webkit-overflow-scrolling: touch; }
+.ws-root .ws-menu-list > button { flex: none; }
+.ws-root .ws-menu .m8 { background: #6f7a86; }
+.ws-root .ws-menu .m9 { background: #2e7d32; }
 .ws-root .ws-menu button { display: flex; align-items: center; justify-content: center; text-align: center; color: #fff; font-size: 19px; font-weight: 700; min-height: 60px; padding: 4px 10px; text-transform: uppercase; box-shadow: 0 3px 5px rgba(0, 0, 0, 0.3); }
 .ws-root .ws-menu .m1 { background: #b1c873; }
 .ws-root .ws-menu .m2 { background: #ffac94; }
@@ -332,3 +337,26 @@ html, body { overscroll-behavior: none; }
 .ws-root .ws-cfg .mini svg { width: 100% !important; height: 100% !important; max-height: 100%; }
 /* поля формы разделены тонкой линией, чтобы линия фокуса не казалась частью соседнего поля */
 .ws-root .ws-field + .ws-field { border-top: 1px solid #e4e4e4; }
+/* ---- низкие экраны (небольшой телефон, клавиатура, Telegram с шапкой): ничего не налезает друг на друга ---- */
+.ws-root .ws-canvas { min-height: 120px; }
+.ws-root .ws-who, .ws-root .ws-ctrl, .ws-root .ws-legend { max-width: calc(100% - 78px); }
+@media (max-height: 700px) {
+  .ws-root .ws-table { height: 120px; }
+  .ws-root .ws-trow, .ws-root .ws-ts td, .ws-root .ws-ts th { height: 24px; line-height: 24px; }
+  .ws-root .ws-ribbon { height: 64px; }
+  .ws-root .ws-plus, .ws-root .ws-compass, .ws-root .ws-tab { width: 64px; }
+  .ws-root .ws-tab .in { width: 44px; height: 44px; }
+  .ws-root .ws-plus { font-size: 44px; }
+  .ws-root .ws-burger { width: 50px; height: 50px; }
+  .ws-root .ws-burger svg { width: 26px; height: 26px; }
+  .ws-root .ws-legend { top: 44px; font-size: 10.5px; line-height: 13px; }
+  .ws-root .ws-menu button { min-height: 50px; font-size: 16px; }
+}
+@media (max-height: 520px) {
+  .ws-root .ws-legend, .ws-root .ws-qtyline { display: none; }
+  .ws-root .ws-table { height: 96px; }
+  .ws-root .ws-trow, .ws-root .ws-ts td, .ws-root .ws-ts th { height: 19px; line-height: 19px; }
+  .ws-root .ws-ribbon { height: 52px; }
+  .ws-root .ws-menu button { min-height: 42px; font-size: 14px; }
+}
+.ws-root .ws-menu-list { padding-bottom: var(--ws-sb, 0px); }

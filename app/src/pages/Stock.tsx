@@ -19,6 +19,21 @@ export default function Stock() {
   const [monthLoss, setMonthLoss] = useState(0)
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
   const [busy, setBusy] = useState(false)
+  const [adding, setAdding] = useState(false)
+  const [nm, setNm] = useState({ name: '', unit: '', qty: '', price: '' })
+
+  const addItem = async () => {
+    const n = (v: string) => (v.trim() ? Number(v.replace(/\s/g, '').replace(',', '.')) : 0)
+    if (!Number.isFinite(n(nm.qty)) || !Number.isFinite(n(nm.price))) return setMsg({ ok: false, text: uz.money.badAmount })
+    setBusy(true)
+    const { error } = await supabase.rpc('add_stock_item', { p_name: nm.name, p_unit: nm.unit, p_qty: n(nm.qty), p_price: n(nm.price) })
+    setBusy(false)
+    if (error) return setMsg({ ok: false, text: error.message })
+    setMsg({ ok: true, text: t.itemAdded })
+    setAdding(false)
+    setNm({ name: '', unit: '', qty: '', price: '' })
+    load()
+  }
 
   const load = async () => {
     setRows(await loadStock())
@@ -56,8 +71,46 @@ export default function Stock() {
     <>
       <div className="inline head">
         <h1>{t.title}</h1>
-        {!counting && <button onClick={() => setCounting(true)}>{t.count}</button>}
+        {!counting && (
+          <div className="inline">
+            <button className="ghost" onClick={() => setAdding(!adding)}>{t.addItem}</button>
+            <button onClick={() => setCounting(true)}>{t.count}</button>
+          </div>
+        )}
       </div>
+      {adding && (
+        <div className="card form">
+          <h2>{t.addItem}</h2>
+          <p className="muted small">{t.addHint}</p>
+          <div className="grid2">
+            <label>
+              {t.itemName}
+              <input value={nm.name} maxLength={120} onChange={(e) => setNm({ ...nm, name: e.target.value })} autoFocus />
+            </label>
+            <label>
+              {t.itemUnit}
+              <input list="stock-units" value={nm.unit} maxLength={20} onChange={(e) => setNm({ ...nm, unit: e.target.value })} />
+              <datalist id="stock-units">
+                {['m', 'm²', 'dona', 'kg', 'litr', 'rulon', 'list', 'komplekt', 'qop'].map((u) => <option key={u} value={u} />)}
+              </datalist>
+            </label>
+          </div>
+          <div className="grid2">
+            <label>
+              {t.itemQty}
+              <input inputMode="decimal" value={nm.qty} onChange={(e) => setNm({ ...nm, qty: e.target.value })} />
+            </label>
+            <label>
+              {t.itemPrice}
+              <input inputMode="decimal" value={nm.price} onChange={(e) => setNm({ ...nm, price: e.target.value })} />
+            </label>
+          </div>
+          <div className="inline wrap">
+            <button onClick={addItem} disabled={busy || !nm.name.trim() || !nm.unit.trim()}>{t.itemSave}</button>
+            <button className="ghost" onClick={() => setAdding(false)}>{t.cancel}</button>
+          </div>
+        </div>
+      )}
       {msg && <div className={msg.ok ? 'card note ok' : 'card note bad'}>{msg.text}</div>}
       <div className="grid">
         <div className="card stat">

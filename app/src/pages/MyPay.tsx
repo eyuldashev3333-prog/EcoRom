@@ -5,6 +5,7 @@ import { formatSum } from '../lib/pricing'
 import PayrollView, { type PayLine, type PayOut } from '../components/PayrollView'
 import { uz } from '../uz'
 import MonthPicker from '../ui/MonthPicker'
+import { MyStats } from '../components/WorkerStats'
 
 const t = uz.payroll
 
@@ -54,6 +55,7 @@ export default function MyPay() {
           <p className="muted small">{sum.closed ? t.closedTag : t.openTag}</p>
         </>
       )}
+      <MyStats month={month} />
       {output && (
         <div className="card">
           <h3>{t.done}</h3>

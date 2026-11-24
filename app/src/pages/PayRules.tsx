@@ -17,6 +17,8 @@ interface Rule {
   valid_from: string
   valid_to: string | null
   note: string | null
+  work_days_per_week: number
+  work_hours_per_day: number
   employees: { full_name: string } | null
 }
 interface Stage {
@@ -38,7 +40,7 @@ export default function PayRules() {
   const [rules, setRules] = useState<Rule[] | null>(null)
   const [stages, setStages] = useState<Stage[]>([])
   const [people, setPeople] = useState<Person[]>([])
-  const [f, setF] = useState({ who: '', basis: 'salary', stage: '', series: '', amount: '', from: today(), note: '' })
+  const [f, setF] = useState({ who: '', basis: 'salary', stage: '', series: '', amount: '', from: today(), note: '', days: '6', hours: '8' })
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
 
   const load = useCallback(async () => {
@@ -57,6 +59,7 @@ export default function PayRules() {
       t.basisNames[r.basis],
       stageBased(r.basis) && (r.stage_code ? stages.find((s) => s.code === r.stage_code)?.name ?? r.stage_code : t.anyStage),
       stageBased(r.basis) && r.series && t.seriesNames[r.series],
+      r.basis === 'salary' && `${r.work_days_per_week} ${t.daysPerWeek} · ${Number(r.work_hours_per_day)} ${t.hoursPerDay}`,
     ]
       .filter(Boolean)
       .join(' · ')
@@ -74,6 +77,7 @@ export default function PayRules() {
       amount,
       valid_from: f.from,
       note: f.note.trim() || null,
+      ...(f.basis === 'salary' ? { work_days_per_week: Math.min(7, Math.max(1, Math.round(Number(f.days) || 6))), work_hours_per_day: Math.min(24, Math.max(1, Number(f.hours.replace(',', '.')) || 8)) } : {}),
     })
     if (error) return setMsg({ ok: false, text: error.message })
     setMsg({ ok: true, text: t.saved })
@@ -96,7 +100,7 @@ export default function PayRules() {
     if (stop < r.valid_from) return setMsg({ ok: false, text: `${t.from}: ${fmtD(r.valid_from)}+` })
     const up = await supabase.from('pay_rules').update({ valid_to: stop }).eq('id', r.id)
     if (up.error) return setMsg({ ok: false, text: up.error.message })
-    const { error } = await supabase.from('pay_rules').insert({ employee_id: r.employee_id, role: r.role, stage_code: r.stage_code, basis: r.basis, series: r.series, amount: n, valid_from: from, note: r.note })
+    const { error } = await supabase.from('pay_rules').insert({ employee_id: r.employee_id, role: r.role, stage_code: r.stage_code, basis: r.basis, series: r.series, amount: n, valid_from: from, note: r.note, work_days_per_week: r.work_days_per_week, work_hours_per_day: r.work_hours_per_day })
     setMsg(error ? { ok: false, text: error.message } : { ok: true, text: t.saved })
     load()
   }
@@ -211,6 +215,24 @@ export default function PayRules() {
                   </option>
                 ))}
               </select>
+            </label>
+          </div>
+        )}
+        {f.basis === 'salary' && (
+          <div className="grid2">
+            <label>
+              {t.daysPerWeekQ}
+              <select value={f.days} onChange={(e) => setF({ ...f, days: e.target.value })}>
+                {[1, 2, 3, 4, 5, 6, 7].map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              {t.hoursPerDayQ}
+              <input inputMode="decimal" value={f.hours} onChange={(e) => setF({ ...f, hours: e.target.value })} />
             </label>
           </div>
         )}

@@ -16,7 +16,7 @@ const i1=(await sql(`select id from employees where login='test_ishlab1'`))[0].i
 await rpc('test_ishlab1','mark_stage',{p_item:itms[0].id,p_stage:3,p_done:true})
 let up2=await rpc(R,'payroll_unpriced',{p_month:'2026-11-01'}); console.log(JSON.stringify(up2.data)); check('Q4','этап без ставки виден в payroll_unpriced', up2.ok&&up2.data.some(x=>/Sex 1/.test(x.employee)||x.employee), JSON.stringify(up2.data))
 await sql(`insert into pay_rules(employee_id,stage_code,basis,amount,valid_from) values ('${i1}','glass_fit','per_m2',10000,current_date-5)`)
-up2=await rpc(R,'payroll_unpriced',{p_month:'2026-11-01'}); check('Q5','после добавления ставки этап «Shisha» больше не в предупреждении', up2.data.every(x=>x.stage!=='Shisha / furnitura'), JSON.stringify(up2.data))
+up2=await rpc(R,'payroll_unpriced',{p_month:'2026-11-01'}); check('Q5','после добавления ставки этап «Shisha» больше не в предупреждении', up2.data.every(x=>!(x.employee_id===i1&&x.stage==='Shisha / furnitura')), JSON.stringify(up2.data))
 const w=await rpc('test_ishlab1','payroll_unpriced',{p_month:'2026-11-01'}); check('Q6','цех не видит payroll_unpriced', !w.ok||w.data.length===0, w.status)
 // штраф за бой в месяц решения
 const br=await sql(`select id from glass_breakages limit 1`)

@@ -24,6 +24,14 @@ delete from stock_movements where item_id in (select id from catalog_items where
 delete from purchases where supplier_id in (select id from _s);
 delete from supplier_payments where supplier_id in (select id from _s);
 delete from suppliers where id in (select id from _s);
+-- блоки C/E/F (049–053): пропуски, опоздавшие нажатия, закупки бота тестовых пользователей
+delete from attendance_absences where employee_id in (select id from _e) or created_by in (select id from _e);
+delete from accept_late where employee_id in (select id from _e) or winner_id in (select id from _e);
+delete from purchase_drafts where telegram_id between 9100000 and 9100999;
+delete from supplier_payments where created_by in (select id from _e);
+delete from stock_movements where created_by in (select id from _e) or purchase_id in (select id from purchases where created_by in (select id from _e));
+delete from purchase_items where purchase_id in (select id from purchases where created_by in (select id from _e));
+delete from purchases where created_by in (select id from _e);
 delete from salary_payouts where employee_id in (select id from _e);
 delete from pay_rules where employee_id in (select id from _e);
 delete from expenses where for_employee_id in (select id from _e) or created_by in (select id from _e);

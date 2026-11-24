@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { AnimatePresence, motion } from 'motion/react'
 import { Maximize2, Minimize2, Sparkles, X } from 'lucide-react'
 import { supabase } from '../supabase'
-import { bottleneck, stationOf, type Station, type WOrder, type ZavodState as State } from '../lib/zavod'
+import { stationOf, type Station, type WOrder, type ZavodState as State } from '../lib/zavod'
 import { useZavod3D } from '../shell/ZavodView'
 import ZavodKpis from '../shell/ZavodKpis'
 import { uz } from '../uz'
@@ -120,7 +120,6 @@ export default function Workshop() {
     return () => clearInterval(id)
   }, [demo])
 
-  const neck = data ? bottleneck(data.orders) : null
   // точка участка в пикселях сцены (учёт object-fit: cover)
   const pad = box.w < 700 ? 64 : 90
   const live = scene
@@ -180,7 +179,7 @@ export default function Workshop() {
               const pt = spots.get(st)
               if (!pt) return null
               return (
-                <div key={st} className={`zpin-stack ${neck?.station === st ? 'neck' : ''}`} style={{ left: pt.x, top: pt.y }}>
+                <div key={st} className="zpin-stack" style={{ left: pt.x, top: pt.y }}>
                   <div className="zpin-label">
                     {t.stations[st]} <b>{list.reduce((n, o) => n + Number(o.windows || 0), 0)}</b>
                   </div>
@@ -214,11 +213,6 @@ export default function Workshop() {
               <b>{t.title}</b>
               <small>{demo ? t.demoNote : at ? `${t.refreshed} ${at}` : uz.loading}</small>
             </div>
-            {neck && (
-              <div className="glass zavod-neck">
-                <span className="dot-o" /> {t.neck}: <b>{t.stations[neck.station]}</b> · {neck.windows} {t.windows}
-              </div>
-            )}
           </div>
           <div className="inline">
             <button type="button" className="glass icon-btn" onClick={() => setDemo(!demo)} title={demo ? t.demoOff : t.demoOn}>

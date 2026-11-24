@@ -5,6 +5,8 @@ import { formatSum } from '../lib/pricing'
 import PayrollView, { type PayLine, type PayOut } from '../components/PayrollView'
 import { uz } from '../uz'
 import MonthPicker from '../ui/MonthPicker'
+import WorkerStats from '../components/WorkerStats'
+import Absences from '../components/Absences'
 
 const t = uz.payroll
 
@@ -40,6 +42,7 @@ export default function Payroll() {
   const [pay, setPay] = useState({ employee: '', amount: '', date: tashkentToday(), note: '' })
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
   const [busy, setBusy] = useState(false)
+  const [ver, setVer] = useState(0)
   const [unpriced, setUnpriced] = useState<{ employee: string; stage: string; base: number; orders: string }[]>([])
 
   const first = `${month}-01`
@@ -53,7 +56,7 @@ export default function Payroll() {
     load()
   }, [load])
   useEffect(() => {
-    supabase.from('employees').select('id, full_name').eq('is_active', true).order('full_name').then(({ data }) => setPeople((data as Person[]) ?? []))
+    supabase.from('employees').select('id, full_name').eq('is_active', true).neq('role', 'rahbar').order('full_name').then(({ data }) => setPeople((data as Person[]) ?? []))
   }, [])
   const loadDetail = useCallback(
     async (emp: string) => {
@@ -162,6 +165,17 @@ export default function Payroll() {
           {open === s.employee_id && <PayrollView lines={lines} payouts={payouts} onReverse={reverse} />}
         </div>
       ))}
+
+      <WorkerStats month={month} version={ver} />
+      <Absences
+        month={month}
+        people={people}
+        onChanged={async () => {
+          setVer((v) => v + 1)
+          await load()
+          if (open) await loadDetail(open)
+        }}
+      />
 
       <div className="card form">
         <h2>{t.payTitle}</h2>

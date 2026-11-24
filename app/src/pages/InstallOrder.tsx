@@ -24,12 +24,26 @@ export default function InstallOrder() {
   const [order, setOrder] = useState<WOrder | null>(null)
   const [items, setItems] = useState<InstallItem[]>([])
   const [plan, setPlan] = useState<string | null>(null)
+  const [job, setJob] = useState<{ id: string; accepted_name: string | null } | null>(null)
+  const [accMsg, setAccMsg] = useState<string | null>(null)
 
   const loadOrder = () =>
     supabase.from('w_orders').select('order_no, status, deadline, client_name, address, contact_phone, notes').eq('id', id).maybeSingle().then(({ data }) => setOrder(data as WOrder | null))
+  const loadJob = () =>
+    supabase.from('w_install_jobs').select('id, plan_date, accepted_name').eq('order_id', id).maybeSingle().then(({ data }) => {
+      const j = data as { id: string; plan_date: string | null; accepted_name: string | null } | null
+      setPlan(j?.plan_date ?? null)
+      setJob(j ? { id: j.id, accepted_name: j.accepted_name } : null)
+    })
+  const accept = async () => {
+    if (!job) return
+    const { data, error } = await supabase.rpc('install_accept', { p_job: job.id })
+    setAccMsg(error ? error.message : data?.ok ? null : data?.error ?? null)
+    loadJob()
+  }
   useEffect(() => {
     loadOrder()
-    supabase.from('w_install_jobs').select('plan_date').eq('order_id', id).maybeSingle().then(({ data }) => setPlan((data as { plan_date: string | null } | null)?.plan_date ?? null))
+    loadJob()
     supabase
       .from('w_order_items')
       .select('id, pos, title, width_mm, height_mm, qty, design, options, note')
@@ -48,6 +62,23 @@ export default function InstallOrder() {
       <h1>
         №{order.order_no} <span className={`status s-${order.status}`}>{uz.order.statuses[order.status]}</span>
       </h1>
+      {job && (
+        <div className={job.accepted_name ? 'card note ok' : 'card note'}>
+          {job.accepted_name ? (
+            <b>
+              {t.acceptedBy}: {job.accepted_name}
+            </b>
+          ) : (
+            <>
+              <b>{t.acceptAsk}</b>
+              <button type="button" onClick={accept}>
+                {t.accept}
+              </button>
+            </>
+          )}
+          {accMsg && <p className="warn">{accMsg}</p>}
+        </div>
+      )}
       <div className="card">
         <b>{order.client_name}</b>
         {plan && (

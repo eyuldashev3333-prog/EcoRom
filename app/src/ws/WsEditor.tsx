@@ -98,6 +98,13 @@ export default function WsEditor() {
   useEffect(() => {
     if (w.save.state === 'error') setToast({ text: `${t.saveError}: ${w.save.text ?? ''}`, bad: true })
   }, [w.save])
+  // меню закрывается клавишей Esc (на ПК)
+  useEffect(() => {
+    if (!showMenu) return
+    const h = (e: KeyboardEvent) => e.key === 'Escape' && setShowMenu(false)
+    window.addEventListener('keydown', h)
+    return () => window.removeEventListener('keydown', h)
+  }, [showMenu])
 
   const idx = items.findIndex((x) => x.key === active)
   const it = idx >= 0 ? items[idx] : null
@@ -143,6 +150,14 @@ export default function WsEditor() {
     nav(path)
   }
   const needSaved = !w.persisted // карточка, печать и PDF существуют только у сохранённого заказа
+  const canSendShop = w.persisted && (w.status === 'new' || w.status === 'in_production')
+  // «Zavodga yuborish»: сохраняем и открываем карточку заказа сразу с выбором, кто работает (вся команда или люди)
+  const sendShop = async () => {
+    if (!id) return
+    const fl = await w.flush()
+    if (!fl.ok) return setToast({ text: t.saveError, bad: true })
+    nav(`/orders/${id}?send=1`)
+  }
 
   return (
     <Phone>
@@ -244,7 +259,21 @@ export default function WsEditor() {
 
       {showMenu && (
         <div className="ws-menu" role="dialog" aria-label={t.menu}>
-          <div className="t">{t.menu}</div>
+          <div className="t">
+            <span>{t.menu}</span>
+            <button type="button" className="x" aria-label={t.close} onClick={() => setShowMenu(false)}>
+              ✕
+            </button>
+          </div>
+          <div className="ws-menu-list">
+          {canSendShop && (
+            <button type="button" className="m9" onClick={sendShop}>
+              {w.status === 'in_production' ? t.resendShop : t.sendShop}
+            </button>
+          )}
+          <button type="button" className="m8" onClick={() => go('/orders')}>
+            {t.back}
+          </button>
           <button type="button" className="m1" disabled={needSaved} onClick={() => go(`/orders/${id}/print?mode=drawings`)}>
             {t.pdfDrawings}
           </button>
@@ -277,6 +306,7 @@ export default function WsEditor() {
           <button type="button" className="m6" onClick={() => setShowMenu(false)}>
             {t.closeMenu}
           </button>
+          </div>
         </div>
       )}
 

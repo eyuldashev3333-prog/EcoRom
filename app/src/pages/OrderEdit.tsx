@@ -486,7 +486,6 @@ export default function OrderEdit() {
           <tbody>
             <tr><td>{t.windows}</td><td>{windows} · {Math.round(area * 100) / 100} m²</td></tr>
             <tr><td>{t.cost}</td><td>{formatSum(cost)}</td></tr>
-            <tr><td>{t.suggested} (+{Math.round(markupUsed * 100)}%)</td><td>{formatSum(suggested)}</td></tr>
             <tr>
               <td>{t.discount} %</td>
               <td>
@@ -544,6 +543,7 @@ export default function OrderEdit() {
           orderId={id}
           status={status}
           hasItems={items.some((x) => x.id)}
+          openOnMount={new URLSearchParams(window.location.hash.split('?')[1] ?? '').get('send') === '1'}
           onChanged={async () => {
             const { data } = await supabase.from('orders').select('status').eq('id', id).maybeSingle()
             if (data) setStatus(data.status)

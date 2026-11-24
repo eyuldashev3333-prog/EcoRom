@@ -1,51 +1,41 @@
-import { useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import { supabase } from '../supabase'
-import { formatSum } from '../lib/pricing'
+import { useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import OrderCard from '../components/OrderCard'
+import { columnOf, useOrderCards, type CardData, type Column } from '../lib/orderCards'
+import MonthPicker from '../ui/MonthPicker'
 import { uz } from '../uz'
 
-interface Row {
-  id: string
-  order_no: number
-  created_at: string
-  status: string
-  windows_count: number
-  area_m2: number
-  contract_price: number
-  deadline: string | null
-  clients: { full_name: string; phone: string | null } | null
-}
 const t = uz.order
+const c = uz.cards
+const COLS: Column[] = ['new', 'shop', 'ready', 'install', 'done']
+const tashkentMonth = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Tashkent' }).slice(0, 7)
 
+// Заказы карточками, как канбан в CRM: колонки по этапам, завершённые скрыты переключателем, срок ≤ 3 дней мигает жёлтым
 export default function Orders() {
-  const [rows, setRows] = useState<Row[] | null>(null)
-  const [debts, setDebts] = useState<Map<string, number>>(new Map())
-  const [pct, setPct] = useState<Map<string, number>>(new Map())
+  const { cards, names } = useOrderCards()
   const [q, setQ] = useState(() => new URLSearchParams(window.location.hash.split('?')[1] ?? '').get('q') ?? '') // глобальный поиск из шапки
-  const [sort, setSort] = useState<'no' | 'name'>('no')
+  const [sort, setSort] = useState<'no' | 'name' | 'deadline'>('no')
+  const [showDone, setShowDone] = useState(false)
+  const [byMonth, setByMonth] = useState(false)
+  const [month, setMonth] = useState(tashkentMonth())
   const nav = useNavigate()
-  useEffect(() => {
-    supabase
-      .from('orders')
-      .select('id, order_no, created_at, status, windows_count, area_m2, contract_price, deadline, clients(full_name, phone)')
-      .order('order_no', { ascending: false })
-      .limit(5000) // вся история (сотни заказов) — поиск работает по всем
-      .then(({ data }) => setRows((data as unknown as Row[]) ?? []))
-    supabase
-      .from('v_order_paid')
-      .select('order_id, debt')
-      .then(({ data }) => setDebts(new Map(((data as { order_id: string; debt: string }[]) ?? []).map((d) => [d.order_id, Number(d.debt)]))))
-    supabase
-      .from('v_order_progress')
-      .select('order_id, percent')
-      .gt('percent', 0)
-      .then(({ data }) => setPct(new Map(((data as { order_id: string; percent: string }[]) ?? []).map((d) => [d.order_id, Number(d.percent)]))))
-  }, [])
+
   const s = q.trim().toLowerCase()
-  const found = (rows ?? []).filter((r) => !s || String(r.order_no).includes(s) || r.clients?.full_name.toLowerCase().includes(s) || (r.clients?.phone ?? '').includes(s))
-  const shown = sort === 'name' ? [...found].sort((a, b) => (a.clients?.full_name ?? '').localeCompare(b.clients?.full_name ?? '', 'ru') || b.order_no - a.order_no) : found
-  // последний созданный заказ (по дате создания, а не по номеру: номера импорта идут не по порядку)
-  const last = (rows ?? []).reduce<Row | null>((m, r) => (!m || r.created_at > m.created_at ? r : m), null)
+  const shown = useMemo(() => {
+    const found = (cards ?? []).filter(
+      (r) =>
+        (!s || String(r.order_no).includes(s) || r.client.toLowerCase().includes(s) || (r.phone ?? '').includes(s) || (r.address ?? '').toLowerCase().includes(s)) &&
+        (!byMonth || r.created_at.slice(0, 7) === month || (r.deadline ?? '').slice(0, 7) === month),
+    )
+    const cmp: Record<typeof sort, (a: CardData, b: CardData) => number> = {
+      no: (a, b) => b.order_no - a.order_no,
+      name: (a, b) => a.client.localeCompare(b.client, 'ru') || b.order_no - a.order_no,
+      deadline: (a, b) => (a.deadline ?? '9999').localeCompare(b.deadline ?? '9999') || b.order_no - a.order_no,
+    }
+    return [...found].sort(cmp[sort])
+  }, [cards, s, byMonth, month, sort])
+  const last = (cards ?? []).reduce<CardData | null>((m, r) => (!m || r.created_at > m.created_at ? r : m), null)
+  const cols = COLS.filter((k) => k !== 'done' || showDone)
 
   return (
     <>
@@ -70,29 +60,45 @@ export default function Orders() {
           <button type="button" className={sort === 'name' ? 'tab on' : 'tab'} onClick={() => setSort('name')}>
             {t.sortName}
           </button>
+          <button type="button" className={sort === 'deadline' ? 'tab on' : 'tab'} onClick={() => setSort('deadline')}>
+            {c.sortDeadline}
+          </button>
         </div>
       </div>
-      {rows === null && <p className="muted">{uz.loading}</p>}
-      {rows?.length === 0 && <p className="muted">{t.empty}</p>}
-      {shown.map((r) => (
-        <Link key={r.id} to={`/orders/${r.id}`} className="card row order-row">
-          <b>#{r.order_no}</b>
-          <span>{r.clients?.full_name}</span>
-          <span className="muted">{r.clients?.phone}</span>
-          <span className="muted">
-            {r.windows_count} {uz.home.windows} · {Number(r.area_m2)} m²
-          </span>
-          <span className="spacer" />
-          <b>{formatSum(Number(r.contract_price))}</b>
-          {r.status !== 'cancelled' && (debts.get(r.id) ?? 0) > 0 && (
-            <span className="debt-tag">
-              {uz.money.debt}: {formatSum(debts.get(r.id) ?? 0)}
-            </span>
-          )}
-          {['in_production', 'ready', 'installing'].includes(r.status) && <span className="pct">{pct.get(r.id) ?? 0}%</span>}
-          <span className={`status s-${r.status}`}>{t.statuses[r.status]}</span>
-        </Link>
-      ))}
+      <div className="inline wrap" style={{ alignItems: 'center', marginBottom: 12, gap: 18 }}>
+        <label className="switch">
+          <input type="checkbox" checked={showDone} onChange={(e) => setShowDone(e.target.checked)} />
+          <i />
+          {c.showDone}
+        </label>
+        <label className="switch">
+          <input type="checkbox" checked={byMonth} onChange={(e) => setByMonth(e.target.checked)} />
+          <i />
+          {c.byMonth}
+        </label>
+        {byMonth && <MonthPicker value={month} onChange={setMonth} />}
+      </div>
+      {cards === null && <p className="muted">{uz.loading}</p>}
+      {cards?.length === 0 && <p className="muted">{t.empty}</p>}
+      {cards && cards.length > 0 && (
+        <div className="kanban" style={{ gridTemplateColumns: `repeat(${cols.length}, minmax(0, 1fr))` }}>
+          {cols.map((k) => {
+            const list = shown.filter((r) => columnOf(r.status) === k)
+            return (
+              <section key={k} className={`kcol k-${k}`}>
+                <header>
+                  <span>{c.columns[k]}</span>
+                  <b>{list.length}</b>
+                </header>
+                {list.length === 0 && <div className="kempty">—</div>}
+                {list.map((r) => (
+                  <OrderCard key={r.id} c={r} names={names} />
+                ))}
+              </section>
+            )
+          })}
+        </div>
+      )}
     </>
   )
 }
