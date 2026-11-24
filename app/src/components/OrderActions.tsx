@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../supabase'
 import { Confirm, Dialog } from './Dialog'
 import type { CardData, WorkCard } from '../lib/orderCards'
+import { uploadPhotos } from '../lib/photo'
 import { uz } from '../uz'
 
 // Кнопки под карточкой заказа: у каждой колонки и роли свои. После нажатия — onDone() (перезагрузка доски, карточка сразу переезжает).
@@ -147,8 +148,7 @@ export function InstallActions({ c, onDone }: { c: WorkCard; onDone: () => void 
     <>
       {open && !c.jobAccepted && <button type="button" disabled={busy} onClick={accept}>{f.accept}</button>}
       {open && <button type="button" className={c.jobAccepted ? '' : 'ghost'} disabled={busy} onClick={() => setDlg('done')}>{f.installed}</button>}
-      {c.status === 'installed' && c.glass !== 'installed' && <button type="button" disabled={busy} onClick={() => setDlg('glass')}>{f.glassInstalled}</button>}
-      {c.status === 'installed' && !c.photo && <p className="muted small" style={{ flexBasis: '100%', margin: 0 }}>{f.photoHint}</p>}
+      {c.status === 'installed' && c.glass !== 'installed' && c.glassOrdered && <button type="button" disabled={busy} onClick={() => setDlg('glass')}>{f.glassInstalled}</button>}
       {err && <p className="warn small" style={{ flexBasis: '100%', margin: 0 }}>{err}</p>}
       {dlg === 'done' && <GlassAskDialog c={c} onClose={() => setDlg(null)} onDone={() => { setDlg(null); onDone() }} />}
       {dlg === 'glass' && <Confirm title={`№${c.order_no}`} text={`${f.glassInstalled}?`} no={f.no} yes={f.yes} onNo={() => setDlg(null)} onYes={glass} />}
@@ -156,30 +156,57 @@ export function InstallActions({ c, onDone }: { c: WorkCard; onDone: () => void 
   )
 }
 
-// «O'rnatildi» → «Shisha o'rnatildimi? Ha / Yo'q»
+// «O'rnatildi»: фото установки (в системе — руководителям уйдёт само) + «Shisha o'rnatildimi? Ha / Yo'q».
+// Если стекло ещё не заказано — «Ha» недоступно: «Shisha hali zakaz qilinmagan».
 function GlassAskDialog({ c, onClose, onDone }: { c: CardData; onClose: () => void; onDone: () => void }) {
+  const [files, setFiles] = useState<File[]>([])
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const done = async (glass: boolean) => {
     setBusy(true)
     setErr(null)
-    const { error } = await supabase.rpc('install_done', { p_order: c.id, p_glass: glass })
+    let paths: string[] = []
+    try {
+      if (files.length) paths = await uploadPhotos(c.id, 'install', files)
+      const { error } = await supabase.rpc('install_done', { p_order: c.id, p_glass: glass, p_photos: paths })
+      if (error) {
+        if (paths.length) await supabase.storage.from('install-photos').remove(paths)
+        throw error
+      }
+      onDone()
+    } catch (e) {
+      setErr((e as Error).message)
+    }
     setBusy(false)
-    if (error) return setErr(error.message)
-    onDone()
   }
   return (
-    <Dialog title={`№${c.order_no} · ${c.client} — ${f.installed}`} onClose={onClose}>
-      <p className="dialog-text">{f.glassAsk}</p>
-      {err && <p className="warn">{err}</p>}
-      <div className="dialog-actions">
-        <button type="button" className="ghost" disabled={busy} onClick={() => done(false)}>{f.no}</button>
-        <button type="button" disabled={busy} onClick={() => done(true)}>{f.yes}</button>
+    <Dialog title={`№${c.order_no} — ${f.installed}`} onClose={onClose}>
+      <div className="form">
+        <label>
+          {f.photoLabel}
+          <input type="file" accept="image/*" capture="environment" multiple onChange={(e) => setFiles([...(e.target.files ?? [])].slice(0, 3))} />
+        </label>
+        {files.length > 0 && <p className="muted small">{files.length} {f.photoCount}</p>}
+        {c.glassOrdered ? <p className="dialog-text">{f.glassAsk}</p> : <p className="warn">{f.glassNotOrdered}</p>}
+        {err && <p className="warn">{err}</p>}
+        <div className="dialog-actions">
+          {c.glassOrdered ? (
+            <>
+              <button type="button" className="ghost" disabled={busy} onClick={() => done(false)}>{f.no}</button>
+              <button type="button" disabled={busy} onClick={() => done(true)}>{f.yes}</button>
+            </>
+          ) : (
+            <>
+              <button type="button" className="ghost" disabled={busy} onClick={onClose}>{f.cancel}</button>
+              <button type="button" disabled={busy} onClick={() => done(false)}>{f.installed}</button>
+            </>
+          )}
+        </div>
+        {busy && <p className="muted small">{uz.install.uploading}</p>}
       </div>
     </Dialog>
   )
 }
-
 // выбор людей: вся команда или галочками
 function TeamPicker({ people, all, sel, onAll, onToggle, allLabel }: { people: Person[]; all: boolean; sel: Set<string>; onAll: (v: boolean) => void; onToggle: (id: string) => void; allLabel: string }) {
   return (

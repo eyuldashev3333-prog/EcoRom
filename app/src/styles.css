@@ -224,6 +224,11 @@ label.btn { width: 100%; }
 .ocard-solo { max-width: 480px; display: grid; gap: 10px; margin-bottom: 16px; }
 .install-items { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
 .install-item { display: grid; gap: 6px; align-content: start; }
+.photo-strip { display: flex; gap: 8px; flex-wrap: wrap; }
+.photo-strip img { height: 110px; border-radius: var(--r-md); border: 1px solid var(--line); display: block; }
+/* цех: чертёж крупно, ниже размеры стекла и опции без цен */
+.shop-draw { display: grid; gap: 8px; max-width: 640px; }
+.shop-legend { margin: 0; padding-left: 18px; display: grid; gap: 2px; font-size: 13px; color: var(--ink-2); }
 /* стекло заказа: размеры + два шага */
 .glass-sizes { display: grid; gap: 4px; font-size: 13px; margin: 6px 0 10px; }
 .glass-sizes span { color: var(--muted); }

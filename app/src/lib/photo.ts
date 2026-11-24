@@ -23,9 +23,10 @@ export async function signedUrls(paths: string[]): Promise<Record<string, string
   return Object.fromEntries((data ?? []).flatMap((s) => (s.signedUrl && s.path ? [[s.path, s.signedUrl]] : [])))
 }
 
-// Фото с телефона → JPEG до 1280 px (≈150–300 КБ): бесплатное хранилище ограничено, оригиналы по 5 МБ не нужны.
-export async function compressPhoto(file: File, maxSide = 1280, quality = 0.72): Promise<Blob> {
-  const bmp = await createImageBitmap(file)
+// Фото с телефона → JPEG до 1600 px, качество 0.8 (≈300–500 КБ вместо 3–5 МБ): глазом разницы нет, а бесплатное хранилище не раздувается.
+// Поворот берём из EXIF, чтобы фото не ложилось на бок.
+export async function compressPhoto(file: File, maxSide = 1600, quality = 0.8): Promise<Blob> {
+  const bmp = await createImageBitmap(file, { imageOrientation: 'from-image' })
   const k = Math.min(1, maxSide / Math.max(bmp.width, bmp.height))
   const canvas = document.createElement('canvas')
   canvas.width = Math.round(bmp.width * k)

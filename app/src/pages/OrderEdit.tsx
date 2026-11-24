@@ -5,9 +5,11 @@ import WindowSvg from '../components/WindowSvg'
 import OrderCard from '../components/OrderCard'
 import { RahbarActions } from '../components/OrderActions'
 import { useOrderCards } from '../lib/orderCards'
+import { shopLegend } from '../lib/legend'
 import OrderMoney from '../components/OrderMoney'
 import StockHint from '../components/StockHint'
 import GlassStatus from '../components/GlassStatus'
+import InstallPhotos from '../components/InstallPhotos'
 import ServicePanel from '../components/ServicePanel'
 import BreakageForm from '../components/BreakageForm'
 import BreakageList from '../components/BreakageList'
@@ -221,7 +223,7 @@ export default function OrderEdit() {
         qty: it.qty,
         design: it.design,
         options: it.options,
-        materials: it.frozen ? it.frozen.materials : { items: calc[i].q.materials, panes: calc[i].m.panes.map((p) => ({ w: Math.round(p.w), h: Math.round(p.h), sash: p.sash })) },
+        materials: { ...(it.frozen ? it.frozen.materials : { items: calc[i].q.materials, panes: calc[i].m.panes.map((p) => ({ w: Math.round(p.w), h: Math.round(p.h), sash: p.sash })) }), legend: shopLegend(it.options, catalog.byId), color: itemColor(catalog.byId.get(it.options.color ?? '')) },
         calc: it.frozen ? it.frozen.calc : { lines: calc[i].q.lines, measure: { ...calc[i].m, panes: undefined } },
         cost: calc[i].q.cost,
         area_m2: it.frozen ? it.frozen.area_m2 : calc[i].m.area_m2,
@@ -423,6 +425,8 @@ export default function OrderEdit() {
       )}
 
       {id && loaded && !imported && !['unknown', 'cancelled'].includes(status) && <GlassStatus key={`${items.filter((x) => x.id).length}${glassTick}`} orderId={id} status={status} onChanged={reloadCards} />}
+
+      {id && loaded && !imported && ['installed', 'closed', 'unknown'].includes(status) && <InstallPhotos key={glassTick} orderId={id} />}
 
       {id && loaded && ((imported && status !== 'cancelled') || ['installed', 'closed'].includes(status)) && (
         <ServicePanel

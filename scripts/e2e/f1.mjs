@@ -1,10 +1,11 @@
-// e2e миграции 055 (простая жизнь заказа): Zavodga yuborish → Qabul qildim / Material yetmaydi → Tayyor → O'rnatish → O'rnatildi (+shisha) → фото из бота → закрытие.
-// Запуск: из scripts/e2e → node f1.mjs ; потом ОБЯЗАТЕЛЬНО node cleanup-e2e.mjs
+// e2e жизни заказа (миграции 055 + 057): Zavodga yuborish → Qabul qildim / Material yetmaydi → Tayyor → O'rnatish → O'rnatildi (фото в системе, стекло только заказанное) → закрытие.
+// Цех не видит имя клиента. «Oyna sindi» без причины. Запуск: из scripts/e2e → node f1.mjs ; потом node cleanup-e2e.mjs (он не сбрасывает нумерацию ниже №2446)
 import { ensureUser, sql, rpc, get, check, URL_, SVC } from './h.mjs'
 
 const real = await sql(`select id, telegram_id from employees where role = 'rahbar' and login not like 't\\_%' and telegram_id is not null`)
 await sql(`update employees set telegram_id = null where role = 'rahbar' and login not like 't\\_%'`)
 const restore = async () => { for (const r of real) await sql(`update employees set telegram_id = ${r.telegram_id} where id = '${r.id}'`) }
+const upload = (path) => fetch(`${URL_}/storage/v1/object/install-photos/${path}`, { method: 'POST', headers: { apikey: SVC, Authorization: `Bearer ${SVC}`, 'Content-Type': 'image/jpeg' }, body: new Uint8Array([255, 216, 255, 217]) })
 
 try {
   await ensureUser('t_rah', 'T Rahbar', 'rahbar', 9100001)
@@ -12,8 +13,8 @@ try {
   const R = 't_rah'
   const id = async (login) => (await sql(`select id from employees where login = '${login}'`))[0].id
   const [i1, i2, m1, m2] = await Promise.all(['test_ishlab1', 'test_ishlab2', 'test_mont1', 'test_mont2'].map(id))
-  const item = (pos) => ({ pos, title: 'w' + pos, width_mm: 1000, height_mm: 1500, qty: 1, area_m2: 1.5, cost: 100, design: { w: 1 }, options: {}, materials: { items: [], panes: [{ w: 900, h: 1400 }] } })
-  const mk = () => ({ client: { full_name: 'TEST F1' }, contract_price: 1000000, calc_cost: 500000, items: [item(1), item(2)] })
+  const item = (pos) => ({ pos, title: 'w' + pos, width_mm: 1000, height_mm: 1500, qty: 1, area_m2: 1.5, cost: 100, design: { w: 1 }, options: {}, materials: { items: [], panes: [{ w: 900, h: 1400 }], legend: ['Tizim: TEST', 'Rang: oq'], color: '#ffffff' }, calc: { lines: [{ kind: 'glass', sum: 100 }] } })
+  const mk = () => ({ client: { full_name: 'TEST F1 Mijoz', phone: '+998900000000' }, contract_price: 1000000, calc_cost: 500000, items: [item(1), item(2)] })
   const o1 = (await rpc(R, 'save_order', { p: mk() })).data.id
   const o2 = (await rpc(R, 'save_order', { p: mk() })).data.id
 
@@ -28,6 +29,13 @@ try {
   // Zavodga yuborish → цех
   r = await rpc(R, 'send_to_shop', { p_order: o1, p_workers: [i1, i2] })
   check('Z1', 'Zavodga yuborish → in_production', r.ok && (await sql(`select status from orders where id='${o1}'`))[0].status === 'in_production', r.err)
+  const wo = (await get('test_ishlab1', `w_orders?id=eq.${o1}&select=client_name,contact_phone,address,order_no`)).data
+  check('U1', 'цех не видит имя, телефон и адрес клиента', wo.length === 1 && wo[0].client_name === null && wo[0].contact_phone === null && wo[0].address === null, JSON.stringify(wo))
+  const wi = (await get('test_ishlab1', `w_order_items?order_id=eq.${o1}&select=materials`)).data
+  const wc = await get('test_ishlab1', `w_order_items?order_id=eq.${o1}&select=calc`)
+  check('U2', 'цех видит опции (legend), а цены (calc) недоступны', Array.isArray(wi[0]?.materials?.legend) && wc.status >= 400, JSON.stringify(wi[0]) + ' calc:' + wc.status)
+  const txt = (await sql(`select shop_order_text('${o1}') t`))[0].t
+  check('U3', 'Telegram-текст цеху без имени клиента', !/TEST F1 Mijoz/.test(txt) && /№/.test(txt), txt.split('\n')[0])
   r = await rpc('test_ishlab1', 'shop_ready', { p_order: o1 })
   check('Z2', '«Tayyor» до «Qabul qildim» — нельзя', !r.ok && /Qabul qildim/.test(r.err), r.err)
   r = await rpc('test_ishlab1', 'shop_answer_web', { p_order: o1, p_result: 'enough' })
@@ -46,53 +54,58 @@ try {
   check('Z7', '«Material yetmaydi» + izoh видно у Rahbar', r.ok && s2.first?.result === 'not_enough' && s2.first?.note === 'oq profil 2 xlist', JSON.stringify(s2.first))
   check('Z8', 'workshop_state: участок work (Jarayonda)', (await rpc(R, 'workshop_state')).data.orders.find((x) => x.order_id === o2)?.station === 'work')
 
-  // стекло: заказано
+  // стекло: пока не заказано — «установлено» нельзя
   r = await rpc('test_mont1', 'order_glass', { p_order: o1, p_status: 'ordered' })
   check('G1', 'монтажник не ставит «zakaz qilindi»', !r.ok, r.err)
-  r = await rpc(R, 'order_glass', { p_order: o1, p_status: 'ordered' })
-  check('G2', 'Rahbar: Shisha zakaz qilindi (все окна)', r.ok && (await sql(`select count(*)::int n from order_items where order_id='${o1}' and glass_status='ordered'`))[0].n === 2, r.err)
+  r = await rpc(R, 'order_glass', { p_order: o1, p_status: 'installed' })
+  check('G0', 'Rahbar: «o\'rnatildi» без заказа — отказ «hali zakaz qilinmagan»', !r.ok && /zakaz qilinmagan/.test(r.err), r.err)
 
   // O'rnatish
   r = await rpc(R, 'assign_install', { p_order: o1, p_date: '2026-12-01', p_members: [m1, m2] })
   check('A2', 'O\'rnatish готовому заказу', r.ok, r.err)
   r = await rpc('test_mont1', 'install_accept', { p_job: r.data })
   check('A3', 'монтажник: Qabul qildim', r.ok && r.data.ok, JSON.stringify(r.data))
-  r = await rpc('test_ishlab1', 'install_done', { p_order: o1, p_glass: true })
+  r = await rpc('test_ishlab1', 'install_done', { p_order: o1, p_glass: false, p_photos: [] })
   check('A4', 'цех не может «O\'rnatildi»', !r.ok, r.err)
-  r = await rpc('test_mont2', 'install_done', { p_order: o1, p_glass: false })
-  const o1s = (await sql(`select status, install_date from orders where id='${o1}'`))[0]
-  check('A5', 'O\'rnatildi (shisha: yo\'q) → installed', r.ok && o1s.status === 'installed' && !!o1s.install_date, r.err || JSON.stringify(o1s))
-  check('A6', 'стекло осталось «zakaz qilindi»', (await sql(`select count(*)::int n from order_items where order_id='${o1}' and glass_status='installed'`))[0].n === 0)
-  const wait = await sql(`select count(*)::int n from install_photo_wait where order_id='${o1}' and employee_id='${m2}'`)
-  check('A7', 'бот ждёт фото от того, кто нажал', wait[0].n === 1)
-  const nt = await sql(`select text from notifications where employee_id='${m2}' order by created_at desc limit 1`)
-  check('A8', 'монтажнику ушла просьба прислать фото', /fotosini/.test(nt[0]?.text ?? ''), nt[0]?.text)
+  r = await rpc('test_mont2', 'install_done', { p_order: o1, p_glass: true, p_photos: [] })
+  check('A5', 'стекло не заказано: «Ha» — отказ', !r.ok && /zakaz qilinmagan/.test(r.err), r.err)
+  r = await rpc('test_mont2', 'install_done', { p_order: o1, p_glass: false, p_photos: [] })
+  check('A6', 'без фото монтажник «O\'rnatildi» не нажмёт', !r.ok && /foto/i.test(r.err), r.err)
+  r = await rpc('test_mont2', 'install_done', { p_order: o1, p_glass: false, p_photos: [`${o2}/install/x.jpg`] })
+  check('A7', 'чужой путь фото — отказ', !r.ok, r.err)
 
-  // закрыть без фото нельзя
+  // фото в системе: монтажник грузит в хранилище сам (загрузка по ключу сервиса = то же хранилище, что и из приложения)
+  const path = `${o1}/install/test_${Date.now()}.jpg`
+  const up = await upload(path)
+  r = await rpc('test_mont2', 'install_done', { p_order: o1, p_glass: false, p_photos: [path] })
+  const o1s = (await sql(`select status, install_date from orders where id='${o1}'`))[0]
+  check('A8', 'O\'rnatildi (shisha: yo\'q, с фото) → installed', up.ok && r.ok && o1s.status === 'installed' && !!o1s.install_date, r.err || JSON.stringify(o1s))
+  check('A9', 'стекло осталось «zakaz qilinmagan» (не поставлено)', (await sql(`select count(*)::int n from order_items where order_id='${o1}' and glass_status='installed'`))[0].n === 0)
+  check('A10', 'фото записано к заказу', (await get('test_mont1', `install_order_photos?order_id=eq.${o1}&select=photo_path`)).data.length === 1)
+  const ph = await sql(`select payload from notifications where target_role='rahbar' and payload ? 'photos' and payload->>'order_id'='${o1}' order by created_at desc limit 1`)
+  check('A11', 'руководителям ушло уведомление с фото (альбом в боте)', ph.length === 1 && ph[0].payload.photos.includes(path), JSON.stringify(ph))
+  check('A12', 'ожидания фото в боте больше нет (таблица удалена)', (await sql(`select to_regclass('install_photo_wait') t`))[0].t === null)
+
+  // «Oyna sindi» без причины
+  const it1 = (await sql(`select id from order_items where order_id='${o1}' order by pos limit 1`))[0].id
+  r = await rpc('test_mont1', 'record_breakage', { p_item: it1, p_pieces: 1, p_reason: null, p_photo: null })
+  check('K1', '«Oyna sindi» монтажника без причины проходит', r.ok, r.err)
+  r = await rpc('test_ishlab1', 'record_breakage', { p_item: it1, p_pieces: 1, p_reason: null, p_photo: null })
+  check('K2', 'цех «Oyna sindi» не пишет', !r.ok, r.err)
+
+  // закрыть без долга и с фото
   r = await rpc(R, 'record_payment', { p_order: o1, p_amount: 1000000, p_date: (await sql(`select current_date::text d`))[0].d, p_note: 'TEST', p_advance: false })
   check('C0', 'оплата полностью (долг 0)', r.ok, r.err)
-  r = await rpc(R, 'set_order_status', { p_order: o1, p_status: 'closed' })
-  check('C1', 'закрыть без фото установки нельзя', !r.ok && /foto/i.test(r.err), r.err)
 
-  // фото из бота
-  const waits = await rpc('svc', 'bot_photo_waits', { p_tg: 9100006 })
-  check('B1', 'bot_photo_waits: один заказ ждёт фото', waits.ok && waits.data.length === 1 && waits.data[0].order_id === o1, JSON.stringify(waits.data))
-  const path = `${o1}/bot-test.jpg`
-  const up = await fetch(`${URL_}/storage/v1/object/install-photos/${path}`, { method: 'POST', headers: { apikey: SVC, Authorization: `Bearer ${SVC}`, 'Content-Type': 'image/jpeg' }, body: new Uint8Array([255, 216, 255, 217]) })
-  r = await rpc('svc', 'bot_install_photo', { p_tg: 9100006, p_order: o1, p_path: path })
-  check('B2', 'фото из бота привязано к заказу', up.ok && r.ok && r.data.ok, r.err || JSON.stringify(r.data))
-  check('B3', 'ожидание снято', (await sql(`select count(*)::int n from install_photo_wait where order_id='${o1}'`))[0].n === 0)
-  r = await rpc('svc', 'bot_install_photo', { p_tg: 9100002, p_order: o1, p_path: path })
-  check('B4', 'чужой (цех) фото к заказу не прикрепит', r.ok && r.data.ok === false, JSON.stringify(r.data))
-  check('B5', 'монтажник видит фото своего заказа', (await get('test_mont1', `install_order_photos?order_id=eq.${o1}&select=id`)).data.length === 1)
-
-  // потом стекло поставили
+  // стекло: Rahbar заказывает → монтажник отмечает «o'rnatildi»
+  r = await rpc(R, 'order_glass', { p_order: o1, p_status: 'ordered' })
+  check('G2', 'Rahbar: Shisha zakaz qilindi (все окна)', r.ok && (await sql(`select count(*)::int n from order_items where order_id='${o1}' and glass_status='ordered'`))[0].n === 2, r.err)
   r = await rpc('test_mont1', 'order_glass', { p_order: o1, p_status: 'installed' })
-  check('G3', 'монтажник: Shisha o\'rnatildi', r.ok && (await sql(`select count(*)::int n from order_items where order_id='${o1}' and glass_status='installed'`))[0].n === 2, r.err)
-  r = await rpc(R, 'set_order_status', { p_order: o1, p_status: 'closed' })
-  check('C2', 'с фото и без долга — закрывается', r.ok && (await sql(`select status from orders where id='${o1}'`))[0].status === 'closed', r.err)
+  check('G3', 'монтажник: Shisha o\'rnatildi (заказано)', r.ok && (await sql(`select count(*)::int n from order_items where order_id='${o1}' and glass_status='installed'`))[0].n === 2, r.err)
   r = await rpc('test_mont1', 'order_glass', { p_order: o2, p_status: 'installed' })
   check('G4', 'чужой заказ монтажник не трогает', !r.ok, r.err)
+  r = await rpc(R, 'set_order_status', { p_order: o1, p_status: 'closed' })
+  check('C2', 'с фото и без долга — закрывается', r.ok && (await sql(`select status from orders where id='${o1}'`))[0].status === 'closed', r.err)
 
   // зарплата и статистика читаются
   const month = (await sql(`select to_char(current_date, 'YYYY-MM-01') m`))[0].m

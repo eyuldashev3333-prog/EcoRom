@@ -4,7 +4,6 @@ import { supabase } from '../supabase'
 import OrderCard from '../components/OrderCard'
 import { ShopActions } from '../components/OrderActions'
 import WindowSvg from '../components/WindowSvg'
-import BreakageForm from '../components/BreakageForm'
 import { useWorkCards } from '../lib/orderCards'
 import type { WindowDesign } from '../lib/window'
 import { uz } from '../uz'
@@ -21,7 +20,7 @@ interface Item {
   qty: number
   design: WindowDesign
   note: string | null
-  materials: { items?: { name: string; qty: number; unit: string }[]; panes?: { w: number; h: number }[] }
+  materials: { items?: { name: string; qty: number; unit: string }[]; panes?: { w: number; h: number }[]; legend?: string[]; color?: string }
 }
 
 // заказ глазами цеха: та же карточка с кнопками («Qabul qildim / Material yetmaydi», «Tayyor»), чертежи и материалы (без цен)
@@ -55,28 +54,38 @@ export default function ShopOrder() {
         <p className="muted">{uz.order.notFound}</p>
       ) : (
         <div className="ocard-solo">
-          <OrderCard c={c} to={`/shop/${c.id}`} money={false}>
+          <OrderCard c={c} to={`/shop/${c.id}`} money={false} client={false}>
             <ShopActions c={c} onDone={reload} />
           </OrderCard>
         </div>
       )}
       {notes && <div className="card note">{notes}</div>}
-      <div className="card install-items">
-        {items.map((it) => (
-          <div key={it.id} className="install-item">
-            <WindowSvg design={it.design} maxHeight={150} />
-            <div className="small">
-              <b>{it.pos})</b> {it.title ? `${it.title} · ` : ''}
+      {/* чертежи — сразу, крупно, с размерами: по ним цех работает */}
+      {items.map((it) => (
+        <div key={it.id} className="card shop-draw">
+          <div className="inline head" style={{ marginBottom: 6 }}>
+            <b>
+              {it.pos}) {it.title ? `${it.title} · ` : ''}
               {it.width_mm}×{it.height_mm}
-              {it.qty > 1 ? ` · ${it.qty} ${uz.home.windows}` : ''}
-              {it.materials?.panes?.length ? <div className="muted">{t.panes}: {it.materials.panes.map((p) => `${p.w}×${p.h}`).join(', ')}</div> : null}
-              {it.note && <div className="muted">{it.note}</div>}
-            </div>
+            </b>
+            <span className="status">{it.qty} {uz.home.windows}</span>
           </div>
-        ))}
-      </div>
-      {id && c && <BreakageForm orderId={id} items={items} />}
-      {total.size > 0 && (
+          <WindowSvg design={it.design} frameColor={it.materials?.color} maxHeight={440} />
+          {it.materials?.panes?.length ? (
+            <p className="small">
+              <b>{t.panes}:</b> {it.materials.panes.map((p) => `${p.w}×${p.h}`).join(', ')}
+            </p>
+          ) : null}
+          {it.materials?.legend?.length ? (
+            <ul className="shop-legend">
+              {it.materials.legend.map((l) => (
+                <li key={l}>{l}</li>
+              ))}
+            </ul>
+          ) : null}
+          {it.note && <p className="muted small">{it.note}</p>}
+        </div>
+      ))}      {total.size > 0 && (
         <div className="card">
           <h2>{t.materials}</h2>
           <table className="kv">

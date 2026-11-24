@@ -11,7 +11,8 @@ const f = uz.flow
 const dmy = (d: string | null) => (d ? d.split('-').reverse().join('.') : '')
 
 // Одна карточка заказа — одинаковая у всех: чертёж, клиент, срок, где заказ сейчас. Кнопки своей колонки/роли — снизу (children).
-export default function OrderCard({ c, names, children, to, money = true }: { c: CardData; names?: Map<string, string>; children?: ReactNode; to?: string; money?: boolean }) {
+// client=false — цех: без имени, телефона и адреса клиента
+export default function OrderCard({ c, names, children, to, money = true, client = true }: { c: CardData; names?: Map<string, string>; children?: ReactNode; to?: string; money?: boolean; client?: boolean }) {
   const left = daysLeft(c)
   const urgency = left === null ? '' : left < 0 ? 'late' : left <= 3 ? 'soon' : ''
   const extra = Math.max(0, (c.itemsCount || (c.windows_count ? 1 : 0)) - 1)
@@ -34,9 +35,17 @@ export default function OrderCard({ c, names, children, to, money = true }: { c:
             <b>№{c.order_no}</b>
             <span className={`status s-${c.status}`}>{uz.order.statuses[c.status]}</span>
           </div>
-          <div className="ocard-name">{c.client}</div>
-          {c.phone && <div className="ocard-line muted">{c.phone}</div>}
-          {c.address && <div className="ocard-line muted">{c.address}</div>}
+          {client ? (
+            <>
+              <div className="ocard-name">{c.client}</div>
+              {c.phone && <div className="ocard-line muted">{c.phone}</div>}
+              {c.address && <div className="ocard-line muted">{c.address}</div>}
+            </>
+          ) : (
+            <div className="ocard-name">
+              {c.windows_count} {uz.home.windows} · {Math.round(c.area_m2 * 100) / 100} m²
+            </div>
+          )}
           <div className="ocard-line">
             {c.deadline ? (
               <span className={`ocard-deadline ${urgency}`}>
@@ -68,12 +77,11 @@ export default function OrderCard({ c, names, children, to, money = true }: { c:
                 {c.job.accepted_by ? ` · ${names?.get(c.job.accepted_by) ?? ''}` : ` · ${t.notAccepted}`}
               </span>
             )}
-            {afterShop && c.itemsCount > 0 && (
+            {client && afterShop && c.itemsCount > 0 && (
               <span className={`ochip ${c.glass === 'installed' ? '' : c.status === 'installed' ? 'warn' : ''}`}>
                 {c.glass === 'installed' ? f.glassInstalled : c.glass === 'none' ? f.glassNone : f.glassOrdered}
               </span>
             )}
-            {c.status === 'installed' && !c.photo && <span className="ochip warn">{f.photoWait}</span>}
             {c.openService > 0 && <span className="ochip warn">{t.servis}: {c.openService}</span>}
           </div>
           {money && (

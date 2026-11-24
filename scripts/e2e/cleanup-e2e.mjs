@@ -53,7 +53,7 @@ update employees set telegram_id = 5620263440 where login = 'elyor';
 update app_settings set value = '8'::jsonb where key = 'notify_from_hour';
 update app_settings set value = '20'::jsonb where key = 'notify_to_hour';
 delete from audit_log;
-select setval('order_no_seq', coalesce((select max(order_no) from orders), 2434) + 1, false);
+select setval('order_no_seq', greatest(coalesce((select max(order_no) from orders), 0) + 1, 2446), false);
 commit;`)
 const H = { apikey: SVC, Authorization: `Bearer ${SVC}` }
 const u = await (await fetch(`${URL_}/auth/v1/admin/users?per_page=200`, { headers: H })).json()

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../supabase'
-import { useCatalog } from '../lib/catalog'
+import { itemColor, useCatalog } from '../lib/catalog'
+import { shopLegend } from '../lib/legend'
 import { itemPrice, round2 } from '../lib/pricing'
 import { quoteItem, workCost, type ItemOptions, type Material, type QuoteLine } from '../lib/quote'
 import { designProblems, measure, type WindowDesign } from '../lib/window'
@@ -202,7 +203,7 @@ export function useWsOrder(paramId?: string) {
           qty: it.qty,
           design: it.design,
           options: it.options,
-          materials: it.frozen ? it.frozen.materials : { items: calc[i].q.materials, panes: calc[i].m.panes.map((p) => ({ w: Math.round(p.w), h: Math.round(p.h), sash: p.sash })) },
+          materials: { ...(it.frozen ? it.frozen.materials : { items: calc[i].q.materials, panes: calc[i].m.panes.map((p) => ({ w: Math.round(p.w), h: Math.round(p.h), sash: p.sash })) }), legend: shopLegend(it.options, catalog.byId), color: itemColor(catalog.byId.get(it.options.color ?? '')) },
           calc: it.frozen ? it.frozen.calc : { lines: calc[i].q.lines, measure: { ...calc[i].m, panes: undefined } },
           cost: calc[i].q.cost,
           area_m2: it.frozen ? it.frozen.area_m2 : calc[i].m.area_m2,

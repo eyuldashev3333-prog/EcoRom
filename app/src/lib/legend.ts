@@ -3,6 +3,9 @@ import { DOBOR, SIDES, selList, type CatalogItem, type ItemOptions, type Side } 
 const SIDE_LABEL: Record<Side, string> = { l: 'chap', t: 'yuqori', r: "o'ng", b: 'past' }
 const sidesText = (s?: Side[]) => SIDES.filter((x) => s?.includes(x)).map((x) => SIDE_LABEL[x]).join(', ')
 
+/** опции для цеха: то же, но без цен и финансовой схемы (цех их не должен видеть) */
+export const shopLegend = (o: ItemOptions, byId: Map<string, CatalogItem>): string[] => optionLegend(o, byId).filter((l) => !/^(O'z narxi|Sxema):/.test(l))
+
 // Список выбранных опций позиции — подпись на чертеже в режиме «Nazorat» (контроль) и в PDF «с подробностями».
 export function optionLegend(o: ItemOptions, byId: Map<string, CatalogItem>, schemeName?: (id: string) => string | undefined): string[] {
   const name = (id?: string) => (id ? byId.get(id)?.name : undefined)

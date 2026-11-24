@@ -14,12 +14,11 @@ export interface BreakItem {
   qty: number
 }
 
-// «Oyna sindi»: окно, сколько штук, причина, фото → Rahbar сразу узнаёт; стекло заказывается заново
+// «Oyna sindi»: окно, сколько штук, фото (по желанию) → Rahbar сразу узнаёт; стекло заказывается заново. Причину не спрашиваем.
 export default function BreakageForm({ orderId, items, onDone }: { orderId: string; items: BreakItem[]; onDone?: () => void }) {
   const [open, setOpen] = useState(false)
   const [item, setItem] = useState(items[0]?.id ?? '')
   const [pieces, setPieces] = useState(1)
-  const [reason, setReason] = useState('')
   const [file, setFile] = useState<File | null>(null)
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
@@ -38,14 +37,13 @@ export default function BreakageForm({ orderId, items, onDone }: { orderId: stri
         const up = await supabase.storage.from('install-photos').upload(path, blob, { contentType: 'image/jpeg' })
         if (up.error) throw up.error
       }
-      const { error } = await supabase.rpc('record_breakage', { p_item: cur.id, p_pieces: pieces, p_reason: reason, p_photo: path })
+      const { error } = await supabase.rpc('record_breakage', { p_item: cur.id, p_pieces: pieces, p_reason: null, p_photo: path })
       if (error) {
         if (path) await supabase.storage.from('install-photos').remove([path])
         throw error
       }
       setMsg({ ok: true, text: t.sent })
       setOpen(false)
-      setReason('')
       setFile(null)
       setPieces(1)
       onDone?.()
@@ -91,15 +89,11 @@ export default function BreakageForm({ orderId, items, onDone }: { orderId: stri
             )}
           </div>
           <label>
-            {t.reason}
-            <input value={reason} onChange={(e) => setReason(e.target.value)} />
-          </label>
-          <label>
             {t.photo}
             <input type="file" accept="image/*" capture="environment" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
           </label>
           <div className="inline wrap">
-            <button type="button" onClick={send} disabled={busy || !reason.trim()}>
+            <button type="button" onClick={send} disabled={busy}>
               {busy ? uz.install.uploading : t.send}
             </button>
             <button type="button" className="ghost" onClick={() => setOpen(false)}>

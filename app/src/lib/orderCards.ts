@@ -28,6 +28,7 @@ export interface CardData {
   job: { id: string; status: string; plan_date: string | null; accepted_by: string | null; crew: string[] } | null
   shop: ShopAns | null // первый ответ цеха после последней отправки
   glass: GlassState
+  glassOrdered: boolean // у всех окон стекло уже заказано (иначе «установлено» отметить нельзя)
   photo: boolean // есть фото установки
 }
 export interface ShopAns {
@@ -36,12 +37,13 @@ export interface ShopAns {
   note: string | null
 }
 export type GlassState = 'none' | 'ordered' | 'installed' | 'mixed'
+export const allGlassOrdered = (list: (string | null | undefined)[]) => list.length > 0 && list.every((x) => x === 'ordered' || x === 'arrived' || x === 'installed')
 
 /** стекло заказа одним словом: все окна в одном состоянии или вперемешку («arrived» считаем «ordered») */
 export function glassOf(list: (string | null | undefined)[]): GlassState {
   const s = new Set(list.map((x) => (x === 'arrived' ? 'ordered' : x ?? 'none')))
   if (s.size === 0) return 'none'
-  if (s.size > 1) return s.has('installed') ? 'mixed' : s.has('ordered') ? 'ordered' : 'none'
+  if (s.size > 1) return s.has('none') ? 'none' : 'mixed' // хоть одно окно без заказа — считаем «не заказано»; ordered+installed — вперемешку
   return [...s][0] as GlassState
 }
 
@@ -151,6 +153,7 @@ export function useOrderCards(): { cards: CardData[] | null; names: Map<string, 
             job: job.get(o.id) ?? null,
             shop: shop.get(o.id) ?? null,
             glass: glassOf(it.map((x) => x.glass_status)),
+            glassOrdered: allGlassOrdered(it.map((x) => x.glass_status)),
             photo: withPhoto.has(o.id),
           }
         }),
@@ -232,6 +235,7 @@ export function useWorkCards(role: 'ishlab' | 'montajchi'): { cards: WorkCard[] 
               job: j ? { id: j.id, status: j.status, plan_date: j.plan_date, accepted_by: null, crew: [] } : null,
               shop: first ? { result: first.result, name: first.name, note: first.note } : null,
               glass: glassOf(it.map((x) => x.glass_status)),
+              glassOrdered: allGlassOrdered(it.map((x) => x.glass_status)),
               photo: withPhoto.has(o.id),
               accepted: !!o.shop_accepted_at,
               jobAccepted: j?.accepted_name ?? null,

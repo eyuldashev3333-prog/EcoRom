@@ -311,7 +311,7 @@ function ShopPane({ sec }: { sec: SectionDef }) {
       {cards === null && <div className="kempty">{uz.loading}</div>}
       {cards && list.length === 0 && <div className="kempty">—</div>}
       {list.map((c) => (
-        <OrderCard key={c.id} c={c} to={`/shop/${c.id}`} money={false}>
+        <OrderCard key={c.id} c={c} to={`/shop/${c.id}`} money={false} client={false}>
           <ShopActions c={c} onDone={reload} />
         </OrderCard>
       ))}
