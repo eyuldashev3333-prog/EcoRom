@@ -1,12 +1,15 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { AlertTriangle, ChevronRight, Hammer, LogOut, Plus, ReceiptText, Wallet, type LucideIcon } from 'lucide-react'
+import { AlertTriangle, ChevronRight, Hammer, LogOut, Plus, Wallet, type LucideIcon } from 'lucide-react'
 import Tile, { type Tone } from '../ui/Tile'
 import { useAuth } from '../auth'
 import { supabase } from '../supabase'
-import { progressPct } from '../components/StageGrid'
+import OrderCard from '../components/OrderCard'
+import { InstallActions, ShopActions } from '../components/OrderActions'
+import { OrdersBoard } from './Orders'
+import { useWorkCards, type WorkCard } from '../lib/orderCards'
 import { type Leaks } from '../lib/leaks'
-import { stationOf, type ZavodState } from '../lib/zavod'
+import { stationOf, type WOrder, type ZavodState } from '../lib/zavod'
 import { setSection, useSection } from '../shell/pager'
 import { sectionsFor, type SectionDef } from '../shell/sections'
 import MontajBoard from '../components/MontajBoard'
@@ -26,11 +29,10 @@ interface RahbarData {
   supDebt: number | null
   openService: number | null
   leaks: Leaks | null
-  recent: { id: string; order_no: number; status: string; contract_price: number; created_at: string; clients: { full_name: string } | null }[]
   zavod: ZavodState | null
 }
 function useRahbarData(enabled: boolean): RahbarData {
-  const [d, setD] = useState<RahbarData>({ cash: null, since: '', orders: null, debt: null, supDebt: null, openService: null, leaks: null, recent: [], zavod: null })
+  const [d, setD] = useState<RahbarData>({ cash: null, since: '', orders: null, debt: null, supDebt: null, openService: null, leaks: null, zavod: null })
   useEffect(() => {
     if (!enabled) return
     const up = (p: Partial<RahbarData>) => setD((x) => ({ ...x, ...p }))
@@ -48,12 +50,6 @@ function useRahbarData(enabled: boolean): RahbarData {
       up({ cash: Number(c?.cash ?? 0), since: c?.since ?? '' })
     })
     supabase.from('orders').select('id', { count: 'exact', head: true }).then(({ count }) => up({ orders: count ?? 0 }))
-    supabase
-      .from('orders')
-      .select('id, order_no, status, contract_price, created_at, clients(full_name)')
-      .order('order_no', { ascending: false })
-      .limit(8)
-      .then(({ data }) => up({ recent: (data as unknown as RahbarData['recent']) ?? [] }))
   }, [enabled])
   return d
 }
@@ -109,14 +105,9 @@ function Row({ to, title, sub, right, onClick }: { to?: string; title: ReactNode
   return <div className="r">{inner}</div>
 }
 const Empty = ({ text }: { text: string }) => <div className="r r-empty">{text}</div>
-const Pct = ({ v, late }: { v: number; late?: boolean }) => (
-  <span className="pct-cell">
-    <span className={`bar ${late ? 'late' : ''}`}>
-      <i style={{ width: `${Math.round(v)}%` }} />
-    </span>
-    {Math.round(v)}%
-  </span>
-)
+// цех ответил? (вместо процентов: у цеха только «Jarayonda» → «Tayyor»)
+const ShopMark = ({ o }: { o: WOrder }) =>
+  o.material ? <span className="debt-tag">{uz.workshop.legend.material}</span> : <span className={o.late ? 'today' : 'muted'}>{o.accepted ? uz.flow.accepted : uz.flow.waiting}</span>
 
 function SectionHead({ sec, actions }: { sec: SectionDef; actions?: ReactNode }) {
   return (
@@ -196,7 +187,7 @@ function ZavodPane({ sec, d }: { sec: SectionDef; d: RahbarData }) {
         <Panel title={s.inShop} action={{ to: '/zavod', label: s.open }} tone="orange" icon={Hammer}>
           {inShop.length === 0 && <Empty text={d.zavod ? s.nothing : uz.loading} />}
           {inShop.slice(0, 6).map((o) => (
-            <Row key={o.order_id} to={`/orders/${o.order_id}`} title={`№${o.order_no} · ${o.client}`} sub={`${uz.workshop.stations[stationOf(o)]} · ${o.windows} ${uz.home.windows}`} right={<Pct v={Number(o.percent)} late={o.late} />} />
+            <Row key={o.order_id} to={`/orders/${o.order_id}`} title={`№${o.order_no} · ${o.client}`} sub={`${uz.workshop.stations[stationOf(o)]} · ${o.windows} ${uz.home.windows}`} right={<ShopMark o={o} />} />
           ))}
         </Panel>
       </div>
@@ -204,7 +195,8 @@ function ZavodPane({ sec, d }: { sec: SectionDef; d: RahbarData }) {
   )
 }
 
-function SavdoPane({ sec, d }: { sec: SectionDef; d: RahbarData }) {
+// Savdo: сразу канбан заказов с кнопками под карточками (списка нет)
+function SavdoPane({ sec }: { sec: SectionDef }) {
   return (
     <>
       <SectionHead
@@ -216,23 +208,7 @@ function SavdoPane({ sec, d }: { sec: SectionDef; d: RahbarData }) {
         }
       />
       <Links sec={sec} />
-      <Panel title={s.recent} action={{ to: '/orders', label: s.all }} tone="blue" icon={ReceiptText}>
-        {d.recent.length === 0 && <Empty text={s.nothing} />}
-        {d.recent.map((o) => (
-          <Row
-            key={o.id}
-            to={`/orders/${o.id}`}
-            title={`№${o.order_no} · ${o.clients?.full_name ?? '—'}`}
-            sub={dmy(o.created_at.slice(0, 10))}
-            right={
-              <span className="r-stack">
-                <b className="num">{fmt(Number(o.contract_price))}</b>
-                {o.status !== 'unknown' && <span className={`status s-${o.status}`}>{uz.order.statuses[o.status]}</span>}
-              </span>
-            }
-          />
-        ))}
-      </Panel>
+      <OrdersBoard />
     </>
   )
 }
@@ -251,7 +227,7 @@ function IshlabPane({ sec, d }: { sec: SectionDef; d: RahbarData }) {
             to={`/orders/${o.order_id}`}
             title={`№${o.order_no} · ${o.client}`}
             sub={`${uz.workshop.stations[stationOf(o)]} · ${o.windows} ${uz.home.windows}${o.material ? ` · ${uz.workshop.legend.material}` : ''}`}
-            right={<Pct v={Number(o.percent)} late={o.late} />}
+            right={<ShopMark o={o} />}
           />
         ))}
       </Panel>
@@ -321,115 +297,70 @@ function MyMoney() {
   )
 }
 
-// ============ цех ============
-interface ShopRow {
-  id: string
-  order_no: number
-  status: string
-  deadline: string | null
-  client_name: string | null
-  windows_count: number
-  shop_accepted_at: string | null
-  pct: number
-}
+// ============ цех: те же карточки заказов, кнопки «Qabul qildim / Material yetmaydi», потом «Tayyor» ============
 function ShopPane({ sec }: { sec: SectionDef }) {
-  const [rows, setRows] = useState<ShopRow[] | null>(null)
-  const [tab, setTab] = useState<'req' | 'work'>('req')
-  useEffect(() => {
-    ;(async () => {
-      const { data: os } = await supabase
-        .from('w_orders')
-        .select('id, order_no, status, deadline, client_name, windows_count, shop_accepted_at')
-        .in('status', ['in_production', 'ready'])
-        .order('deadline', { ascending: true, nullsFirst: false })
-      const orders = (os as Omit<ShopRow, 'pct'>[]) ?? []
-      if (!orders.length) return setRows([])
-      const [its, st] = await Promise.all([
-        supabase.from('w_order_items').select('id, order_id, qty').in('order_id', orders.map((o) => o.id)),
-        supabase.from('stages').select('id', { count: 'exact', head: true }).eq('is_active', true),
-      ])
-      const items = (its.data as { id: string; order_id: string; qty: number }[]) ?? []
-      const { data: ms } = await supabase.from('w_stage_marks').select('order_item_id').in('order_item_id', items.map((i) => i.id))
-      const marks = (ms as { order_item_id: string }[]) ?? []
-      setRows(
-        orders.map((o) => {
-          const mine = items.filter((i) => i.order_id === o.id)
-          const ids = new Set(mine.map((i) => i.id))
-          return { ...o, pct: progressPct(mine, marks.filter((m) => ids.has(m.order_item_id)), st.count ?? 0) }
-        }),
-      )
-    })()
-  }, [])
+  const { cards, reload } = useWorkCards('ishlab')
+  const req = (cards ?? []).filter((c) => c.status === 'in_production' && !c.accepted)
+  const work = (cards ?? []).filter((c) => c.accepted || c.status !== 'in_production')
+  const col = (title: string, list: WorkCard[]) => (
+    <section className="kcol">
+      <header>
+        <span>{title}</span>
+        <b>{list.length}</b>
+      </header>
+      {cards === null && <div className="kempty">{uz.loading}</div>}
+      {cards && list.length === 0 && <div className="kempty">—</div>}
+      {list.map((c) => (
+        <OrderCard key={c.id} c={c} to={`/shop/${c.id}`} money={false}>
+          <ShopActions c={c} onDone={reload} />
+        </OrderCard>
+      ))}
+    </section>
+  )
   return (
     <>
       <SectionHead sec={sec} />
       <MyMoney />
-      <div className="seg seg-wide">
-        <button type="button" className={tab === 'req' ? 'on' : ''} onClick={() => setTab('req')}>
-          {uz.shop.tabRequest} <b>{(rows ?? []).filter((o) => !o.shop_accepted_at).length}</b>
-        </button>
-        <button type="button" className={tab === 'work' ? 'on' : ''} onClick={() => setTab('work')}>
-          {uz.shop.tabWork} <b>{(rows ?? []).filter((o) => o.shop_accepted_at).length}</b>
-        </button>
+      <div className="montaj-board">
+        {col(uz.shop.tabRequest, req)}
+        {col(uz.shop.tabWork, work)}
       </div>
-      <Panel title={tab === 'req' ? uz.shop.tabRequest : uz.shop.tabWork} tone="orange" icon={Hammer}>
-        {rows === null && <Empty text={uz.loading} />}
-        {rows && rows.filter((o) => (tab === 'work') === !!o.shop_accepted_at).length === 0 && <Empty text={uz.stages.noShop} />}
-        {rows?.filter((o) => (tab === 'work') === !!o.shop_accepted_at).map((o) => (
-          <Row
-            key={o.id}
-            to={`/shop/${o.id}`}
-            title={`№${o.order_no} · ${o.client_name ?? ''}`}
-            sub={`${o.windows_count} ${uz.home.windows}${o.deadline ? ` · ${uz.home.deadline}: ${dmy(o.deadline)}` : ''}`}
-            right={<Pct v={o.pct} />}
-          />
-        ))}
-      </Panel>
     </>
   )
 }
 
-// ============ монтажник ============
-interface JobRow {
-  id: string
-  order_id: string
-  plan_date: string | null
-  status: string
-  order_no: number
-  client_name: string | null
-  address: string | null
-  order_status: string
-}
+// ============ монтажник: карточки, «Qabul qildim» → «O'rnatildi» (+ «Shisha o'rnatildimi?»), фото — в бота ============
 function InstallPane({ sec }: { sec: SectionDef }) {
-  const [rows, setRows] = useState<JobRow[] | null>(null)
+  const { cards, reload } = useWorkCards('montajchi')
   const [svc, setSvc] = useState<{ id: string; order_no: number; client_name: string | null; address: string | null; due_date: string | null; description: string; work_done_at: string | null }[]>([])
   useEffect(() => {
     supabase.from('w_service_tickets').select('id, order_no, client_name, address, due_date, description, work_done_at').order('due_date', { nullsFirst: false }).then(({ data }) => setSvc((data as typeof svc) ?? []))
-    ;(async () => {
-      const { data: js } = await supabase.from('w_install_jobs').select('id, order_id, plan_date, status').in('status', ['planned', 'in_progress', 'postponed']).order('plan_date')
-      const jobs = (js as Omit<JobRow, 'order_no' | 'client_name' | 'address' | 'order_status'>[]) ?? []
-      if (!jobs.length) return setRows([])
-      const { data: os } = await supabase.from('w_orders').select('id, order_no, client_name, address, status').in('id', jobs.map((j) => j.order_id))
-      const by = new Map(((os as { id: string; order_no: number; client_name: string | null; address: string | null; status: string }[]) ?? []).map((o) => [o.id, o]))
-      setRows(jobs.flatMap((j) => { const o = by.get(j.order_id); return o ? [{ ...j, order_no: o.order_no, client_name: o.client_name, address: o.address, order_status: o.status }] : [] }))
-    })()
   }, [])
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Tashkent' })
-  const row = (j: JobRow) => (
-    <Row key={j.id} to={`/install/${j.order_id}`} title={`№${j.order_no} · ${j.client_name ?? ''}`} sub={j.address ?? ''} right={<span className={j.plan_date === today ? 'today' : 'muted'}>{dmy(j.plan_date)}</span>} />
+  const isNow = (c: WorkCard) => c.status === 'installed' || (c.job?.plan_date ?? '9999') <= today
+  const col = (title: string, list: WorkCard[]) => (
+    <section className="kcol">
+      <header>
+        <span>{title}</span>
+        <b>{list.length}</b>
+      </header>
+      {cards === null && <div className="kempty">{uz.loading}</div>}
+      {cards && list.length === 0 && <div className="kempty">{uz.install.noJobs}</div>}
+      {list.map((c) => (
+        <OrderCard key={c.id} c={c} to={`/install/${c.id}`} money={false}>
+          <InstallActions c={c} onDone={reload} />
+        </OrderCard>
+      ))}
+    </section>
   )
-  const now = (rows ?? []).filter((j) => j.plan_date !== null && j.plan_date <= today)
-  const next = (rows ?? []).filter((j) => j.plan_date === null || j.plan_date > today)
   return (
     <>
       <SectionHead sec={sec} />
       <MyMoney />
-      <Panel title={uz.install.today} tone="purple" icon={Hammer}>
-        {rows === null && <Empty text={uz.loading} />}
-        {rows !== null && now.length === 0 && <Empty text={uz.install.noJobs} />}
-        {now.map(row)}
-      </Panel>
-      {next.length > 0 && <Panel title={uz.install.next}>{next.map(row)}</Panel>}
+      <div className="montaj-board">
+        {col(uz.install.today, (cards ?? []).filter(isNow))}
+        {col(uz.install.next, (cards ?? []).filter((c) => !isNow(c)))}
+      </div>
       {svc.length > 0 && (
         <Panel title={uz.service.mine}>
           {svc.map((v) => (
@@ -459,7 +390,7 @@ function ProfilPane({ sec }: { sec: SectionDef }) {
 function render(sec: SectionDef, d: RahbarData): ReactNode {
   switch (sec.id) {
     case 'zavod': return <ZavodPane sec={sec} d={d} />
-    case 'savdo': return <SavdoPane sec={sec} d={d} />
+    case 'savdo': return <SavdoPane sec={sec} />
     case 'ishlab': return <IshlabPane sec={sec} d={d} />
     case 'montaj': return <MontajPane sec={sec} d={d} />
     case 'pul': return <PulPane sec={sec} d={d} />

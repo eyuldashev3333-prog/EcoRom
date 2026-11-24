@@ -7,17 +7,18 @@ import { formatSum } from '../lib/pricing'
 import { uz } from '../uz'
 
 const t = uz.cards
+const f = uz.flow
 const dmy = (d: string | null) => (d ? d.split('-').reverse().join('.') : '')
 
-// Одна карточка заказа — одинаковая в «Savdo» и в «Montaj va servis»: чертёж, клиент, адрес, срок, этап, деньги, сервис/монтаж
-export default function OrderCard({ c, names, children }: { c: CardData; names: Map<string, string>; children?: ReactNode }) {
+// Одна карточка заказа — одинаковая у всех: чертёж, клиент, срок, где заказ сейчас. Кнопки своей колонки/роли — снизу (children).
+export default function OrderCard({ c, names, children, to, money = true }: { c: CardData; names?: Map<string, string>; children?: ReactNode; to?: string; money?: boolean }) {
   const left = daysLeft(c)
   const urgency = left === null ? '' : left < 0 ? 'late' : left <= 3 ? 'soon' : ''
-  const stage = c.station ? uz.workshop.stations[c.station] : null
   const extra = Math.max(0, (c.itemsCount || (c.windows_count ? 1 : 0)) - 1)
+  const afterShop = ['ready', 'installing', 'installed'].includes(c.status)
   return (
     <div className={`ocard ${urgency}`}>
-      <Link to={`/orders/${c.id}`} className="ocard-main">
+      <Link to={to ?? `/orders/${c.id}`} className="ocard-main">
         <div className="ocard-pic">
           {c.designs[0] ? (
             <SafeBox fallback={<span className="ocard-nopic">{c.windows_count} {uz.home.windows}</span>}>
@@ -48,29 +49,43 @@ export default function OrderCard({ c, names, children }: { c: CardData; names: 
             )}
           </div>
           <div className="ocard-line ocard-chips">
-            {stage && c.status === 'in_production' && (
-              <span className="ochip">
-                {stage} · {Math.round(c.percent)}%
-              </span>
-            )}
-            {c.material && <span className="ochip bad">{uz.workshop.legend.material}</span>}
-            {c.job && (
+            {c.status === 'in_production' &&
+              (c.shop ? (
+                c.shop.result === 'enough' ? (
+                  <span className="ochip">{f.accepted}: {c.shop.name}</span>
+                ) : (
+                  <span className="ochip bad" title={c.shop.note ?? undefined}>
+                    {uz.shop.state[c.shop.result]}{c.shop.note ? `: ${c.shop.note}` : ''}
+                  </span>
+                )
+              ) : (
+                <span className="ochip">{f.waiting}</span>
+              ))}
+            {c.job && c.status !== 'installed' && (
               <span className="ochip">
                 {t.montaj}
                 {c.job.plan_date ? ` ${dmy(c.job.plan_date)}` : ''}
-                {c.job.accepted_by ? ` · ${names.get(c.job.accepted_by) ?? ''}` : ` · ${t.notAccepted}`}
+                {c.job.accepted_by ? ` · ${names?.get(c.job.accepted_by) ?? ''}` : ` · ${t.notAccepted}`}
               </span>
             )}
+            {afterShop && c.itemsCount > 0 && (
+              <span className={`ochip ${c.glass === 'installed' ? '' : c.status === 'installed' ? 'warn' : ''}`}>
+                {c.glass === 'installed' ? f.glassInstalled : c.glass === 'none' ? f.glassNone : f.glassOrdered}
+              </span>
+            )}
+            {c.status === 'installed' && !c.photo && <span className="ochip warn">{f.photoWait}</span>}
             {c.openService > 0 && <span className="ochip warn">{t.servis}: {c.openService}</span>}
           </div>
-          <div className="ocard-money">
-            <b className="num">{formatSum(c.contract_price)}</b>
-            {c.debt > 0 && (
-              <span className="debt-tag">
-                {uz.money.debt}: {formatSum(c.debt)}
-              </span>
-            )}
-          </div>
+          {money && (
+            <div className="ocard-money">
+              <b className="num">{formatSum(c.contract_price)}</b>
+              {c.debt > 0 && (
+                <span className="debt-tag">
+                  {uz.money.debt}: {formatSum(c.debt)}
+                </span>
+              )}
+            </div>
+          )}
         </div>
       </Link>
       {children && <div className="ocard-actions">{children}</div>}

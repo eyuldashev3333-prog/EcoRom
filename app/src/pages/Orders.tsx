@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import OrderCard from '../components/OrderCard'
+import { RahbarActions } from '../components/OrderActions'
 import { columnOf, useOrderCards, type CardData, type Column } from '../lib/orderCards'
 import MonthPicker from '../ui/MonthPicker'
 import { uz } from '../uz'
@@ -10,15 +10,14 @@ const c = uz.cards
 const COLS: Column[] = ['new', 'shop', 'ready', 'install', 'done']
 const tashkentMonth = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Tashkent' }).slice(0, 7)
 
-// Заказы карточками, как канбан в CRM: колонки по этапам, завершённые скрыты переключателем, срок ≤ 3 дней мигает жёлтым
-export default function Orders() {
-  const { cards, names } = useOrderCards()
+// Заказы канбаном: колонки по этапам, под каждой карточкой — кнопки своей колонки (нажал — карточка сразу переехала)
+export function OrdersBoard() {
+  const { cards, names, reload } = useOrderCards()
   const [q, setQ] = useState(() => new URLSearchParams(window.location.hash.split('?')[1] ?? '').get('q') ?? '') // глобальный поиск из шапки
   const [sort, setSort] = useState<'no' | 'name' | 'deadline'>('no')
   const [showDone, setShowDone] = useState(false)
   const [byMonth, setByMonth] = useState(false)
   const [month, setMonth] = useState(tashkentMonth())
-  const nav = useNavigate()
 
   const s = q.trim().toLowerCase()
   const shown = useMemo(() => {
@@ -34,23 +33,10 @@ export default function Orders() {
     }
     return [...found].sort(cmp[sort])
   }, [cards, s, byMonth, month, sort])
-  const last = (cards ?? []).reduce<CardData | null>((m, r) => (!m || r.created_at > m.created_at ? r : m), null)
   const cols = COLS.filter((k) => k !== 'done' || showDone)
 
   return (
     <>
-      <div className="inline head">
-        <h1>{t.list}</h1>
-        <div className="inline">
-          {last && (
-            <button className="ghost" onClick={() => nav(`/orders/${last.id}`)}>
-              {t.lastOrder}
-            </button>
-          )}
-          <button className="ghost" onClick={() => nav('/ws/orders')}>{uz.ws.wsList}</button>
-          <button onClick={() => nav('/orders/new')}>+ {t.new}</button>
-        </div>
-      </div>
       <div className="inline wrap" style={{ alignItems: 'center', marginBottom: 10 }}>
         <input placeholder={t.search} value={q} onChange={(e) => setQ(e.target.value)} className="search" style={{ flex: 1, margin: 0, minWidth: 200 }} />
         <div className="tabs" role="group" aria-label={t.sort}>
@@ -92,13 +78,24 @@ export default function Orders() {
                 </header>
                 {list.length === 0 && <div className="kempty">—</div>}
                 {list.map((r) => (
-                  <OrderCard key={r.id} c={r} names={names} />
+                  <OrderCard key={r.id} c={r} names={names}>
+                    <RahbarActions c={r} onDone={reload} compact />
+                  </OrderCard>
                 ))}
               </section>
             )
           })}
         </div>
       )}
+    </>
+  )
+}
+
+export default function Orders() {
+  return (
+    <>
+      <h1>{t.list}</h1>
+      <OrdersBoard />
     </>
   )
 }

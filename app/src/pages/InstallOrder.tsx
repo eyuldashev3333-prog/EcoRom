@@ -1,104 +1,76 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { supabase } from '../supabase'
-import InstallParts, { type InstallItem } from '../components/InstallParts'
+import OrderCard from '../components/OrderCard'
+import { InstallActions } from '../components/OrderActions'
+import WindowSvg from '../components/WindowSvg'
 import GlassStatus from '../components/GlassStatus'
 import BreakageForm from '../components/BreakageForm'
+import { useWorkCards } from '../lib/orderCards'
+import type { WindowDesign } from '../lib/window'
 import { uz } from '../uz'
 
 const t = uz.install
 
-interface WOrder {
-  order_no: number
-  status: string
-  deadline: string | null
-  client_name: string | null
-  address: string | null
-  contact_phone: string | null
-  notes: string | null
+interface Item {
+  id: string
+  pos: number
+  title: string | null
+  width_mm: number
+  height_mm: number
+  qty: number
+  design: WindowDesign
+  note: string | null
 }
 
-// заказ глазами монтажника: куда ехать, чертежи окон, отметки Rama/Shisha/Podokonnik с фото
+// заказ глазами монтажника: та же карточка с кнопками («Qabul qildim», «O'rnatildi»), куда ехать, чертежи, стекло
 export default function InstallOrder() {
   const { id } = useParams()
-  const [order, setOrder] = useState<WOrder | null>(null)
-  const [items, setItems] = useState<InstallItem[]>([])
-  const [plan, setPlan] = useState<string | null>(null)
-  const [job, setJob] = useState<{ id: string; accepted_name: string | null } | null>(null)
-  const [accMsg, setAccMsg] = useState<string | null>(null)
-
-  const loadOrder = () =>
-    supabase.from('w_orders').select('order_no, status, deadline, client_name, address, contact_phone, notes').eq('id', id).maybeSingle().then(({ data }) => setOrder(data as WOrder | null))
-  const loadJob = () =>
-    supabase.from('w_install_jobs').select('id, plan_date, accepted_name').eq('order_id', id).maybeSingle().then(({ data }) => {
-      const j = data as { id: string; plan_date: string | null; accepted_name: string | null } | null
-      setPlan(j?.plan_date ?? null)
-      setJob(j ? { id: j.id, accepted_name: j.accepted_name } : null)
-    })
-  const accept = async () => {
-    if (!job) return
-    const { data, error } = await supabase.rpc('install_accept', { p_job: job.id })
-    setAccMsg(error ? error.message : data?.ok ? null : data?.error ?? null)
-    loadJob()
-  }
+  const { cards, reload } = useWorkCards('montajchi')
+  const [items, setItems] = useState<Item[]>([])
+  const [notes, setNotes] = useState<string | null>(null)
   useEffect(() => {
-    loadOrder()
-    loadJob()
-    supabase
-      .from('w_order_items')
-      .select('id, pos, title, width_mm, height_mm, qty, design, options, note')
-      .eq('order_id', id)
-      .order('pos')
-      .then(({ data }) => setItems((data as InstallItem[]) ?? []))
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    supabase.from('w_order_items').select('id, pos, title, width_mm, height_mm, qty, design, note').eq('order_id', id).order('pos').then(({ data }) => setItems((data as Item[]) ?? []))
+    supabase.from('w_orders').select('notes').eq('id', id).maybeSingle().then(({ data }) => setNotes((data as { notes: string | null } | null)?.notes ?? null))
   }, [id])
 
-  if (!order) return <p className="muted">{uz.loading}</p>
+  const c = cards?.find((x) => x.id === id)
+  if (cards === null) return <p className="muted">{uz.loading}</p>
   return (
     <>
       <p>
         <Link to="/">← {t.back}</Link>
       </p>
-      <h1>
-        №{order.order_no} <span className={`status s-${order.status}`}>{uz.order.statuses[order.status]}</span>
-      </h1>
-      {job && (
-        <div className={job.accepted_name ? 'card note ok' : 'card note'}>
-          {job.accepted_name ? (
-            <b>
-              {t.acceptedBy}: {job.accepted_name}
-            </b>
-          ) : (
-            <>
-              <b>{t.acceptAsk}</b>
-              <button type="button" onClick={accept}>
-                {t.accept}
-              </button>
-            </>
+      {!c ? (
+        <p className="muted">{uz.order.notFound}</p>
+      ) : (
+        <div className="ocard-solo">
+          <OrderCard c={c} to={`/install/${c.id}`} money={false}>
+            <InstallActions c={c} onDone={reload} />
+          </OrderCard>
+          {c.phone && (
+            <a className="btn-link" href={`tel:${c.phone.replace(/[^\d+]/g, '')}`}>
+              {t.call}: {c.phone}
+            </a>
           )}
-          {accMsg && <p className="warn">{accMsg}</p>}
         </div>
       )}
-      <div className="card">
-        <b>{order.client_name}</b>
-        {plan && (
-          <p className="muted">
-            {t.date}: {plan.split('-').reverse().join('.')}
-          </p>
-        )}
-        {order.address && <p>{order.address}</p>}
-        {order.contact_phone && (
-          <p>
-            <a className="btn-link" href={`tel:${order.contact_phone.replace(/[^\d+]/g, '')}`}>
-              {order.contact_phone}
-            </a>
-          </p>
-        )}
-        {order.notes && <p className="muted">{order.notes}</p>}
+      {notes && <div className="card note">{notes}</div>}
+      <div className="card install-items">
+        {items.map((it) => (
+          <div key={it.id} className="install-item">
+            <WindowSvg design={it.design} maxHeight={150} />
+            <div className="small">
+              <b>{it.pos})</b> {it.title ? `${it.title} · ` : ''}
+              {it.width_mm}×{it.height_mm}
+              {it.qty > 1 ? ` · ${it.qty} ${uz.home.windows}` : ''}
+              {it.note && <div className="muted">{it.note}</div>}
+            </div>
+          </div>
+        ))}
       </div>
-      {id && <InstallParts orderId={id} items={items} status={order.status} drawings onChanged={loadOrder} />}
-      {id && <GlassStatus orderId={id} locked />}
-      {id && ['in_production', 'ready', 'installing', 'installed'].includes(order.status) && <BreakageForm orderId={id} items={items} />}
+      {id && c && <GlassStatus orderId={id} status={c.status} />}
+      {id && c && ['ready', 'installing', 'installed'].includes(c.status) && <BreakageForm orderId={id} items={items} />}
     </>
   )
 }

@@ -1,4 +1,5 @@
-// Бот @ecorombot: (1) вебхук Telegram — /start, кнопка «открыть систему», ответы цеха «Yetadi/Yetmaydi/Brak» и причина;
+// Бот @ecorombot: (1) вебхук Telegram — /start, кнопка «открыть систему», ответы цеха «Yetadi/Yetmaydi/Brak» и причина,
+//   фото установки от монтажника (привязывается к заказу, который ждёт фото после «O'rnatildi»);
 // (2) внутренний вызов из базы — отправить уведомление из таблицы notifications.
 import { createClient } from 'npm:@supabase/supabase-js@2.45.4'
 import { parseExpense } from './parse-expense.ts'
@@ -16,7 +17,8 @@ const tg = (method: string, payload: unknown) =>
   }).then((r) => r.json())
 
 const openButton = { inline_keyboard: [[{ text: 'ECOROM tizimini ochish', web_app: { url: APP_URL } }]] }
-const ANSWERS: Record<string, string> = { enough: '✅ Yetadi', not_enough: '❌ Yetmaydi', defect: '⚠️ Brak' }
+// кнопки цеха — как на карточке в системе: «Qabul qildim» / «Material yetmaydi» (+ причина)
+const ANSWERS: Record<string, string> = { enough: '✅ Qabul qildim', not_enough: '❌ Material yetmaydi' }
 const ANSWER_MARK = '\n\nSizning javobingiz:'
 
 // кнопки под уведомлением: цеху — ответы о материале; Rahbar — сразу открыть заказ
@@ -95,6 +97,38 @@ function purchaseCard(d: PurchaseDraft) {
   }
   rows.push([{ text: '❌ Bekor', callback_data: `px:no:${d.id}` }])
   return { text, reply_markup: { inline_keyboard: rows } }
+}
+
+// фото в сообщении: обычное фото (берём самое крупное) или картинка файлом
+// deno-lint-ignore no-explicit-any
+function photoFileId(m: any): string | null {
+  if (Array.isArray(m?.photo) && m.photo.length) return m.photo[m.photo.length - 1].file_id
+  if (m?.document?.mime_type?.startsWith('image/')) return m.document.file_id
+  return null
+}
+
+// скачать фото из Telegram → закрытое хранилище install-photos/<заказ>/… → привязать к заказу (и сообщить Rahbar)
+async function saveInstallPhoto(
+  // deno-lint-ignore no-explicit-any
+  admin: any,
+  tgId: number,
+  orderId: string,
+  fileId: string,
+): Promise<{ ok: true; order_no: number } | { ok: false; error: string }> {
+  const f = await tg('getFile', { file_id: fileId })
+  if (!f.ok) return { ok: false, error: 'Foto olinmadi, qayta yuboring' }
+  const res = await fetch(`https://api.telegram.org/file/bot${BOT}/${f.result.file_path}`)
+  if (!res.ok) return { ok: false, error: 'Foto olinmadi, qayta yuboring' }
+  const ext = (String(f.result.file_path).split('.').pop() ?? 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg'
+  const path = `${orderId}/bot-${Date.now()}.${ext}`
+  const { error: up } = await admin.storage.from('install-photos').upload(path, await res.arrayBuffer(), { contentType: ext === 'png' ? 'image/png' : 'image/jpeg' })
+  if (up) return { ok: false, error: 'Foto saqlanmadi, qayta yuboring' }
+  const { data: r, error } = await admin.rpc('bot_install_photo', { p_tg: tgId, p_order: orderId, p_path: path })
+  if (error || !r?.ok) {
+    await admin.storage.from('install-photos').remove([path])
+    return { ok: false, error: r?.error ?? error?.message ?? 'Xatolik' }
+  }
+  return { ok: true, order_no: r.order_no }
 }
 
 const tashkentTime = () => new Date().toLocaleTimeString('ru-RU', { timeZone: 'Asia/Tashkent', hour: '2-digit', minute: '2-digit' })
@@ -192,7 +226,7 @@ Deno.serve(async (req) => {
       await tg('editMessageText', {
         chat_id: cq.message.chat.id,
         message_id: cq.message.message_id,
-        text: `${base}${ANSWER_MARK} ${ANSWERS[result]} · ${tashkentTime()}`,
+        text: `${base}${ANSWER_MARK} ${ANSWERS[result] ?? '⚠️ Brak'} ·${tashkentTime()}`,
         reply_markup: cq.message.reply_markup,
       })
     }
@@ -289,7 +323,41 @@ Deno.serve(async (req) => {
     return new Response('ok')
   }
 
+  // фото установки: монтажник выбрал кнопкой, к какому заказу (фото — в сообщении, на которое бот ответил)
+  if (cq?.data?.startsWith('ph:')) {
+    const orderId = cq.data.slice(3)
+    const src = cq.message?.reply_to_message
+    const fileId = photoFileId(src)
+    if (!fileId) {
+      await tg('answerCallbackQuery', { callback_query_id: cq.id, text: 'Fotoni qayta yuboring', show_alert: true })
+      return new Response('ok')
+    }
+    const r = await saveInstallPhoto(admin, cq.from.id, orderId, fileId)
+    await tg('answerCallbackQuery', { callback_query_id: cq.id, text: r.ok ? 'Rahmat!' : r.error, show_alert: !r.ok })
+    if (r.ok) await tg('editMessageText', { chat_id: cq.message.chat.id, message_id: cq.message.message_id, text: `✅ №${r.order_no}: foto saqlandi, rahbarga yuborildi.` })
+    return new Response('ok')
+  }
+
   const msg = update.message
+  // фото от монтажника: если бот ждёт фото по одному заказу — сразу к нему; если по нескольким — спросить кнопками
+  if (msg && photoFileId(msg)) {
+    const { data: waits } = await admin.rpc('bot_photo_waits', { p_tg: msg.from?.id ?? msg.chat.id })
+    const list = (waits ?? []) as { order_id: string; order_no: number; client: string | null }[]
+    if (list.length === 1) {
+      const r = await saveInstallPhoto(admin, msg.from?.id ?? msg.chat.id, list[0].order_id, photoFileId(msg)!)
+      await tg('sendMessage', { chat_id: msg.chat.id, reply_to_message_id: msg.message_id, text: r.ok ? `✅ №${r.order_no}: foto saqlandi, rahbarga yuborildi.` : `Xatolik: ${r.error}` })
+    } else if (list.length > 1) {
+      await tg('sendMessage', {
+        chat_id: msg.chat.id,
+        reply_to_message_id: msg.message_id,
+        text: 'Bu foto qaysi buyurtmaga?',
+        reply_markup: { inline_keyboard: list.slice(0, 8).map((o) => [{ text: `№${o.order_no}${o.client ? ` · ${o.client}` : ''}`.slice(0, 60), callback_data: `ph:${o.order_id}` }]) },
+      })
+    } else {
+      await tg('sendMessage', { chat_id: msg.chat.id, reply_to_message_id: msg.message_id, text: "Hozir foto kutilmayapti. Avval tizimda buyurtma kartasida «O'rnatildi» ni bosing." })
+    }
+    return new Response('ok')
+  }
   if (msg?.text?.startsWith('/start')) {
     const { data: emp } = await admin.from('employees').select('full_name, is_active').eq('telegram_id', msg.chat.id).maybeSingle()
     const text = emp?.is_active

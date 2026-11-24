@@ -1,25 +1,18 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../supabase'
-import WindowEditor, { PRESETS } from '../components/WindowEditor'
 import WindowSvg from '../components/WindowSvg'
-import { Confirm } from '../components/Dialog'
-import WindowTabs from '../components/WindowTabs'
-import ConfigPicker from '../components/ConfigPicker'
-import { optionLegend } from '../lib/legend'
+import OrderCard from '../components/OrderCard'
+import { RahbarActions } from '../components/OrderActions'
+import { useOrderCards } from '../lib/orderCards'
 import { download } from '../lib/export'
-import { buildWindowsFile, parseWindowsFile, remapOptions } from '../lib/exchange'
-import ItemOptionsForm from '../components/ItemOptionsForm'
+import { buildWindowsFile } from '../lib/exchange'
 import OrderMoney from '../components/OrderMoney'
-import ShopCheck from '../components/ShopCheck'
-import StageGrid from '../components/StageGrid'
 import StockHint from '../components/StockHint'
 import GlassStatus from '../components/GlassStatus'
 import ServicePanel from '../components/ServicePanel'
 import BreakageForm from '../components/BreakageForm'
 import BreakageList from '../components/BreakageList'
-import InstallPlan from '../components/InstallPlan'
-import InstallParts from '../components/InstallParts'
 import CuttingPlan from '../components/CuttingPlan'
 import { itemColor, useCatalog } from '../lib/catalog'
 import { formatSum, itemPrice, profit, round2 } from '../lib/pricing'
@@ -82,7 +75,6 @@ export default function OrderEdit() {
   const [discount, setDiscount] = useState(0)
   const [contract, setContract] = useState('')
   const [items, setItems] = useState<ItemDraft[]>([])
-  const [editing, setEditing] = useState<string | null>(null)
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
   const [busy, setBusy] = useState(false)
   const [bkTick, setBkTick] = useState(0) // обновить список боя стекла после новой записи
@@ -140,6 +132,14 @@ export default function OrderEdit() {
     ),
   )
   const suggested = round2(items.reduce((s, it, i) => s + itemPrices[i] * it.qty, 0))
+  // цена без общей скидки: из неё и процента получается сумма скидки
+  const fullPrice = round2(
+    items.reduce(
+      (s, it, i) => s + round2(itemPrice(calc[i]?.q.cost ?? 0, workCost(calc[i]?.q.lines ?? []), markupUsed, 0, it.options, catalog.settings.schemes.find((x) => x.id === it.options.scheme)) * taxK) * it.qty,
+      0,
+    ),
+  )
+  const pctSum = discount > 0 ? Math.max(0, Math.round(fullPrice - suggested)) : 0
   const liveCost = calc.reduce((s, c, i) => s + c.live.cost * items[i].qty, 0)
   const priceDrift = items.some((x) => x.frozen) && Math.abs(liveCost - cost) > 1
   const recalc = () => {
@@ -163,39 +163,26 @@ export default function OrderEdit() {
     } else setClient((x) => ({ ...x, full_name: label }))
   }
 
-  const [picking, setPicking] = useState(false) // выбор схемы для нового окна («+» в ленте)
-  const addItem = (design?: WindowDesign) => {
-    const it: ItemDraft = { key: newKey(), title: '', qty: 1, design: design ?? PRESETS[1].build(), options: items.length ? { ...items[items.length - 1].options } : {}, note: '' }
-    setItems((xs) => [...xs, it])
-    setEditing(it.key)
-  }
-  const patchItem = (key: string, patch: Partial<ItemDraft>) => setItems((xs) => xs.map((x) => (x.key === key ? { ...x, ...patch, ...('design' in patch || 'options' in patch ? { frozen: undefined } : {}) } : x)))
-  const copyItem = (it: ItemDraft) => setItems((xs) => [...xs, { ...structuredClone(it), id: undefined, key: newKey(), frozen: undefined }])
-  // обмен окнами файлом: выгрузка всех окон заказа и добавление окон из файла (id опций переносятся по названиям)
+  // выгрузка окон заказа файлом (id опций переносятся по названиям)
   const exportWindows = () => {
     const f = buildWindowsFile(items.map(({ title, qty, design, options, note }) => ({ title, qty, design, options, note })), catalog.byId)
     download(new Blob([JSON.stringify(f, null, 1)], { type: 'application/json' }), `ecorom-oynalar-${orderNo ?? 'yangi'}.json`)
   }
-  const importWindows = async (file: File | undefined, el: HTMLInputElement) => {
-    if (!file) return
-    const f = parseWindowsFile(await file.text())
-    el.value = ''
-    if (typeof f === 'string') return setMsg({ ok: false, text: f })
-    if (!f.items.length) return setMsg({ ok: false, text: uz.exchange.empty })
-    const dropped = new Set<string>()
-    const added: ItemDraft[] = f.items.map((r) => {
-      const m = remapOptions(r.options, f.names, catalog.byId)
-      m.dropped.forEach((x) => dropped.add(x))
-      return { key: newKey(), title: r.title, qty: r.qty, design: r.design, options: m.options, note: r.note }
-    })
-    setItems((xs) => [...xs, ...added])
-    setEditing(added[0].key)
-    setMsg({ ok: true, text: `${added.length} ${uz.exchange.importedWindows}${dropped.size ? `. ${uz.exchange.droppedOptions}: ${[...dropped].join(', ')}` : ''}` })
-  }
-  const [askRemove, setAskRemove] = useState<string | null>(null)
-  const removeItem = (key: string) => setItems((xs) => xs.filter((x) => x.key !== key))
 
   const locked = !!id && !['new', 'in_production'].includes(status)
+
+  // та же карточка, что в канбане, с кнопками своей колонки — где заказ сейчас и что дальше
+  const { cards, names, reload: reloadBoard } = useOrderCards()
+  const card = cards?.find((x) => x.id === id) ?? null
+  const [glassTick, setGlassTick] = useState(0)
+  const reloadCards = () => {
+    reloadBoard()
+    if (id) supabase.from('orders').select('status').eq('id', id).maybeSingle().then(({ data }) => data && setStatus(data.status))
+  }
+  const afterAction = () => {
+    reloadCards()
+    setGlassTick((x) => x + 1)
+  }
 
   const save = async () => {
     if (!locked) {
@@ -257,9 +244,6 @@ export default function OrderEdit() {
     if (!id) nav(`/orders/${data.id}`, { replace: true })
   }
 
-  const edited = items.find((x) => x.key === editing)
-  const editedCalc = edited ? calc[items.indexOf(edited)] : null
-
   return (
     <>
       <p>
@@ -269,6 +253,13 @@ export default function OrderEdit() {
         {orderNo ? `${t.order} #${orderNo}` : t.new} {orderNo && <span className={`status s-${status}`}>{t.statuses[status]}</span>}
       </h1>
       {msg && <div className={msg.ok ? 'card note ok' : 'card note bad'}>{msg.text}</div>}
+      {card && !imported && (
+        <div className="ocard-solo">
+          <OrderCard c={card} names={names}>
+            <RahbarActions c={card} onDone={afterAction} />
+          </OrderCard>
+        </div>
+      )}
       {locked && !imported && <div className="card note">{t.lockedHint}</div>}
       {id && (
         <p className="inline wrap">
@@ -307,14 +298,6 @@ export default function OrderEdit() {
             <input type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} />
           </label>
         </div>
-        {client.id && (
-          <p className="muted small">
-            {t.existingClient}{' '}
-            <button type="button" className="link" onClick={() => setClient({ full_name: client.full_name, phone: '', address: '' })}>
-              {t.newClient}
-            </button>
-          </p>
-        )}
       </div>
 
       {imported && items.length === 0 ? (
@@ -333,21 +316,10 @@ export default function OrderEdit() {
         </div>
       ) : (
       <>
-      {/* позиции */}
+      {/* окна: только просмотр — чертежи правятся в редакторе («Oynalar chizmasi») */}
       <h2>{t.items}</h2>
-      <fieldset disabled={locked} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
-      {items.length > 0 && <WindowTabs items={items} active={editing} onPick={(k) => setEditing(editing === k ? null : k)} onAdd={() => setPicking(true)} disabled={locked} />}
-      {picking && (
-        <ConfigPicker
-          onClose={() => setPicking(false)}
-          onPick={(d) => {
-            addItem(d)
-            setPicking(false)
-          }}
-        />
-      )}
       {items.map((it, i) => (
-        <div key={it.key} className={`card item-row ${editing === it.key ? 'on' : ''}`}>
+        <div key={it.key} className="card item-row">
           <div className="thumb">
             <WindowSvg design={it.design} frameColor={itemColor(catalog.byId.get(it.options.color ?? ''))} maxHeight={120} />
           </div>
@@ -362,106 +334,15 @@ export default function OrderEdit() {
               {formatSum((calc[i]?.q.cost ?? 0) * it.qty)} <small>{t.costWord}</small>
             </span>
           </div>
-          <div className="item-actions">
-            <button type="button" className="ghost" onClick={() => setEditing(editing === it.key ? null : it.key)}>
-              {editing === it.key ? t.close : t.edit}
-            </button>
-            <button type="button" className="ghost" onClick={() => copyItem(it)}>
-              {t.copy}
-            </button>
-            <button type="button" className="ghost" onClick={() => setAskRemove(it.key)} aria-label={t.removeConfirm}>
-              ✕
-            </button>
-            {askRemove === it.key && (
-              <Confirm
-                text={t.removeConfirm}
-                no={uz.designer.no}
-                yes={uz.designer.yes}
-                onNo={() => setAskRemove(null)}
-                onYes={() => {
-                  removeItem(it.key)
-                  setAskRemove(null)
-                }}
-              />
-            )}
-          </div>
         </div>
       ))}
-      <div className="inline wrap">
-        <button type="button" onClick={() => (items.length ? addItem() : setPicking(true))}>
-          + {t.addItem}
-        </button>
-        <button type="button" className="ghost" onClick={exportWindows} disabled={!items.length}>
-          ↓ {uz.exchange.exportWindows}
-        </button>
-        <label className="btn ghost" style={{ width: 'auto' }}>
-          ↑ {uz.exchange.importWindows}
-          <input type="file" accept="application/json,.json" hidden onChange={(e) => importWindows(e.target.files?.[0], e.target)} />
-        </label>
-      </div>
-
-      {/* редактор позиции */}
-      {edited && editedCalc && (
-        <div className="editor-block">
-          <h2>
-            {t.position} {items.indexOf(edited) + 1}
-          </h2>
-          <div className="card form grid2">
-            <label>
-              {t.title}
-              <input value={edited.title} placeholder={t.titlePh} onChange={(e) => patchItem(edited.key, { title: e.target.value })} />
-            </label>
-            <label>
-              {t.qty}
-              <input inputMode="numeric" value={edited.qty} onChange={(e) => patchItem(edited.key, { qty: Math.max(1, Number(e.target.value) || 1) })} />
-            </label>
-          </div>
-          <WindowEditor
-            value={edited.design}
-            onChange={(design) => patchItem(edited.key, { design })}
-            frameColor={itemColor(catalog.byId.get(edited.options.color ?? ''))}
-            legend={optionLegend(edited.options, catalog.byId, (id) => catalog.settings.schemes.find((s) => s.id === id)?.name)}
-            qty={edited.qty}
-            note={edited.note}
-            cost={editedCalc.q.cost}
-            price={itemPrices[items.indexOf(edited)]}
-          />
-          <div className="designer">
-            <ItemOptionsForm value={edited.options} onChange={(options) => patchItem(edited.key, { options })} catalog={catalog} widthMm={edited.design.width} calcPrice={round2(editedCalc.q.cost * (1 + markupUsed))} />
-            <div className="card">
-              <h2>{t.breakdown}</h2>
-              <table className="kv lines">
-                <tbody>
-                  {editedCalc.q.lines.map((l, i) => (
-                    <tr key={i} className={l.price ? '' : 'zero'}>
-                      <td>{l.name}</td>
-                      <td>
-                        {l.qty} {uz.catalog.units[l.unit]} × {formatSum(l.price)}
-                      </td>
-                      <td>{formatSum(l.sum)}</td>
-                    </tr>
-                  ))}
-                  <tr>
-                    <td>
-                      <b>{t.costOne}</b>
-                    </td>
-                    <td />
-                    <td>
-                      <b>{formatSum(editedCalc.q.cost)}</b>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-              <label>
-                {t.note}
-                <textarea value={edited.note} rows={2} onChange={(e) => patchItem(edited.key, { note: e.target.value })} />
-              </label>
-            </div>
-          </div>
-        </div>
+      {items.length > 0 && (
+        <p>
+          <button type="button" className="ghost" onClick={exportWindows}>
+            ↓ {uz.exchange.exportWindows}
+          </button>
+        </p>
       )}
-
-      </fieldset>
 
       {/* склад: пока заказ не ушёл в цех (после — материалы уже списаны) */}
       {status === 'new' && items.length > 0 && <StockHint items={items.map((it, i) => ({ qty: it.qty, materials: calc[i].q.materials }))} />}
@@ -489,7 +370,14 @@ export default function OrderEdit() {
             <tr>
               <td>{t.discount} %</td>
               <td>
-                <select value={discount} disabled={locked} onChange={(e) => setDiscount(Number(e.target.value))}>
+                <select
+                  value={discount}
+                  disabled={locked}
+                  onChange={(e) => {
+                    setDiscount(Number(e.target.value))
+                    if (Number(e.target.value) > 0) setContract('') // процент — договор снова от цены со скидкой
+                  }}
+                >
                   {[0, 1, 2, 3, 5].map((d) => (
                     <option key={d} value={d}>
                       {d}%
@@ -501,17 +389,23 @@ export default function OrderEdit() {
             <tr>
               <td>{t.discountSum}</td>
               <td>
-                <input
-                  className="money"
-                  disabled={locked}
-                  inputMode="numeric"
-                  placeholder="0"
-                  value={discountSum ? String(discountSum) : ''}
-                  onChange={(e) => {
-                    const s = Number(e.target.value.replace(/\D/g, '')) || 0
-                    setContract(s ? String(Math.max(0, Math.round(suggested - s))) : '')
-                  }}
-                />
+                {discount > 0 ? (
+                  // процент выбран — сумма считается сама
+                  <input className="money" readOnly value={formatSum(pctSum)} title={`${discount}%`} />
+                ) : (
+                  // 0% — своя сумма скидки
+                  <input
+                    className="money"
+                    disabled={locked}
+                    inputMode="numeric"
+                    placeholder="0"
+                    value={discountSum ? String(discountSum) : ''}
+                    onChange={(e) => {
+                      const s = Number(e.target.value.replace(/\D/g, '')) || 0
+                      setContract(s ? String(Math.max(0, Math.round(suggested - s))) : '')
+                    }}
+                  />
+                )}
               </td>
             </tr>
             <tr>
@@ -538,49 +432,11 @@ export default function OrderEdit() {
       </>
       )}
 
-      {id && loaded && !imported && (
-        <ShopCheck
-          orderId={id}
-          status={status}
-          hasItems={items.some((x) => x.id)}
-          openOnMount={new URLSearchParams(window.location.hash.split('?')[1] ?? '').get('send') === '1'}
-          onChanged={async () => {
-            const { data } = await supabase.from('orders').select('status').eq('id', id).maybeSingle()
-            if (data) setStatus(data.status)
-          }}
-        />
-      )}
-
-      {id && loaded && !imported && !['new', 'unknown', 'cancelled'].includes(status) && (
-        <StageGrid
-          status={status}
-          items={items.flatMap((it, i) => (it.id ? [{ id: it.id, pos: i + 1, title: it.title || null, width_mm: it.design.width, height_mm: it.design.height, qty: it.qty, note: it.note }] : []))}
-          onChanged={async () => {
-            const { data } = await supabase.from('orders').select('status').eq('id', id).maybeSingle()
-            if (data) setStatus(data.status)
-          }}
-        />
-      )}
-
-      {id && loaded && !imported && ['in_production', 'ready', 'installing', 'installed', 'closed'].includes(status) && <InstallPlan orderId={id} status={status} />}
-
-      {id && loaded && !imported && ['ready', 'installing', 'installed', 'closed'].includes(status) && (
-        <InstallParts
-          orderId={id}
-          status={status}
-          items={items.flatMap((it, i) => (it.id ? [{ id: it.id, pos: i + 1, title: it.title || null, width_mm: it.design.width, height_mm: it.design.height, qty: it.qty, options: it.options, note: it.note }] : []))}
-          onChanged={async () => {
-            const { data } = await supabase.from('orders').select('status').eq('id', id).maybeSingle()
-            if (data) setStatus(data.status)
-          }}
-        />
-      )}
-
       {id && loaded && !imported && ['new', 'in_production', 'ready'].includes(status) && items.some((it) => it.id) && (
         <CuttingPlan orderId={id} items={items.filter((it) => it.id).map((it) => ({ design: it.design, qty: it.qty, options: it.options }))} />
       )}
 
-      {id && loaded && !imported && status !== 'unknown' && <GlassStatus key={items.filter((x) => x.id).length} orderId={id} locked={['closed', 'cancelled'].includes(status)} />}
+      {id && loaded && !imported && !['unknown', 'cancelled'].includes(status) && <GlassStatus key={`${items.filter((x) => x.id).length}${glassTick}`} orderId={id} status={status} onChanged={reloadCards} />}
 
       {id && loaded && ((imported && status !== 'cancelled') || ['installed', 'closed'].includes(status)) && (
         <ServicePanel

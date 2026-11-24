@@ -89,54 +89,61 @@ export default function CuttingPlan({ orderId, items }: { orderId: string; items
   if (!plans.length) return null
   const m = (mm: number) => (mm / 1000).toFixed(2).replace('.', ',')
   const nothing = plans.every((p) => !p.plan.bars.some((b) => b.source === 'offcut') && !p.sum.leftovers.length)
+  // итог одной строкой; подробности — по нажатию
+  const newBars = plans.reduce((s, p) => s + p.sum.newBars, 0)
+  const fromOff = plans.reduce((s, p) => s + p.sum.usedOffcuts, 0)
+  const usedMm = plans.reduce((s, p) => s + p.plan.bars.reduce((a, b) => a + b.length, 0), 0)
+  const lostMm = plans.reduce((s, p) => s + p.plan.bars.reduce((a, b) => a + b.length, 0) - p.sum.cutMm - p.sum.leftovers.reduce((a, c) => a + c, 0), 0)
+  const waste = usedMm ? Math.round((1000 * lostMm) / usedMm) / 10 : 0
+  const tooLong = plans.some((p) => p.plan.unplaced.length > 0)
 
   return (
-    <div className="card form">
-      <h2>{t.title}</h2>
-      <p className="muted small">
-        {t.hint} ({t.bar}: {m(cfg.bar)} m · {t.kerf}: {cfg.kerf} mm · {t.minLeft}: {cfg.min} mm)
-      </p>
+    <details className="card cut-plan">
+      <summary>
+        <b>{t.title}</b>
+        <span>
+          {t.newBars}: <b>{newBars}</b>
+          {fromOff > 0 && <> · {t.usedOffcuts}: <b>{fromOff}</b></>} · {t.waste}: {waste}%
+          {done && <> · ✓</>}
+        </span>
+      </summary>
       {msg && <div className={msg.ok ? 'note ok' : 'note bad'}>{msg.text}</div>}
-      {plans.map(({ g, plan, sum }) => {
-        const usedOff = plan.bars.filter((b) => b.source === 'offcut')
-        return (
-          <div key={`${g.item_id}|${g.part}`} className="stage-item">
-            <b>{names.get(`${g.item_id}|${g.part}`) ?? g.part}</b>
-            <div className="small">
-              {t.pieces}: {g.pieces.length} · {t.cutLen}: {m(sum.cutMm)} m
-            </div>
-            <div className="small">
-              {t.newBars}: <b>{sum.newBars}</b>
-              {sum.usedOffcuts > 0 && (
-                <>
-                  {' '}
-                  · {t.usedOffcuts}: <b>{sum.usedOffcuts}</b> ({usedOff.map((b) => m(b.length)).join(', ')} m)
-                </>
-              )}
-              {' · '}
-              {t.waste}: {sum.wastePct}%
-            </div>
-            {sum.leftovers.length > 0 && (
-              <div className="small muted">
-                {t.leftovers}: {sum.leftovers.map((l) => m(l)).join(', ')} m
-              </div>
-            )}
-            {plan.unplaced.length > 0 && (
-              <div className="warn small">
-                {t.tooLong}: {plan.unplaced.map((l) => m(l)).join(', ')} m
-              </div>
-            )}
-          </div>
-        )
-      })}
+      {tooLong && <p className="warn small">{t.tooLong}</p>}
+      <table className="kv cut-table">
+        <thead>
+          <tr>
+            <th>{t.profileCol}</th>
+            <th>{t.pieces}</th>
+            <th>{t.newBars}</th>
+            <th>{t.leftovers}, m</th>
+          </tr>
+        </thead>
+        <tbody>
+          {plans.map(({ g, plan, sum }) => (
+            <tr key={`${g.item_id}|${g.part}`}>
+              <td>{names.get(`${g.item_id}|${g.part}`) ?? g.part}</td>
+              <td>{g.pieces.length}</td>
+              <td>
+                {sum.newBars}
+                {sum.usedOffcuts > 0 && <small className="muted"> +{sum.usedOffcuts} {t.offcutShort}</small>}
+              </td>
+              <td>
+                {sum.leftovers.length ? sum.leftovers.map((l) => m(l)).join(', ') : '—'}
+                {plan.unplaced.length > 0 && <small className="warn"> ({m(plan.unplaced[0])}!)</small>}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p className="muted small">
+        {t.bar}: {m(cfg.bar)} m · {t.kerf}: {cfg.kerf} mm · {t.minLeft}: {cfg.min} mm
+      </p>
       <div className="inline wrap">
         <button type="button" onClick={apply} disabled={busy || done || nothing}>
-          {t.apply}
+          {done ? t.written : t.apply}
         </button>
         <Link to="/offcuts">{t.openList}</Link>
       </div>
-      {done && <p className="muted small">{t.already}</p>}
-      <p className="muted small">{t.note}</p>
-    </div>
+    </details>
   )
 }

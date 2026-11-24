@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { AnimatePresence, motion } from 'motion/react'
 import { Maximize2, Minimize2, Sparkles, X } from 'lucide-react'
 import { supabase } from '../supabase'
-import { stationOf, type Station, type WOrder, type ZavodState as State } from '../lib/zavod'
+import { ANCHOR, stationOf, type Station, type WOrder, type ZavodState as State } from '../lib/zavod'
 import { useZavod3D } from '../shell/ZavodView'
 import ZavodKpis from '../shell/ZavodKpis'
 import { uz } from '../uz'
@@ -13,20 +13,18 @@ const BASE = `${import.meta.env.BASE_URL}zavod/`
 
 // образец для показа, пока в цехе нет живых заказов (не из базы)
 const mk = (n: number, client: string, station: string, percent: number, extra: Partial<WOrder> = {}): WOrder => ({
-  order_id: `demo-${n}`, order_no: n, client, deadline: null, status: 'in_production', windows: 3, items: 3, station, done: { cut: 3, assemble: 0, glass_fit: 0 }, percent, late: false, material: false, stuck: false, ...extra,
+  order_id: `demo-${n}`, order_no: n, client, deadline: null, status: 'in_production', windows: 3, items: 3, station, accepted: true, percent, late: false, material: false, stuck: false, ...extra,
 })
 const DEMO: State = {
-  stages: [{ code: 'cut', name: 'Kesish' }, { code: 'assemble', name: "Yig'ish" }, { code: 'glass_fit', name: 'Shisha / furnitura' }],
   orders: [
-    mk(2501, 'Karimov A.', 'new', 0, { status: 'new', done: { cut: 0, assemble: 0, glass_fit: 0 } }),
-    mk(2502, 'Rahimov B.', 'cut', 12, { done: { cut: 1, assemble: 0, glass_fit: 0 } }),
-    mk(2503, 'Sodiqov T.', 'cut', 5, { late: true, deadline: '2026-10-30', done: { cut: 0, assemble: 0, glass_fit: 0 } }),
-    mk(2504, 'Yusupov M.', 'cut', 0, { material: true, windows: 5, done: { cut: 0, assemble: 0, glass_fit: 0 } }),
-    mk(2505, 'Aliyev S.', 'assemble', 25, { done: { cut: 3, assemble: 1, glass_fit: 0 } }),
-    mk(2506, 'Hasanov D.', 'assemble', 33, { stuck: true, done: { cut: 3, assemble: 1, glass_fit: 0 } }),
-    mk(2507, 'Ergashev N.', 'glass_fit', 58, { done: { cut: 3, assemble: 3, glass_fit: 1 } }),
-    mk(2508, 'Nazarov O.', 'ready', 75, { status: 'ready', done: { cut: 3, assemble: 3, glass_fit: 3 } }),
-    mk(2509, 'Qosimov R.', 'install', 83, { status: 'installing', done: { cut: 3, assemble: 3, glass_fit: 3 } }),
+    mk(2501, 'Karimov A.', 'new', 0, { status: 'new', accepted: false }),
+    mk(2502, 'Rahimov B.', 'work', 0),
+    mk(2503, 'Sodiqov T.', 'work', 0, { late: true, deadline: '2026-10-30' }),
+    mk(2504, 'Yusupov M.', 'work', 0, { material: true, windows: 5, accepted: false }),
+    mk(2505, 'Aliyev S.', 'work', 0),
+    mk(2506, 'Hasanov D.', 'work', 0, { stuck: true }),
+    mk(2508, 'Nazarov O.', 'ready', 50, { status: 'ready' }),
+    mk(2509, 'Qosimov R.', 'install', 75, { status: 'installing' }),
   ],
 }
 
@@ -36,7 +34,7 @@ const PER_STATION = 4
 
 interface Pins {
   res: [number, number]
-  pins: Record<string, Partial<Record<Station, [number, number]>>>
+  pins: Record<string, Partial<Record<string, [number, number]>>>
 }
 
 // «Zavod»: фотореалистичный кадр завода (Blender), над каждым участком — стеклянные карточки заказов, которые сейчас там
@@ -124,7 +122,7 @@ export default function Workshop() {
   const pad = box.w < 700 ? 64 : 90
   const live = scene
     ? (st: Station) => {
-        const q = scene.project(st)
+        const q = scene.project(ANCHOR[st])
         return q && q.on ? { x: Math.min(box.w - pad, Math.max(pad, q.x)), y: Math.max(120, q.y) } : null
       }
     : null
@@ -136,8 +134,10 @@ export default function Workshop() {
     const ox = (box.w - W * s) / 2
     const oy = (box.h - H * s) / 2
     // карточки не уезжают за край экрана (на телефоне кадр обрезан по бокам)
-    return (st: Station) =>
-      p[st] ? { x: Math.min(box.w - pad, Math.max(pad, ox + p[st]![0] * W * s)), y: Math.max(150, oy + p[st]![1] * H * s) } : null
+    return (st: Station) => {
+      const a = p[ANCHOR[st]]
+      return a ? { x: Math.min(box.w - pad, Math.max(pad, ox + a[0] * W * s)), y: Math.max(150, oy + a[1] * H * s) } : null
+    }
   }, [pins, box, pad])
   const place = live ?? still
   const perStation = box.w < 700 ? 2 : PER_STATION
@@ -162,8 +162,6 @@ export default function Workshop() {
     }
     return new Map(list.map((s) => [s.st as string, { x: s.x, y: s.y }]))
   })()
-
-  const stageLine = (o: WOrder) => (data?.stages ?? []).map((s) => `${s.name} ${o.done?.[s.code] ?? 0}/${o.items}`).join(' · ')
 
   return (
     <div className="zavod-page">
@@ -195,7 +193,6 @@ export default function Workshop() {
                     >
                       <i />
                       <span>№{o.order_no}</span>
-                      <small>{Math.round(Number(o.percent))}%</small>
                     </motion.button>
                   ))}
                   {list.length > perStation && <div className="zpin more">+{list.length - perStation}</div>}
@@ -250,13 +247,8 @@ export default function Workshop() {
                 </button>
               </div>
               <div className="small">
-                {t.stations[stationOf(sel)]} · {Math.round(Number(sel.percent))}% · {sel.windows} {t.windows}
-              </div>
-              <div className="progress">
-                <i style={{ width: `${Math.round(Number(sel.percent))}%` }} />
-              </div>
-              <div className="small muted">
-                {t.progress}: {stageLine(sel)}
+                {t.stations[stationOf(sel)]} · {sel.windows} {t.windows}
+                {stationOf(sel) === 'work' && ` · ${sel.accepted ? uz.flow.accepted : uz.flow.waiting}`}
               </div>
               {sel.deadline && (
                 <div className={`small ${sel.late ? 'debt-tag' : ''}`}>

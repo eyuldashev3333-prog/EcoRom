@@ -209,6 +209,24 @@ label.btn { width: 100%; }
 .shop-state.enough { border-left-color: var(--accent); }
 .shop-state.not_enough, .shop-state.defect { border-left-color: var(--red); color: #8e1c1c; }
 .stage-item { border-top: 1px solid var(--line); padding-top: 14px; display: grid; gap: 10px; }
+/* раскрой: одна строка-итог, таблица по нажатию */
+.cut-plan > summary { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 6px 14px; cursor: pointer; list-style: none; font-size: 14px; }
+.cut-plan > summary::-webkit-details-marker { display: none; }
+.cut-plan > summary > b::before { content: '▸'; margin-right: 8px; color: var(--faint); font-size: 12px; }
+.cut-plan[open] > summary > b::before { content: '▾'; }
+.cut-plan > summary > span { color: var(--muted); font-size: 13px; }
+.cut-plan[open] > summary { margin-bottom: 10px; }
+.cut-table th { text-align: left; font-size: 12px; font-weight: 500; color: var(--muted); padding: 6px 8px 6px 0; border-bottom: 1px solid var(--line); }
+.cut-table td { padding: 7px 8px 7px 0; }
+.cut-table th:not(:first-child), .cut-table td:not(:first-child) { text-align: right; }
+.cut-table td:last-child { font-weight: 500; }
+/* страница заказа у цеха/монтажника: та же карточка сверху, ниже чертежи */
+.ocard-solo { max-width: 480px; display: grid; gap: 10px; margin-bottom: 16px; }
+.install-items { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+.install-item { display: grid; gap: 6px; align-content: start; }
+/* стекло заказа: размеры + два шага */
+.glass-sizes { display: grid; gap: 4px; font-size: 13px; margin: 6px 0 10px; }
+.glass-sizes span { color: var(--muted); }
 .stage-item .draw { max-width: 260px; }
 .stage-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
 .stage { display: flex; gap: 10px; align-items: center; padding: 10px 12px; border: 1px solid var(--line-strong); border-radius: var(--r-md); cursor: pointer; font-weight: 500; transition: background .15s, border-color .15s; }
@@ -379,7 +397,10 @@ input.cell.color { padding: 2px; min-width: 56px; height: 32px; cursor: pointer;
 .diff-same legend { color: var(--blue); }
 
 /* ---- никакого бокового скролла страницы; внутри Telegram — документ неподвижен, вертикально листается только #root ---- */
-html, body { max-width: 100%; overflow-x: hidden; }
+/* body НЕ должен становиться контейнером прокрутки: при overflow-x:hidden он им становится, а overscroll-behavior:none
+   не пускает колесо мыши дальше body — страница на ПК не крутилась колесом (только полосой). clip обрезает без прокрутки. */
+html { max-width: 100%; overflow-x: hidden; }
+body { max-width: 100%; overflow-x: clip; }
 html.tg, html.tg body { height: 100%; overflow: hidden; overscroll-behavior: none; }
 html.tg body { position: fixed; inset: 0; width: 100%; }
 html.tg #root { position: absolute; inset: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }

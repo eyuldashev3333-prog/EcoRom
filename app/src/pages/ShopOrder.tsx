@@ -1,60 +1,42 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { supabase } from '../supabase'
-import StageGrid, { type StageItem } from '../components/StageGrid'
-import GlassStatus from '../components/GlassStatus'
+import OrderCard from '../components/OrderCard'
+import { ShopActions } from '../components/OrderActions'
+import WindowSvg from '../components/WindowSvg'
 import BreakageForm from '../components/BreakageForm'
-import ShopAnswer from '../components/ShopAnswer'
+import { useWorkCards } from '../lib/orderCards'
 import type { WindowDesign } from '../lib/window'
 import { uz } from '../uz'
 
 const t = uz.stages
 const UNITS: Record<string, string> = { m: 'm', m2: 'm²', pcs: 'ta' }
 
-interface WOrder {
-  order_no: number
-  status: string
-  deadline: string | null
-  client_name: string | null
-  notes: string | null
-}
-interface WItem extends StageItem {
-  materials: { items?: { name: string; qty: number; unit: string }[]; panes?: { w: number; h: number; sash?: boolean }[] }
+interface Item {
+  id: string
+  pos: number
+  title: string | null
+  width_mm: number
+  height_mm: number
+  qty: number
+  design: WindowDesign
+  note: string | null
+  materials: { items?: { name: string; qty: number; unit: string }[]; panes?: { w: number; h: number }[] }
 }
 
-// заказ глазами цеха: чертежи, размеры стеклопакетов, материалы (без цен) и галочки этапов
+// заказ глазами цеха: та же карточка с кнопками («Qabul qildim / Material yetmaydi», «Tayyor»), чертежи и материалы (без цен)
 export default function ShopOrder() {
   const { id } = useParams()
-  const [order, setOrder] = useState<WOrder | null>(null)
-  const [items, setItems] = useState<WItem[]>([])
-  const [loaded, setLoaded] = useState(false)
-
-  const loadOrder = () =>
-    supabase.from('w_orders').select('order_no, status, deadline, client_name, notes').eq('id', id).maybeSingle().then(({ data }) => {
-      setOrder(data as WOrder | null)
-      setLoaded(true)
-    })
+  const { cards, reload } = useWorkCards('ishlab')
+  const [items, setItems] = useState<Item[]>([])
+  const [notes, setNotes] = useState<string | null>(null)
   useEffect(() => {
-    loadOrder()
-    supabase
-      .from('w_order_items')
-      .select('id, pos, title, width_mm, height_mm, qty, design, materials, note')
-      .eq('order_id', id)
-      .order('pos')
-      .then(({ data }) =>
-        setItems(((data as (WItem & { design: WindowDesign })[]) ?? []).map((x) => ({ ...x, panes: x.materials?.panes }))),
-      )
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    supabase.from('w_order_items').select('id, pos, title, width_mm, height_mm, qty, design, materials, note').eq('order_id', id).order('pos').then(({ data }) => setItems((data as Item[]) ?? []))
+    supabase.from('w_orders').select('notes').eq('id', id).maybeSingle().then(({ data }) => setNotes((data as { notes: string | null } | null)?.notes ?? null))
   }, [id])
 
-  if (!order)
-    return loaded ? (
-      <p className="muted">
-        {uz.order.notFound} · <Link to="/">←</Link>
-      </p>
-    ) : (
-      <p className="muted">{uz.loading}</p>
-    )
+  const c = cards?.find((x) => x.id === id)
+  if (cards === null) return <p className="muted">{uz.loading}</p>
 
   // материалы по всему заказу: позиция × количество
   const total = new Map<string, { qty: number; unit: string }>()
@@ -69,23 +51,31 @@ export default function ShopOrder() {
       <p>
         <Link to="/">← {t.back}</Link>
       </p>
-      <h1>
-        №{order.order_no} <span className={`status s-${order.status}`}>{uz.order.statuses[order.status]}</span>
-      </h1>
-      <p className="muted">
-        {order.client_name}
-        {order.deadline && ` · ${uz.home.deadline}: ${order.deadline.split('-').reverse().join('.')}`}
-      </p>
-      {order.notes && <div className="card note">{order.notes}</div>}
-
-      {id && <ShopAnswer orderId={id} onChanged={loadOrder} />}
-
-      <StageGrid items={items} status={order.status} drawings onChanged={loadOrder} />
-
-      {id && <GlassStatus orderId={id} />}
-
-      {id && ['in_production', 'ready', 'installing', 'installed'].includes(order.status) && <BreakageForm orderId={id} items={items} />}
-
+      {!c ? (
+        <p className="muted">{uz.order.notFound}</p>
+      ) : (
+        <div className="ocard-solo">
+          <OrderCard c={c} to={`/shop/${c.id}`} money={false}>
+            <ShopActions c={c} onDone={reload} />
+          </OrderCard>
+        </div>
+      )}
+      {notes && <div className="card note">{notes}</div>}
+      <div className="card install-items">
+        {items.map((it) => (
+          <div key={it.id} className="install-item">
+            <WindowSvg design={it.design} maxHeight={150} />
+            <div className="small">
+              <b>{it.pos})</b> {it.title ? `${it.title} · ` : ''}
+              {it.width_mm}×{it.height_mm}
+              {it.qty > 1 ? ` · ${it.qty} ${uz.home.windows}` : ''}
+              {it.materials?.panes?.length ? <div className="muted">{t.panes}: {it.materials.panes.map((p) => `${p.w}×${p.h}`).join(', ')}</div> : null}
+              {it.note && <div className="muted">{it.note}</div>}
+            </div>
+          </div>
+        ))}
+      </div>
+      {id && c && <BreakageForm orderId={id} items={items} />}
       {total.size > 0 && (
         <div className="card">
           <h2>{t.materials}</h2>

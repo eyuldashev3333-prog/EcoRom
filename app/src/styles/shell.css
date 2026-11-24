@@ -371,6 +371,7 @@ a.r:hover, button.r:hover { background: var(--hover); color: var(--ink); }
 .ocard-money { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .ocard-actions { border-top: 1px solid var(--line); padding: 8px 10px; display: flex; gap: 8px; flex-wrap: wrap; }
 .ocard-actions button { flex: 1; min-height: 36px; }
+.ocard-actions:empty { display: none; }
 @media (max-width: 899px) { .kanban { grid-template-columns: 1fr !important; } }
 .switch { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
 .switch input { position: absolute; opacity: 0; width: 0; height: 0; }
