@@ -5,7 +5,9 @@ import { parseExpense } from './parse-expense.ts'
 import { isPurchase, parsePurchase } from './parse-purchase.ts'
 
 const BOT = Deno.env.get('TELEGRAM_BOT_TOKEN')!
-const SECRET = Deno.env.get('TG_WEBHOOK_SECRET')!
+const SECRET = Deno.env.get('TG_WEBHOOK_SECRET')! // вебхук Telegram (X-Telegram-Bot-Api-Secret-Token)
+const INTERNAL = Deno.env.get('ECOROM_INTERNAL_SECRET') ?? '' // рассылка из базы (X-Ecorom-Secret) — отдельный секрет, не тот же, что у вебхука
+const TRANSITION = false // переход завершён: рассылка из базы только по ECOROM_INTERNAL_SECRET
 const APP_URL = 'https://eyuldashev3333-prog.github.io/EcoRom/'
 
 const tg = (method: string, payload: unknown) =>
@@ -105,7 +107,8 @@ Deno.serve(async (req) => {
 
   // --- уведомление из базы ---
   if (req.headers.get('X-Ecorom-Secret')) {
-    if (req.headers.get('X-Ecorom-Secret') !== SECRET) return new Response('forbidden', { status: 403 })
+    const got = req.headers.get('X-Ecorom-Secret')
+    if (!(INTERNAL && got === INTERNAL) && !(TRANSITION && got === SECRET)) return new Response('forbidden', { status: 403 })
     const { notification_id } = await req.json()
     const { data: n } = await admin.from('notifications').select('*').eq('id', notification_id).maybeSingle()
     if (!n) return new Response('not found', { status: 404 })

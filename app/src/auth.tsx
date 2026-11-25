@@ -13,6 +13,7 @@ interface AuthState {
   session: Session | null
   me: Me | null
   loading: boolean
+  blocked: boolean // сотрудник отключён Rahbar'ом: вход есть, доступа нет
   signIn: (login: string, password: string) => Promise<string | null>
   signOut: () => Promise<void>
 }
@@ -43,6 +44,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [me, setMe] = useState<Me | null>(null)
   const [loading, setLoading] = useState(true)
+  const [blocked, setBlocked] = useState(false)
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data }) => {
@@ -70,11 +72,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setLoading(true)
     supabase
       .from('employees')
-      .select('id, full_name, role')
+      .select('id, full_name, role, is_active')
       .eq('auth_user_id', uid)
       .maybeSingle()
       .then(({ data }) => {
-        setMe((data as Me | null) ?? null)
+        const row = data as (Me & { is_active: boolean }) | null
+        const off = row?.is_active === false
+        setBlocked(off)
+        setMe(off ? null : row)
         setLoading(false)
       })
   }, [uid])
@@ -91,5 +96,5 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await supabase.auth.signOut()
   }
 
-  return <AuthCtx.Provider value={{ session, me, loading, signIn, signOut }}>{children}</AuthCtx.Provider>
+  return <AuthCtx.Provider value={{ session, me, loading, blocked, signIn, signOut }}>{children}</AuthCtx.Provider>
 }

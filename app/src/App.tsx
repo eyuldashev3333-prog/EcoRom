@@ -44,7 +44,7 @@ const Registratsiya = lazy(() => import('./pages/Registratsiya'))
 const Savdo = lazy(() => import('./pages/Savdo'))
 
 export default function App() {
-  const { session, me, loading, signOut } = useAuth()
+  const { session, me, loading, blocked, signOut } = useAuth()
 
   const loc = useLocation()
   const home = loc.pathname === '/'
@@ -69,7 +69,7 @@ export default function App() {
   if (!me)
     return (
       <div className="center">
-        <p>{uz.noProfile}</p>
+        <p>{blocked ? uz.blocked : uz.noProfile}</p>
         <button onClick={signOut}>{uz.signOut}</button>
       </div>
     )
