@@ -117,7 +117,7 @@ export const uz = {
     photoCount: 'ta foto tanlandi',
     glassWait: 'Shisha kutilmoqda',
     photoWait: 'Foto kutilmoqda',
-    photoHint: "Botga o'rnatilgan oyna fotosini yuboring",
+    photoHint: "O'rnatilgan oyna fotosini ilovadan yuklang",
     team: 'Jamoa',
     changeTeam: "Xodimlarni o'zgartirish",
     doneMsg: 'Yozildi',
