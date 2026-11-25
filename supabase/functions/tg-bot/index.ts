@@ -48,6 +48,8 @@ function keyboard(role: string | null, payload: Record<string, string>) {
   if (payload.service_id && role === 'rahbar') return { inline_keyboard: [[{ text: 'Servis zayavkalari', web_app: { url: `${APP_URL}#/service` } }]] }
   if (role === 'rahbar' && payload.order_id)
     return { inline_keyboard: [[{ text: 'Buyurtmani ochish', web_app: { url: `${APP_URL}#/orders/${payload.order_id}` } }]] }
+  if (role === 'ishlab' && payload.order_id)
+    return { inline_keyboard: [[{ text: 'Buyurtmani ochish', web_app: { url: `${APP_URL}#/shop/${payload.order_id}` } }]] }
   if (role === 'montajchi' && payload.order_id)
     return { inline_keyboard: [[{ text: 'Montajni ochish', web_app: { url: `${APP_URL}#/install/${payload.order_id}` } }]] }
   return openButton
@@ -177,12 +179,12 @@ Deno.serve(async (req) => {
         }
       }
       const head = String(n.text).split('\n')[0].slice(0, 80)
-      await admin.rpc('notify', {
-        p_role: 'rahbar',
-        p_employee: null,
-        p_text: `⚠️ Xabar yetib bormadi: «${head}»\n` + (noRecipients ? `Qabul qiluvchi yo‘q — botga ulanmagan${who ? `: ${who}` : ''}.` : failures.join('\n')),
-        p_payload: { kind: 'alert', order_id: n.payload?.order_id ?? null },
-      })
+      const alertText = `⚠️ Xabar yetib bormadi: «${head}»\n` + (noRecipients ? `Qabul qiluvchi yo‘q — botga ulanmagan${who ? `: ${who}` : ''}.` : failures.join('\n'))
+      // одинаковое предупреждение не чаще раза в 6 часов (раньше каждое сообщение при «мёртвом» чате давало ещё одно)
+      const since = new Date(Date.now() - 6 * 3600 * 1000).toISOString()
+      const { data: dup } = await admin.from('notifications').select('id').eq('target_role', 'rahbar').eq('text', alertText).gte('created_at', since).limit(1)
+      if (!dup?.length)
+        await admin.rpc('notify', { p_role: 'rahbar', p_employee: null, p_text: alertText, p_payload: { kind: 'alert', order_id: n.payload?.order_id ?? null } })
     }
     return new Response('ok')
   }
@@ -356,6 +358,10 @@ Deno.serve(async (req) => {
         admin.from('employees').select('id, full_name').eq('is_active', true),
       ])
       const p = parseExpense(msg.text, cats ?? [], people ?? [])
+      if (p.amount && p.amount > 999_999_999_999) {
+        await tg('sendMessage', { chat_id: msg.chat.id, text: 'Summa juda katta.' })
+        return new Response('ok')
+      }
       if (!p.amount) {
         await tg('sendMessage', { chat_id: msg.chat.id, text: 'Summani topa olmadim. Masalan: «obed 150000», «benzin 200 000», «remont 1,5 mln». Material xaridi uchun «xarid» so‘zi bilan boshlang: «xarid Otliv oq 200 30 m 600000».' })
         return new Response('ok')

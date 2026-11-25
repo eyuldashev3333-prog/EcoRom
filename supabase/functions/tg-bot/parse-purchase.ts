@@ -68,6 +68,9 @@ export function parsePurchase(text: string): PurchaseParse {
     toks.pop()
   }
   if (!qty || qty <= 0) return bad('Miqdorni topa olmadim (summadan oldingi son).')
+  // границы базы: количество numeric(14,3), сумма numeric(14,2) — понятная ошибка вместо «numeric field overflow»
+  if (qty < 0.001 || qty > 1_000_000) return bad('Miqdor 0,001 dan 1 000 000 gacha bo‘lsin.')
+  if (total > 999_999_999_999) return bad('Summa juda katta.')
 
   const name = toks.join(' ').trim()
   if (!name) return bad('Material nomi yo‘q.')

@@ -37,4 +37,11 @@ describe('xarid (закупка через бота)', () => {
     expect(parsePurchase('xarid 5 250000').ok).toBe(false)
     expect(parsePurchase('xarid Kley litr 250000').ok).toBe(false)
   })
+  it('границы базы: слишком малое/большое количество и сумма — понятная ошибка', () => {
+    expect(parsePurchase('xarid Kley 0,0001 100').ok).toBe(false)
+    expect(parsePurchase('xarid Kley 2000000 100').ok).toBe(false)
+    expect(parsePurchase('xarid Kley 5 1e15').ok).toBe(false)
+    expect(parsePurchase('xarid Kley 5 999999999999999').ok).toBe(false)
+    expect(parsePurchase('xarid Kley 5 250000').ok).toBe(true)
+  })
 })
