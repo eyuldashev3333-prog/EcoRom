@@ -11,7 +11,7 @@ const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...cors, 'Content-Type': 'application/json' } })
 
 const LOGIN_RE = /^[a-z0-9._-]{3,32}$/
-const ROLES = ['rahbar', 'ishlab', 'montajchi']
+const ROLES = ['rahbar', 'ishlab', 'montajchi', 'haydovchi', 'xodim']
 const BAN_FOREVER = '876000h'
 const COMMON = ['12345678', '123456789', '1234567890', '11111111', '00000000', 'password', 'qwertyui', 'parol123', 'ecorom123']
 // пароль: от 8 символов, не из списка очевидных, не равен логину

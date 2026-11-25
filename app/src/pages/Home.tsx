@@ -14,6 +14,7 @@ import { stationOf, type WOrder, type ZavodState } from '../lib/zavod'
 import { setSection, useSection } from '../shell/pager'
 import { sectionsFor, type SectionDef } from '../shell/sections'
 import MontajBoard from '../components/MontajBoard'
+import DeliveryList from '../components/DeliveryList'
 import FinanceCharts from '../components/FinanceCharts'
 import { uz } from '../uz'
 
@@ -369,13 +370,26 @@ function InstallPane({ sec }: { sec: SectionDef }) {
   )
 }
 
-function ProfilPane({ sec }: { sec: SectionDef }) {
-  const { me, signOut } = useAuth()
+// ============ водитель: рейсы (номер, адрес, телефон), «Qabul qildim» → «Yetkazib berdim» ============
+function DeliveryPane({ sec }: { sec: SectionDef }) {
   return (
     <>
       <SectionHead sec={sec} />
+      <MyMoney />
+      <DeliveryList />
+    </>
+  )
+}
+
+function ProfilPane({ sec }: { sec: SectionDef }) {
+  const { me, signOut } = useAuth()
+  const works = me?.role === 'ishlab' || me?.role === 'montajchi'
+  return (
+    <>
+      <SectionHead sec={sec} />
+      {me?.role === 'xodim' && <p className="muted">{uz.driver.plain}</p>}
       <Panel title={me?.full_name ?? ''}>
-        <Row to="/my-works" title={uz.mywork.title} />
+        {works && <Row to="/my-works" title={uz.mywork.title} />}
         <Row to="/my-pay" title={uz.home.myPay} />
         <Row to="/password" title={uz.home.password} />
         <Row onClick={signOut} title={uz.signOut} />
@@ -395,6 +409,7 @@ function render(sec: SectionDef, d: RahbarData): ReactNode {
     case 'jadval': return <><SectionHead sec={sec} /><Links sec={sec} /></>
     case 'ishlarim': return <ShopPane sec={sec} />
     case 'bugun': return <InstallPane sec={sec} />
+    case 'reyslar': return <DeliveryPane sec={sec} />
     default: return <ProfilPane sec={sec} />
   }
 }

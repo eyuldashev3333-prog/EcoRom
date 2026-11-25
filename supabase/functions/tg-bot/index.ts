@@ -31,6 +31,17 @@ function keyboard(role: string | null, payload: Record<string, string>) {
         openButton.inline_keyboard[0],
       ],
     }
+  // рейс водителя: «Qabul qildim» / «Yetkazib berdim» (номер, адрес и телефон — в тексте уведомления)
+  if (payload.kind === 'delivery' && payload.job_id)
+    return {
+      inline_keyboard: [
+        [
+          { text: '✅ Qabul qildim', callback_data: `dv:accept:${payload.job_id}` },
+          { text: '📦 Yetkazib berdim', callback_data: `dv:delivered:${payload.job_id}` },
+        ],
+        openButton.inline_keyboard[0],
+      ],
+    }
   if (payload.leaks && role === 'rahbar') return { inline_keyboard: [[{ text: 'Teshiklar ekrani', web_app: { url: `${APP_URL}#/leaks` } }]] }
   if (payload.service_id && role === 'montajchi')
     return { inline_keyboard: [[{ text: 'Zayavkani ochish', web_app: { url: `${APP_URL}#/servis/${payload.service_id}` } }]] }
@@ -206,6 +217,22 @@ Deno.serve(async (req) => {
         text: `№${r.order_no}: ${result === 'defect' ? 'qanday brak?' : 'nima yetmaydi?'} Bir qatorda yozing (masalan: oq profil 2 xlist).`,
         reply_markup: { force_reply: true, input_field_placeholder: 'Sabab…' },
       })
+    return new Response('ok')
+  }
+
+  // водитель: «Qabul qildim» / «Yetkazib berdim»
+  if (cq?.data?.startsWith('dv:')) {
+    const [, action, jobId] = cq.data.split(':')
+    const { data: r, error } = await admin.rpc('driver_answer', { p_tg: cq.from.id, p_job: jobId, p_action: action === 'delivered' ? 'delivered' : 'accept' })
+    if (error || !r?.ok) {
+      await tg('answerCallbackQuery', { callback_query_id: cq.id, text: r?.error ?? 'Xatolik, qayta urinib ko‘ring', show_alert: true })
+      return new Response('ok')
+    }
+    await tg('answerCallbackQuery', { callback_query_id: cq.id, text: action === 'delivered' ? 'Rahmat! Yetkazildi deb belgilandi' : 'Rahmat! Reys qabul qilindi' })
+    if (cq.message?.text) {
+      const base = cq.message.text.split(ANSWER_MARK)[0]
+      await tg('editMessageText', { chat_id: cq.message.chat.id, message_id: cq.message.message_id, text: `${base}${ANSWER_MARK} ${action === 'delivered' ? '📦 Yetkazildi' : '✅ Qabul qilindi'} ·${tashkentTime()}`, reply_markup: cq.message.reply_markup })
+    }
     return new Response('ok')
   }
 

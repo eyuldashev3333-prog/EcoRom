@@ -3,7 +3,7 @@ import type { Session } from '@supabase/supabase-js'
 import { supabase } from './supabase'
 import { uz } from './uz'
 
-export type Role = 'rahbar' | 'ishlab' | 'montajchi'
+export type Role = 'rahbar' | 'ishlab' | 'montajchi' | 'haydovchi' | 'xodim'
 export interface Me {
   id: string
   full_name: string

@@ -84,7 +84,7 @@ export default function Employees() {
         <label>
           {t.role}
           <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value as Role })}>
-            {(['ishlab', 'montajchi', 'rahbar'] as Role[]).map((r) => (
+            {(['ishlab', 'montajchi', 'haydovchi', 'xodim', 'rahbar'] as Role[]).map((r) => (
               <option key={r} value={r}>
                 {uz.roles[r]}
               </option>

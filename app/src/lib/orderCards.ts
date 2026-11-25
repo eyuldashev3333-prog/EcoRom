@@ -27,7 +27,7 @@ export interface CardData {
   late: boolean
   material: boolean
   openService: number
-  job: { id: string; status: string; plan_date: string | null; accepted_by: string | null; crew: string[] } | null
+  job: { id: string; status: string; plan_date: string | null; accepted_by: string | null; crew: string[]; driver: string | null } | null
   shop: ShopAns | null // первый ответ цеха после последней отправки
   glass: GlassState
   glassOrdered: boolean // у всех окон стекло уже заказано (иначе «установлено» отметить нельзя)
@@ -99,7 +99,7 @@ export function useOrderCards(): { cards: CardData[] | null; names: Map<string, 
         fetchAll((a, b) => asPage(supabase.from('v_order_paid').select('order_id, debt').order('order_id').range(a, b))),
         supabase.rpc('workshop_state'),
         fetchAll((a, b) => asPage(supabase.from('service_tickets').select('order_id').neq('status', 'closed').order('id').range(a, b))),
-        fetchAll((a, b) => asPage(supabase.from('install_jobs').select('id, order_id, status, plan_date, accepted_by, created_at, install_job_members(employee_id)').order('created_at', { ascending: false }).order('id').range(a, b))),
+        fetchAll((a, b) => asPage(supabase.from('install_jobs').select('id, order_id, status, plan_date, accepted_by, driver_id, created_at, install_job_members(employee_id)').order('created_at', { ascending: false }).order('id').range(a, b))),
         fetchAll((a, b) => asPage(supabase.from('employees').select('id, full_name').order('id').range(a, b))),
         fetchAll((a, b) => asPage(supabase.from('order_material_checks').select('order_id, result, note, created_at, employee_id').order('created_at').order('id').range(a, b))),
         fetchAll((a, b) => asPage(supabase.from('install_order_photos').select('order_id').order('id').range(a, b))),
@@ -125,8 +125,8 @@ export function useOrderCards(): { cards: CardData[] | null; names: Map<string, 
       const openSvc = new Map<string, number>()
       for (const s of ((svc.data as { order_id: string }[]) ?? [])) openSvc.set(s.order_id, (openSvc.get(s.order_id) ?? 0) + 1)
       const job = new Map<string, NonNullable<CardData['job']>>()
-      for (const j of ((jobs.data as unknown as { id: string; order_id: string; status: string; plan_date: string | null; accepted_by: string | null; install_job_members: { employee_id: string }[] }[]) ?? [])) {
-        if (!job.has(j.order_id)) job.set(j.order_id, { id: j.id, status: j.status, plan_date: j.plan_date, accepted_by: j.accepted_by, crew: j.install_job_members.map((m) => m.employee_id) })
+      for (const j of ((jobs.data as unknown as { id: string; order_id: string; status: string; plan_date: string | null; accepted_by: string | null; driver_id: string | null; install_job_members: { employee_id: string }[] }[]) ?? [])) {
+        if (!job.has(j.order_id)) job.set(j.order_id, { id: j.id, status: j.status, plan_date: j.plan_date, accepted_by: j.accepted_by, driver: j.driver_id, crew: j.install_job_members.map((m) => m.employee_id) })
       }
       setNames(empName)
       setCards(
@@ -240,7 +240,7 @@ export function useWorkCards(role: 'ishlab' | 'montajchi', onlyId?: string): { c
               late: false,
               material: false,
               openService: 0,
-              job: j ? { id: j.id, status: j.status, plan_date: j.plan_date, accepted_by: null, crew: [] } : null,
+              job: j ? { id: j.id, status: j.status, plan_date: j.plan_date, accepted_by: null, crew: [], driver: null } : null,
               shop: first ? { result: first.result, name: first.name, note: first.note } : null,
               glass: glassOf(it.map((x) => x.glass_status)),
               glassOrdered: allGlassOrdered(it.map((x) => x.glass_status)),

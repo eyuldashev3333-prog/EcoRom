@@ -212,6 +212,19 @@ function GlassAskDialog({ c, onClose, onDone }: { c: CardData; onClose: () => vo
     </Dialog>
   )
 }
+// несколько человек на заказе: каждому начисляются ВСЕ м² заказа отдельно, не делятся — руководитель должен это подтвердить
+function CrewWarning({ count, m2, ack, onAck }: { count: number; m2: number; ack: boolean; onAck: (v: boolean) => void }) {
+  if (count < 2) return null
+  return (
+    <div className="note bad" style={{ margin: '8px 0' }}>
+      <p style={{ margin: 0 }}>{uz.crewWarn(count, m2)}</p>
+      <label className="check">
+        <input type="checkbox" checked={ack} onChange={(e) => onAck(e.target.checked)} />
+        {uz.crewAck}
+      </label>
+    </div>
+  )
+}
 // выбор людей: вся команда или галочками
 function TeamPicker({ people, all, sel, onAll, onToggle, allLabel }: { people: Person[]; all: boolean; sel: Set<string>; onAll: (v: boolean) => void; onToggle: (id: string) => void; allLabel: string }) {
   return (
@@ -245,6 +258,7 @@ function ShopSendDialog({ c, kind, onClose, onDone }: { c: CardData; kind: 'shop
   const [all, setAll] = useState(true)
   const [sel, setSel] = useState<Set<string>>(new Set())
   const [busy, setBusy] = useState(false)
+  const [ack, setAck] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   useEffect(() => {
     ;(async () => {
@@ -289,10 +303,11 @@ function ShopSendDialog({ c, kind, onClose, onDone }: { c: CardData; kind: 'shop
         {workers === null && <p className="muted">{uz.loading}</p>}
         {workers && workers.length === 0 && <p className="warn">{f.noShopWorkers}</p>}
         {workers && workers.length > 0 && <TeamPicker people={workers} all={all} sel={sel} onAll={setAll} onToggle={toggle} allLabel={uz.shop.wholeTeam} />}
+        <CrewWarning count={chosen.length} m2={c.area_m2} ack={ack} onAck={setAck} />
         {err && <p className="warn">{err}</p>}
         <div className="dialog-actions">
           <button type="button" className="ghost" onClick={onClose}>{f.cancel}</button>
-          <button type="button" disabled={busy || !workers?.length || !chosen.length} onClick={submit}>
+          <button type="button" disabled={busy || !workers?.length || !chosen.length || (chosen.length > 1 && !ack)} onClick={submit}>
             {kind === 'shop' ? f.toShop : uz.shop.save}
           </button>
         </div>
@@ -310,13 +325,18 @@ export function SendDialog({ kind, c, onClose, onDone }: { kind: 'montaj' | 'ser
   const [all, setAll] = useState(!c.job?.crew.length)
   const [sel, setSel] = useState<Set<string>>(new Set(c.job?.crew ?? []))
   const [one, setOne] = useState('') // сервис: '' = всем монтажникам
+  const [drivers, setDrivers] = useState<Person[]>([])
+  const [driver, setDriver] = useState(c.job?.driver ?? '')
+  const [ack, setAck] = useState(false)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   useEffect(() => {
     supabase.from('employees').select('id, full_name').eq('role', 'montajchi').eq('is_active', true).order('full_name').then(({ data }) => setMen((data as Person[]) ?? []))
+    supabase.from('employees').select('id, full_name').eq('role', 'haydovchi').eq('is_active', true).order('full_name').then(({ data }) => setDrivers((data as Person[]) ?? []))
   }, [])
   const toggle = (id: string) => setSel((x) => { const n = new Set(x); if (n.has(id)) n.delete(id); else n.add(id); return n })
   const list = men ?? []
+  const crewCount = all ? list.length : sel.size
 
   const submit = async () => {
     setBusy(true)
@@ -324,7 +344,7 @@ export function SendDialog({ kind, c, onClose, onDone }: { kind: 'montaj' | 'ser
     let error: { message: string } | null
     if (kind === 'montaj') {
       const crew = all ? list.map((m) => m.id) : [...sel]
-      ;({ error } = await supabase.rpc('assign_install', { p_order: c.id, p_date: date, p_members: crew, p_note: note }))
+      ;({ error } = await supabase.rpc('assign_install', { p_order: c.id, p_date: date, p_members: crew, p_note: note, p_driver: driver || null }))
     } else {
       ;({ error } = await supabase.rpc('create_service', { p_order: c.id, p_item: null, p_description: note, p_due: date || null, p_assignee: one || null, p_photos: [] }))
     }
@@ -360,12 +380,26 @@ export function SendDialog({ kind, c, onClose, onDone }: { kind: 'montaj' | 'ser
             </select>
           </label>
         )}
+        {kind === 'montaj' && drivers.length > 0 && (
+          <label>
+            {uz.driver.pick}
+            <select value={driver} onChange={(e) => setDriver(e.target.value)}>
+              <option value="">—</option>
+              {drivers.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.full_name}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+        {kind === 'montaj' && <CrewWarning count={crewCount} m2={c.area_m2} ack={ack} onAck={setAck} />}
         {err && <p className="warn">{err}</p>}
         <div className="dialog-actions">
           <button type="button" className="ghost" onClick={onClose}>
             {uz.shop.cancel}
           </button>
-          <button type="button" disabled={busy || (kind === 'montaj' ? !date || (!all && sel.size === 0) || list.length === 0 : !note.trim())} onClick={submit}>
+          <button type="button" disabled={busy || (kind === 'montaj' ? !date || (!all && sel.size === 0) || list.length === 0 || (crewCount > 1 && !ack) : !note.trim())} onClick={submit}>
             {kind === 'montaj' ? t.sendJob : t.sendService}
           </button>
         </div>

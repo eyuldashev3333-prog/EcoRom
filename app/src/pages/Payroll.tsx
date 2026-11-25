@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../supabase'
 import { formatSum } from '../lib/pricing'
@@ -40,6 +40,7 @@ export default function Payroll() {
   const [lines, setLines] = useState<PayLine[]>([])
   const [payouts, setPayouts] = useState<PayOut[]>([])
   const [pay, setPay] = useState({ employee: '', amount: '', date: tashkentToday(), note: '' })
+  const [bonus, setBonus] = useState({ employee: '', amount: '', date: tashkentToday(), note: '' })
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
   const [busy, setBusy] = useState(false)
   const [ver, setVer] = useState(0)
@@ -90,6 +91,11 @@ export default function Payroll() {
     const emp = pay.employee || open
     if (!emp) return
     if (await run('record_salary_payout', { p_employee: emp, p_amount: Number(pay.amount.replace(/\D/g, '')), p_date: pay.date, p_period: month, p_note: pay.note }, t.paidOk)) setPay({ ...pay, amount: '', note: '' })
+  }
+  const doBonus = async () => {
+    const emp = bonus.employee || open
+    if (!emp) return
+    if (await run('give_bonus', { p_employee: emp, p_amount: Number(bonus.amount.replace(/\D/g, '')), p_date: bonus.date, p_note: bonus.note }, t.bonusOk)) setBonus({ ...bonus, amount: '', note: '' })
   }
   const reverse = (p: PayOut) => {
     const reason = window.prompt(`${formatSum(Number(p.amount))} — ${t.reverseReason}`)
@@ -212,6 +218,41 @@ export default function Payroll() {
           )}
           <button onClick={doPay} disabled={busy || !(pay.employee || open) || !pay.amount}>
             {t.pay} · {month}
+          </button>
+        </div>
+      </div>
+
+      <div className="card form">
+        <h2>{t.bonusTitle}</h2>
+        <p className="muted small">{t.bonusHint}</p>
+        <div className="grid3">
+          <label>
+            {t.employee}
+            <select value={bonus.employee || open || ''} onChange={(e) => setBonus({ ...bonus, employee: e.target.value })}>
+              <option value="">—</option>
+              {people.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.full_name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            {t.amount}
+            <input inputMode="numeric" value={bonus.amount ? formatSum(Number(bonus.amount.replace(/\D/g, ''))) : ''} onChange={(e) => setBonus({ ...bonus, amount: e.target.value.replace(/\D/g, '') })} />
+          </label>
+          <label>
+            {t.date}
+            <input type="date" value={bonus.date} onChange={(e) => setBonus({ ...bonus, date: e.target.value })} />
+          </label>
+        </div>
+        <label>
+          {t.note}
+          <input value={bonus.note} onChange={(e) => setBonus({ ...bonus, note: e.target.value })} />
+        </label>
+        <div className="inline wrap">
+          <button onClick={doBonus} disabled={busy || closed || !(bonus.employee || open) || !bonus.amount}>
+            {t.bonusGive}
           </button>
         </div>
       </div>

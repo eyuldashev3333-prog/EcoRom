@@ -90,6 +90,14 @@ export function sectionsFor(role: Role): SectionDef[] {
       { id: 'ishlarim', label: s.ishlarim, short: s.ishlarim, icon: Hammer, tone: 'orange', items: [] },
       { id: 'profil', label: s.profil, short: s.profil, icon: User, tone: 'green', items: mine },
     ]
+  // водитель: свои рейсы; xodim (повар и т.п.): без рабочих экранов — только профиль и «Mening ish haqim»
+  const plain: NavItem[] = mine.filter((x) => x.to !== '/my-works')
+  if (role === 'haydovchi')
+    return [
+      { id: 'reyslar', label: s.reyslar, short: s.reyslar, icon: Truck, tone: 'purple', items: [] },
+      { id: 'profil', label: s.profil, short: s.profil, icon: User, tone: 'green', items: plain },
+    ]
+  if (role === 'xodim') return [{ id: 'profil', label: s.profil, short: s.profil, icon: User, tone: 'green', items: plain }]
   return [
     { id: 'bugun', label: s.bugun, short: s.bugun, icon: CalendarCheck, tone: 'purple', items: [] },
     { id: 'profil', label: s.profil, short: s.profil, icon: User, tone: 'green', items: mine },
