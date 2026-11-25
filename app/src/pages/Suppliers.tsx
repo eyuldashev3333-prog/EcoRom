@@ -72,7 +72,10 @@ export default function Suppliers() {
   }
   const pay = async (id: string) => {
     setBusy(true)
-    const { error } = await supabase.rpc('record_supplier_payment', { p_supplier: id, p_amount: Number(amount.replace(/\D/g, '')), p_date: date, p_note: note })
+    const args = { p_supplier: id, p_amount: Number(amount.replace(/\D/g, '')), p_date: date, p_note: note }
+    let { error } = await supabase.rpc('record_supplier_payment', args)
+    // оплата больше долга: сервер просит подтвердить «avans»
+    if (error?.message.startsWith('AVANS') && window.confirm(error.message.replace('AVANS: ', '') + '\n\nAvans sifatida yozilsinmi?')) ({ error } = await supabase.rpc('record_supplier_payment', { ...args, p_advance: true }))
     setBusy(false)
     setMsg(error ? { ok: false, text: error.message } : { ok: true, text: t.paidOk })
     if (!error) {

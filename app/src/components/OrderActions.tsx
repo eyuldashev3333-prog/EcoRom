@@ -289,10 +289,13 @@ function ShopSendDialog({ c, kind, onClose, onDone }: { c: CardData; kind: 'shop
     const linked = (workers ?? []).filter((w) => chosen.includes(w.id) && w.telegram_id).length
     if (!linked && !window.confirm(uz.shop.noRecipientsAsk)) return
     setBusy(true)
-    let { error } = await supabase.rpc('send_to_shop', { p_order: c.id, p_workers: chosen })
-    if (error?.message.startsWith('NARX_NOL') && window.confirm(uz.shop.zeroPriceAsk)) ({ error } = await supabase.rpc('send_to_shop', { p_order: c.id, p_force: true, p_workers: chosen }))
+    let { data, error } = await supabase.rpc('send_to_shop', { p_order: c.id, p_workers: chosen })
+    if (error?.message.startsWith('NARX_NOL') && window.confirm(uz.shop.zeroPriceAsk)) ({ data, error } = await supabase.rpc('send_to_shop', { p_order: c.id, p_force: true, p_workers: chosen }))
     setBusy(false)
     if (error) return setErr(error.message.replace('NARX_NOL: ', ''))
+    // отправка прошла, но часть материала ушла в минус — предупреждаем руководителя (заказ уже у цеха)
+    const short = (data as { shortage?: { name: string; qty: number; unit: string }[] } | null)?.shortage ?? []
+    if (short.length) window.alert(uz.shop.shortage + '\n' + short.map((x) => `• ${x.name}: ${Math.round(Number(x.qty) * 1000) / 1000} ${x.unit}`).join('\n'))
     onDone()
   }
 

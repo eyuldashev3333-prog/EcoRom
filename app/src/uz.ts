@@ -595,6 +595,7 @@ export const uz = {
     resendConfirm: "Buyurtma o'zgargan bo'lsa — zavod qayta tekshiradi. Yuborilsinmi?",
     sendHint: "Avval buyurtmani saqlang — zavodga saqlangan holati boradi.",
     sent: 'Zavodga yuborildi',
+    shortage: "Diqqat: omborda bu materiallar yetmaydi (ombor minusga tushdi). Buyurtma zavodga yuborildi, lekin materialni xarid qiling:",
     zeroPriceAsk: "Tannarx yoki shartnoma narxi 0 (katalogda narxlar kiritilmagan). Baribir zavodga yuborilsinmi?",
     noRecipientsAsk: "Zavodda botga ulangan xodim yo'q — xabar hech kimga bormaydi. Baribir yuborilsinmi?",
     noRecipients: "Zavodda Telegram ulangan xodim yo'q — xabar hech kimga bormadi. Xodim botda Start bosib, bir marta kirishi kerak.",

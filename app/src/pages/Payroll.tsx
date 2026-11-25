@@ -73,7 +73,9 @@ export default function Payroll() {
 
   const run = async (fn: string, args: Record<string, unknown>, ok: string) => {
     setBusy(true)
-    const { error } = await supabase.rpc(fn, args)
+    let { error } = await supabase.rpc(fn, args)
+    // выплата больше начисленного: сервер просит подтвердить «avans»
+    if (error?.message.startsWith('AVANS') && window.confirm(error.message.replace('AVANS: ', '') + '\n\nAvans sifatida yozilsinmi?')) ({ error } = await supabase.rpc(fn, { ...args, p_advance: true }))
     setBusy(false)
     setMsg(error ? { ok: false, text: error.message } : { ok: true, text: ok })
     if (!error) {
