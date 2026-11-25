@@ -175,6 +175,7 @@ export default function ServiceTickets({ orderId, onlyOpen = false, reloadKey = 
                             </option>
                           ))}
                         </select>
+                        {cf.payer !== 'factory' && <small className="warn">{t.notDeducted}</small>}
                       </label>
                       <label>
                         {t.cost}

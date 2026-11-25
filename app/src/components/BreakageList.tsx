@@ -126,6 +126,7 @@ export default function BreakageList({ orderId, since, onChanged }: { orderId?: 
                   ))}
                 </select>
                 {e.payer === 'factory' && <small className="muted">{t.factoryCash}</small>}
+                {e.payer !== 'factory' && <small className="warn">{t.notDeducted}</small>}
               </label>
               <label>
                 {t.who}

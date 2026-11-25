@@ -190,14 +190,14 @@ Deno.serve(async (req) => {
       return new Response('ok')
     }
     await tg('answerCallbackQuery', { callback_query_id: cq.id, text: r.need_reason ? 'Sababini yozing' : 'Rahmat! Javob yozildi' })
-    // в самом сообщении показать свой ответ (кнопки остаются — можно передумать)
+    // в самом сообщении показать свой ответ; ответ первого окончательный (передумать нельзя — при новом материале руководитель отправит заказ в цех заново), поэтому кнопки убираем
     if (cq.message?.text) {
       const base = cq.message.text.split(ANSWER_MARK)[0]
       await tg('editMessageText', {
         chat_id: cq.message.chat.id,
         message_id: cq.message.message_id,
         text: `${base}${ANSWER_MARK} ${ANSWERS[result] ?? '⚠️ Brak'} ·${tashkentTime()}`,
-        reply_markup: cq.message.reply_markup,
+        reply_markup: openButton,
       })
     }
     if (r.need_reason)
