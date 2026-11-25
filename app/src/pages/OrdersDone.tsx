@@ -1,33 +1,34 @@
-import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import OrderCard from '../components/OrderCard'
-import { columnOf, useOrderCards } from '../lib/orderCards'
+import { useOrderCards } from '../lib/orderCards'
 import MonthPicker from '../ui/MonthPicker'
 import { uz } from '../uz'
 
 const t = uz.order
 const c = uz.cards
 const tashkentMonth = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Tashkent' }).slice(0, 7)
-// месяц, в котором заказ стал завершённым (по времени смены статуса)
-const monthOf = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString('en-CA', { timeZone: 'Asia/Tashkent' }).slice(0, 7) : '')
 
-// Завершённые заказы — отдельный экран (не в одной доске с активными): поиск, месяц, карточки без кнопок действий
+// Завершённые заказы — отдельный экран: месяц и поиск работают НА СЕРВЕРЕ (загружаются только нужные заказы, а не вся история)
 export default function OrdersDone() {
-  const { cards, names } = useOrderCards()
-  const [q, setQ] = useState('')
-  const [byMonth, setByMonth] = useState(true)
+  const [sp] = useSearchParams()
+  const [q, setQ] = useState(sp.get('q') ?? '')
+  const [debounced, setDebounced] = useState(q)
+  const [byMonth, setByMonth] = useState(!(sp.get('q') ?? '').trim()) // при поиске — по всей истории
   const [month, setMonth] = useState(tashkentMonth())
+  useEffect(() => {
+    const h = setTimeout(() => setDebounced(q), 350)
+    return () => clearTimeout(h)
+  }, [q])
+  useEffect(() => {
+    const next = sp.get('q') ?? ''
+    setQ(next)
+    setDebounced(next)
+    if (next.trim()) setByMonth(false)
+  }, [sp])
 
-  const s = q.trim().toLowerCase()
-  const list = useMemo(
-    () =>
-      (cards ?? [])
-        .filter((r) => columnOf(r.status) === 'done' && r.status !== 'cancelled')
-        .filter((r) => !s || String(r.order_no).includes(s) || r.client.toLowerCase().includes(s) || (r.phone ?? '').includes(s) || (r.address ?? '').toLowerCase().includes(s))
-        .filter((r) => !byMonth || monthOf(r.status_at ?? r.created_at) === month)
-        .sort((a, b) => (b.status_at ?? '').localeCompare(a.status_at ?? '') || b.order_no - a.order_no),
-    [cards, s, byMonth, month],
-  )
+  const { cards, names } = useOrderCards({ kind: 'done', month: byMonth ? month : null, q: debounced })
+  const list = (cards ?? []).filter((r) => r.status !== 'cancelled').sort((a, b) => (b.status_at ?? '').localeCompare(a.status_at ?? '') || b.order_no - a.order_no)
 
   return (
     <>
@@ -44,6 +45,7 @@ export default function OrdersDone() {
         </label>
         {byMonth && <MonthPicker value={month} onChange={setMonth} />}
       </div>
+      {debounced.trim().length === 1 && <p className="muted small">{c.searchMin}</p>}
       {cards === null && <p className="muted">{uz.loading}</p>}
       {cards && list.length === 0 && <p className="muted">{t.empty}</p>}
       <div className="my-works">

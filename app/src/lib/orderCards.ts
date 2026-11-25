@@ -80,59 +80,78 @@ interface OrderRow {
   shop_sent_at: string | null
   clients: { full_name: string; phone: string | null } | null
   order_items?: { pos: number; design: WindowDesign; glass_status: string | null }[]
+  payments?: { amount: number }[]
+  install_jobs?: { id: string; status: string; plan_date: string | null; accepted_by: string | null; driver_id: string | null; created_at: string; install_job_members: { employee_id: string }[] }[]
+  order_material_checks?: { result: string; note: string | null; created_at: string; employee_id: string }[]
+  install_order_photos?: { id: string }[]
 }
-const SELECT = 'id, order_no, status, created_at, status_at, deadline, install_date, address, contract_price, windows_count, area_m2, is_imported, shop_sent_at, clients(full_name, phone)'
+// всё, что нужно карточке, приходит вместе с заказом (вложенные выборки): платежи, работа монтажа, ответы цеха, фото — только по нужным заказам, а не по всей базе
+const SELECT =
+  'id, order_no, status, created_at, status_at, deadline, install_date, address, contract_price, windows_count, area_m2, is_imported, shop_sent_at, clients(full_name, phone), ' +
+  'order_items(pos, design, glass_status), payments(amount), install_jobs(id, status, plan_date, accepted_by, driver_id, created_at, install_job_members(employee_id)), ' +
+  'order_material_checks(result, note, created_at, employee_id), install_order_photos(id)'
 
-export function useOrderCards(): { cards: CardData[] | null; names: Map<string, string>; reload: () => void } {
+/** какие заказы нужны экрану: доска (активные), один заказ, завершённые (по месяцу и/или поиску) — остальное с сервера не загружается */
+export type CardScope = { kind: 'active' } | { kind: 'id'; id: string } | { kind: 'done'; month: string | null; q: string }
+const DONE = ['closed', 'unknown']
+const nextMonthStart = (m: string) => {
+  const [y, mo] = m.split('-').map(Number)
+  return mo === 12 ? `${y + 1}-01-01` : `${y}-${String(mo + 1).padStart(2, '0')}-01`
+}
+
+export function useOrderCards(scope: CardScope = { kind: 'active' }): { cards: CardData[] | null; names: Map<string, string>; reload: () => void; doneCount: number | null } {
   const [cards, setCards] = useState<CardData[] | null>(null)
   const [names, setNames] = useState<Map<string, string>>(new Map())
+  const [doneCount, setDoneCount] = useState<number | null>(null)
   const [tick, setTick] = useState(0)
   const reload = useCallback(() => setTick((x) => x + 1), [])
+  const key = JSON.stringify(scope)
 
   useEffect(() => {
     let live = true
+    const sc = JSON.parse(key) as CardScope
     ;(async () => {
-      // каждая выборка читается страницами до конца: PostgREST режет ответ по max_rows=1000 молча (раньше limit(5000/400/3000) тихо терял заказы)
-      const [all, act, paid, ws, svc, jobs, emps, checks, photos] = await Promise.all([
-        fetchAll((a, b) => asPage(supabase.from('orders').select(SELECT).order('order_no', { ascending: false }).order('id').range(a, b))),
-        fetchAll((a, b) => asPage(supabase.from('orders').select(`${SELECT}, order_items(pos, design, glass_status)`).in('status', ACTIVE).eq('is_imported', false).order('order_no', { ascending: false }).order('id').range(a, b)), 250),
-        fetchAll((a, b) => asPage(supabase.from('v_order_paid').select('order_id, debt').order('order_id').range(a, b))),
-        supabase.rpc('workshop_state'),
+      // какие заказы грузим
+      let ids: string[] | null = null
+      if (sc.kind === 'done' && sc.q.trim().length >= 2) {
+        const r = await supabase.rpc('orders_search', { p_q: sc.q.trim(), p_statuses: DONE, p_limit: 300 })
+        ids = ((r.data as { id: string }[] | null) ?? []).map((x) => x.id)
+      }
+      const build = (a: number, b: number) => {
+        let q = supabase.from('orders').select(SELECT)
+        if (sc.kind === 'active') q = q.in('status', ACTIVE).eq('is_imported', false)
+        else if (sc.kind === 'id') q = q.eq('id', sc.id)
+        else {
+          q = q.in('status', DONE)
+          if (ids) q = q.in('id', ids)
+          if (sc.month) q = q.gte('status_at', `${sc.month}-01`).lt('status_at', nextMonthStart(sc.month))
+        }
+        return asPage(q.order('order_no', { ascending: false }).order('id').range(a, b))
+      }
+      const [orders, ws, svc, emps, done] = await Promise.all([
+        ids && ids.length === 0 ? Promise.resolve({ data: [], error: null }) : fetchAll(build, 200),
+        sc.kind === 'id' ? Promise.resolve({ data: null }) : supabase.rpc('workshop_state'),
         fetchAll((a, b) => asPage(supabase.from('service_tickets').select('order_id').neq('status', 'closed').order('id').range(a, b))),
-        fetchAll((a, b) => asPage(supabase.from('install_jobs').select('id, order_id, status, plan_date, accepted_by, driver_id, created_at, install_job_members(employee_id)').order('created_at', { ascending: false }).order('id').range(a, b))),
         fetchAll((a, b) => asPage(supabase.from('employees').select('id, full_name').order('id').range(a, b))),
-        fetchAll((a, b) => asPage(supabase.from('order_material_checks').select('order_id, result, note, created_at, employee_id').order('created_at').order('id').range(a, b))),
-        fetchAll((a, b) => asPage(supabase.from('install_order_photos').select('order_id').order('id').range(a, b))),
+        sc.kind === 'active' ? supabase.from('orders').select('id', { count: 'exact', head: true }).in('status', DONE) : Promise.resolve({ count: null }),
       ])
       if (!live) return
-      const items = new Map<string, { pos: number; design: WindowDesign; glass_status: string | null }[]>()
-      const sent = new Map<string, string | null>()
-      for (const o of ((act.data as unknown as OrderRow[]) ?? [])) {
-        items.set(o.id, [...(o.order_items ?? [])].sort((a, b) => a.pos - b.pos))
-        sent.set(o.id, o.shop_sent_at)
-      }
       const empName = new Map(((emps.data as { id: string; full_name: string }[]) ?? []).map((e) => [e.id, e.full_name]))
-      // первый ответ цеха после последней отправки (как в shop_state)
-      const shop = new Map<string, ShopAns>()
-      for (const c of ((checks.data as { order_id: string; result: string; note: string | null; created_at: string; employee_id: string }[]) ?? [])) {
-        const at = sent.get(c.order_id)
-        if (!at || c.created_at < at || shop.has(c.order_id)) continue
-        shop.set(c.order_id, { result: c.result, note: c.note, name: empName.get(c.employee_id) ?? '' })
-      }
-      const withPhoto = new Set(((photos.data as { order_id: string }[]) ?? []).map((p) => p.order_id))
-      const debt = new Map(((paid.data as { order_id: string; debt: string }[]) ?? []).map((d) => [d.order_id, Number(d.debt)]))
       const st = new Map(((ws.data as { orders?: { order_id: string; station: string; percent: number; late: boolean; material: boolean }[] } | null)?.orders ?? []).map((o) => [o.order_id, o]))
       const openSvc = new Map<string, number>()
       for (const s of ((svc.data as { order_id: string }[]) ?? [])) openSvc.set(s.order_id, (openSvc.get(s.order_id) ?? 0) + 1)
-      const job = new Map<string, NonNullable<CardData['job']>>()
-      for (const j of ((jobs.data as unknown as { id: string; order_id: string; status: string; plan_date: string | null; accepted_by: string | null; driver_id: string | null; install_job_members: { employee_id: string }[] }[]) ?? [])) {
-        if (!job.has(j.order_id)) job.set(j.order_id, { id: j.id, status: j.status, plan_date: j.plan_date, accepted_by: j.accepted_by, driver: j.driver_id, crew: j.install_job_members.map((m) => m.employee_id) })
-      }
       setNames(empName)
+      setDoneCount(sc.kind === 'active' ? (done as { count: number | null }).count ?? 0 : null)
       setCards(
-        ((all.data as unknown as OrderRow[]) ?? []).map((o) => {
-          const it = items.get(o.id) ?? []
+        ((orders.data as unknown as OrderRow[]) ?? []).map((o) => {
+          const it = [...(o.order_items ?? [])].sort((a, b) => a.pos - b.pos)
           const w = st.get(o.id)
+          // первый ответ цеха после последней отправки (как в shop_state)
+          const ans = [...(o.order_material_checks ?? [])]
+            .sort((a, b) => a.created_at.localeCompare(b.created_at))
+            .find((c) => !!o.shop_sent_at && c.created_at >= o.shop_sent_at)
+          const j = [...(o.install_jobs ?? [])].sort((a, b) => b.created_at.localeCompare(a.created_at))[0]
+          const paid = (o.payments ?? []).reduce((s, p) => s + Number(p.amount), 0) // платежи ЭТОГО заказа (сам заказ загружен целиком — сумма полная)
           return {
             id: o.id,
             order_no: o.order_no,
@@ -143,7 +162,7 @@ export function useOrderCards(): { cards: CardData[] | null; names: Map<string, 
             install_date: o.install_date,
             address: o.address,
             contract_price: Number(o.contract_price),
-            debt: o.status === 'cancelled' ? 0 : debt.get(o.id) ?? 0,
+            debt: o.status === 'cancelled' ? 0 : Number(o.contract_price) - paid,
             windows_count: o.windows_count,
             area_m2: Number(o.area_m2),
             client: o.clients?.full_name ?? '—',
@@ -156,11 +175,11 @@ export function useOrderCards(): { cards: CardData[] | null; names: Map<string, 
             late: !!w?.late,
             material: !!w?.material,
             openService: openSvc.get(o.id) ?? 0,
-            job: job.get(o.id) ?? null,
-            shop: shop.get(o.id) ?? null,
+            job: j ? { id: j.id, status: j.status, plan_date: j.plan_date, accepted_by: j.accepted_by, driver: j.driver_id, crew: j.install_job_members.map((m) => m.employee_id) } : null,
+            shop: ans ? { result: ans.result, note: ans.note, name: empName.get(ans.employee_id) ?? '' } : null,
             glass: glassOf(it.map((x) => x.glass_status)),
             glassOrdered: allGlassOrdered(it.map((x) => x.glass_status)),
-            photo: withPhoto.has(o.id),
+            photo: (o.install_order_photos ?? []).length > 0,
           }
         }),
       )
@@ -168,11 +187,10 @@ export function useOrderCards(): { cards: CardData[] | null; names: Map<string, 
     return () => {
       live = false
     }
-  }, [tick])
+  }, [key, tick])
 
-  return { cards, names, reload }
+  return { cards, names, reload, doneCount }
 }
-
 // Карточки цеха и монтажника: те же карточки, но из «рабочих» представлений (w_*) — без денег и чужих данных
 export interface WorkCard extends CardData {
   accepted: boolean // цех: «Qabul qildim» нажато (кем-то из команды)

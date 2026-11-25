@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../supabase'
+import MonthPicker from '../ui/MonthPicker'
 import { asPage, fetchAll } from '../lib/fetchAll'
 import { formatSum } from '../lib/pricing'
 import { fmtQty, loadStock, stockKey, unitLabel, type StockRow } from '../lib/stock'
@@ -39,6 +40,7 @@ export default function Purchases() {
   const [stock, setStock] = useState<StockRow[]>([])
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
   const [list, setList] = useState<Purchase[]>([])
+  const [listMonth, setListMonth] = useState(new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Tashkent' }).slice(0, 7))
   const [supplier, setSupplier] = useState('')
   const [date, setDate] = useState(today())
   const [lines, setLines] = useState<Line[]>([])
@@ -52,19 +54,26 @@ export default function Purchases() {
   const [bars, setBars] = useState<Record<string, { n: string; len: string }>>({})
 
   const loadList = useCallback(async () => {
-    // весь журнал закупок страницами (раньше limit(100) показывал только последние)
+    // журнал закупок за выбранный месяц, страницами (раньше limit(100) молча показывал только последние, а полный список с годами истории — слишком тяжёл)
+    const next = (() => {
+      const [y, mo] = listMonth.split('-').map(Number)
+      return mo === 12 ? `${y + 1}-01-01` : `${y}-${String(mo + 1).padStart(2, '0')}-01`
+    })()
     const { data } = await fetchAll<Purchase>((a, b) =>
       asPage<Purchase>(
         supabase
           .from('purchases')
           .select('id, purchased_at, total, delivery_cost, note, reverses_id, suppliers(name), purchase_items(qty, part, catalog_items(name))')
+          .gte('purchased_at', `${listMonth}-01`)
+          .lt('purchased_at', next)
+          .order('purchased_at', { ascending: false })
           .order('created_at', { ascending: false })
           .order('id')
           .range(a, b),
       ),
     200)
     setList(data)
-  }, [])
+  }, [listMonth])
   useEffect(() => {
     loadStock().then(setStock)
     supabase.from('suppliers').select('id, name, city').eq('is_active', true).order('name').then(({ data }) => setSuppliers((data as Supplier[]) ?? []))
@@ -254,7 +263,10 @@ export default function Purchases() {
         </button>
       </div>
 
-      <h2>{t.list}</h2>
+      <div className="inline head">
+          <h2>{t.list}</h2>
+          <MonthPicker value={listMonth} onChange={setListMonth} />
+        </div>
       <div className="card tbl-wrap">
         <table className="tbl">
           <tbody>

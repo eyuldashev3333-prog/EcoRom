@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Download, Plus } from 'lucide-react'
 import { supabase } from '../supabase'
+import { asPage, fetchAll } from '../lib/fetchAll'
 import Sheet, { type Col } from '../ui/Sheet'
 import { exportXlsx, monthName, type XCol } from '../lib/xlsx'
 import { uz } from '../uz'
@@ -47,22 +48,46 @@ export default function Registratsiya() {
   const [form, setForm] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState(false)
 
-  const load = useCallback(async () => {
-    const { data, error } = await supabase.from('v_registratsiya').select('*').order('raqami', { ascending: true })
-    if (error) return setMsg(error.message)
-    const rs = ((data as Row[]) ?? []).map((r) => ({ ...r, id: (r as unknown as { id: string }).id }))
-    setRows(rs)
-    setMonth((m) => m || rs.reduce((a, r) => (r.oy > a ? r.oy : a), ''))
+  const [months, setMonths] = useState<string[]>([])
+  const [debounced, setDebounced] = useState('')
+  useEffect(() => {
+    const h = setTimeout(() => setDebounced(q.trim()), 350)
+    return () => clearTimeout(h)
+  }, [q])
+  // список месяцев — одним запросом; строки — только выбранный месяц или найденные по поиску (раньше грузилась вся история)
+  const loadMonths = useCallback(async () => {
+    const { data } = await supabase.rpc('registratsiya_months')
+    const ms = ((data as { oy: string }[]) ?? []).map((x) => x.oy)
+    setMonths(ms)
+    setMonth((m) => m || ms[0] || '')
   }, [])
+  useEffect(() => {
+    loadMonths()
+  }, [loadMonths])
+  const load = useCallback(async () => {
+    if (!month && !debounced) return
+    let ids: string[] | null = null
+    if (debounced.length >= 2) {
+      const f = await supabase.rpc('orders_search', { p_q: debounced, p_statuses: null, p_limit: 300 })
+      ids = ((f.data as { id: string }[] | null) ?? []).map((x) => x.id)
+    }
+    const nextM = (m: string) => {
+      const [y, mo] = m.split('-').map(Number)
+      return mo === 12 ? `${y + 1}-01-01` : `${y}-${String(mo + 1).padStart(2, '0')}-01`
+    }
+    const { data, error } = await fetchAll<Row>((a, b) => {
+      let qq = supabase.from('v_registratsiya').select('*')
+      if (ids) qq = qq.in('id', ids.length ? ids : ['00000000-0000-0000-0000-000000000000'])
+      else qq = qq.gte('sana', `${month}-01`).lt('sana', nextM(month))
+      return asPage<Row>(qq.order('raqami', { ascending: true }).order('id').range(a, b))
+    })
+    if (error) return setMsg(error)
+    setRows(data.map((r) => ({ ...r, id: (r as unknown as { id: string }).id })))
+  }, [month, debounced])
   useEffect(() => {
     load()
   }, [load])
-
-  const months = useMemo(() => [...new Set((rows ?? []).map((r) => r.oy))].sort().reverse(), [rows])
-  const shown = useMemo(() => {
-    const s = q.trim().toLowerCase()
-    return (rows ?? []).filter((r) => (s ? `${r.raqami} ${r.ismi} ${r.kontakt ?? ''}`.toLowerCase().includes(s) : r.oy === month))
-  }, [rows, month, q])
+  const shown = rows ?? []
 
   const onEdit = async (r: Row, key: string, value: string) => {
     let reason: string | null = null
@@ -74,6 +99,7 @@ export default function Registratsiya() {
       key === 'status' ? await supabase.rpc('set_order_status', { p_order: r.id, p_status: value, p_reason: reason }) : await supabase.rpc('registratsiya_set', { p_order: r.id, p_field: key, p_value: value })
     if (error) return error.message
     await load()
+    loadMonths()
     return null
   }
 

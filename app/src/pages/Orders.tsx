@@ -13,7 +13,7 @@ const tashkentMonth = () => new Date().toLocaleDateString('en-CA', { timeZone: '
 
 // Заказы канбаном: колонки по этапам, под каждой карточкой — кнопки своей колонки (нажал — карточка сразу переехала)
 export function OrdersBoard() {
-  const { cards, names, reload } = useOrderCards()
+  const { cards, names, reload, doneCount } = useOrderCards() // только активные заказы; завершённых — число (сам список — на своём экране)
   const [sp] = useSearchParams()
   const [q, setQ] = useState(sp.get('q') ?? '') // глобальный поиск из шапки
   useEffect(() => setQ(sp.get('q') ?? ''), [sp]) // повторный поиск из шапки обновляет строку списка
@@ -35,7 +35,6 @@ export function OrdersBoard() {
     }
     return [...found].sort(cmp[sort])
   }, [cards, s, byMonth, month, sort])
-  const doneCount = (cards ?? []).filter((r) => columnOf(r.status) === 'done').length
 
   return (
     <>
@@ -60,8 +59,8 @@ export function OrdersBoard() {
           {c.byMonth}
         </label>
         {byMonth && <MonthPicker value={month} onChange={setMonth} />}
-        <Link to="/orders/done" className="btn-link">
-          {c.doneScreen} ({doneCount})
+        <Link to={q.trim() ? `/orders/done?q=${encodeURIComponent(q.trim())}` : '/orders/done'} className="btn-link">
+          {q.trim() ? c.searchDone : c.doneScreen} ({doneCount ?? '…'})
         </Link>
       </div>
       {cards === null && <p className="muted">{uz.loading}</p>}

@@ -1,6 +1,8 @@
 -- Общие функции регрессионных тестов (вставляются в начало каждого теста; всё во временной схеме, ничего не остаётся в базе).
 -- Каждый тест выполняется в одной транзакции и заканчивается исключением RESULT: … — поэтому откатывается ВСЕГДА, боевые данные не меняются.
 create temp table _res (n serial, name text, ok boolean, detail text) on commit drop;
+-- счётчик номеров заказов (order_no_seq) не откатывается вместе с транзакцией: запоминаем и в finish() возвращаем, иначе каждый прогон тестов «съедает» номера настоящих заказов
+create temp table _seq on commit drop as select last_value as lv, is_called as ic from public.order_no_seq;
 grant all on _res to public;
 grant usage on sequence _res_n_seq to public;
 
@@ -46,6 +48,10 @@ create or replace function pg_temp.finish() returns void language plpgsql as $$
 declare r jsonb;
 begin
   reset role;
+  -- вернуть счётчик, если за время теста не появилось настоящего (не тестового) заказа с большим номером
+  if not exists (select 1 from public.orders o join public.clients c on c.id = o.client_id where c.full_name not ilike 'REGRESS%' and o.order_no > (select lv from _seq) and o.order_no < 9000000) then
+    perform setval('public.order_no_seq', (select lv from _seq), (select ic from _seq));
+  end if;
   select coalesce(jsonb_agg(jsonb_build_object('name', name, 'ok', ok, 'detail', detail) order by n), '[]') into r from _res;
   raise exception 'RESULT: %', r;
 end $$;

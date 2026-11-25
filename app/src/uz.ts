@@ -68,6 +68,8 @@ export const uz = {
     servis: 'Servis',
     notAccepted: 'qabul qilinmagan',
     doneScreen: 'Yakunlanganlar',
+    searchDone: 'Yakunlanganlardan qidirish',
+    searchMin: "Qidirish uchun kamida 2 ta belgi kiriting",
     byMonth: 'Oy bo‘yicha',
     sortDeadline: 'Muddat',
   },

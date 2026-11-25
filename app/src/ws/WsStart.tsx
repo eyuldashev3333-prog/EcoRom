@@ -216,9 +216,8 @@ export function WsOrders() {
   const [sel, setSel] = useState<string | null>(null)
   const [az, setAz] = useState(false)
   useEffect(() => {
-    fetchAll<OrderRow>((a, b) =>
-      asPage<OrderRow>(supabase.from('orders').select('id, address, windows_count, created_at, clients(id, full_name, created_at)').order('created_at', { ascending: false }).order('id').range(a, b)),
-    ).then(({ data }) => setRows(data))
+    // список в духе WinStudio — последние 300 заказов (вся история в базе, но на телефон её целиком не грузим)
+    asPage<OrderRow>(supabase.from('orders').select('id, address, windows_count, created_at, clients(id, full_name, created_at)').order('created_at', { ascending: false }).order('id').range(0, 299)).then(({ data }) => setRows(data ?? []))
   }, [])
   const groups = new Map<string, { name: string; at: string; orders: OrderRow[] }>()
   for (const r of rows ?? []) {

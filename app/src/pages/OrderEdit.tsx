@@ -174,7 +174,7 @@ export default function OrderEdit() {
   const locked = !!id && !['new', 'in_production'].includes(status)
 
   // та же карточка, что в канбане, с кнопками своей колонки — где заказ сейчас и что дальше
-  const { cards, names, reload: reloadBoard } = useOrderCards()
+  const { cards, names, reload: reloadBoard } = useOrderCards({ kind: 'id', id: id ?? '' }) // только этот заказ, а не вся база
   const card = cards?.find((x) => x.id === id) ?? null
   const [glassTick, setGlassTick] = useState(0)
   const reloadCards = () => {
