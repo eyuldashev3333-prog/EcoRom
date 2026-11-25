@@ -65,8 +65,13 @@ export default function Registratsiya() {
   }, [rows, month, q])
 
   const onEdit = async (r: Row, key: string, value: string) => {
+    let reason: string | null = null
+    if (key === 'status' && value === 'installed' && r.status === 'ready') {
+      reason = window.prompt(uz.money.skipInstallReason)
+      if (reason === null) return null
+    }
     const { error } =
-      key === 'status' ? await supabase.rpc('set_order_status', { p_order: r.id, p_status: value }) : await supabase.rpc('registratsiya_set', { p_order: r.id, p_field: key, p_value: value })
+      key === 'status' ? await supabase.rpc('set_order_status', { p_order: r.id, p_status: value, p_reason: reason }) : await supabase.rpc('registratsiya_set', { p_order: r.id, p_field: key, p_value: value })
     if (error) return error.message
     await load()
     return null

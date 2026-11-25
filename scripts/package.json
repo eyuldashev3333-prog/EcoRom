@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "backup": "node backup.mjs",
-    "restore": "node restore.mjs"
+    "restore": "node restore.mjs",
+    "regress": "node regress/run.mjs"
   },
   "dependencies": {
     "exceljs": "^4.4.0",

@@ -82,7 +82,13 @@ export default function OrderMoney({ orderId, contract, status, imported = false
   }
   const setStatus = (s: string) => {
     if (s === 'cancelled' && !window.confirm(paid > 0 ? t.cancelPaidConfirm : t.cancelConfirm)) return
-    call('set_order_status', { p_order: orderId, p_status: s }, uz.order.statuses[s])
+    // «Готов → Установлен» мимо монтажника: сервер требует причину; зарплата за монтаж при этом не начисляется
+    let reason: string | null = null
+    if (s === 'installed' && status === 'ready') {
+      reason = window.prompt(t.skipInstallReason)
+      if (reason === null) return
+    }
+    call('set_order_status', { p_order: orderId, p_status: s, p_reason: reason }, uz.order.statuses[s])
   }
 
   return (

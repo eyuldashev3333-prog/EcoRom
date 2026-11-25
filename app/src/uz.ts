@@ -558,6 +558,7 @@ export const uz = {
     status: 'Holat',
     cancelConfirm: 'Buyurtma bekor qilinsinmi?',
     cancelPaidConfirm: "Buyurtma bekor qilinsinmi? Mijoz oldindan to'lagan — keyin qancha qaytarishni o'zingiz hal qilasiz.",
+    skipInstallReason: "Montajchisiz «O'rnatildi» qilinmoqda. Sababini yozing (montaj ish haqi hisoblanmaydi — o'zingiz hal qilasiz):",
     refund: 'Qaytarish',
     refundAsk: 'qancha qaytariladi? (qolgani zavodda qoladi)',
     refundedOk: 'Qaytarish yozildi (kassa kamaydi, tarixda qoladi)',
