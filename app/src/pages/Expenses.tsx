@@ -2,6 +2,7 @@
 import { Link } from 'react-router-dom'
 import { supabase } from '../supabase'
 import { formatSum } from '../lib/pricing'
+import { fetchAll } from '../lib/fetchAll'
 import { uz } from '../uz'
 import MonthPicker from '../ui/MonthPicker'
 
@@ -28,6 +29,11 @@ interface Person {
   id: string
   full_name: string
 }
+interface Summary {
+  total: number
+  rows: number
+  by_category: { name: string; amount: number }[]
+}
 
 const monthOf = (d: Date) => d.toLocaleDateString('en-CA', { timeZone: 'Asia/Tashkent' }).slice(0, 7)
 const nextMonth = (m: string) => {
@@ -41,21 +47,30 @@ export default function Expenses() {
   const [cats, setCats] = useState<Cat[]>([])
   const [people, setPeople] = useState<Person[]>([])
   const [rows, setRows] = useState<Row[] | null>(null)
+  const [summary, setSummary] = useState<Summary | null>(null)
   const [f, setF] = useState({ category: '', amount: '', date: new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Tashkent' }), note: '', who: '', order: '' })
   const [newCat, setNewCat] = useState('')
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
   const [busy, setBusy] = useState(false)
 
   const load = useCallback(async () => {
-    const { data } = await supabase
-      .from('expenses')
-      .select('id, amount, spent_at, note, source, reverses_id, category_id, expense_categories(name), employees!for_employee_id(full_name), orders(order_no)')
-      .gte('spent_at', `${month}-01`)
-      .lt('spent_at', nextMonth(month))
-      .order('spent_at', { ascending: false })
-      .order('created_at', { ascending: false })
-      .limit(1000)
-    setRows(((data as unknown as Row[]) ?? []).map((r) => ({ ...r, amount: Number(r.amount) })))
+    // итоги и разбивка — с сервера по ВСЕМ строкам месяца; список читается страницами (без тихой обрезки по 1000)
+    const [{ data }, sum] = await Promise.all([
+      fetchAll<Row>((a, b) =>
+        supabase
+          .from('expenses')
+          .select('id, amount, spent_at, note, source, reverses_id, category_id, expense_categories(name), employees!for_employee_id(full_name), orders(order_no)')
+          .gte('spent_at', `${month}-01`)
+          .lt('spent_at', nextMonth(month))
+          .order('spent_at', { ascending: false })
+          .order('created_at', { ascending: false })
+          .order('id')
+          .range(a, b) as unknown as PromiseLike<{ data: Row[] | null; error: { message: string } | null }>,
+      ),
+      supabase.rpc('expenses_month_summary', { p_month: `${month}-01` }),
+    ])
+    setRows(data.map((r) => ({ ...r, amount: Number(r.amount) })))
+    setSummary((sum.data as Summary | null) ?? null)
   }, [month])
   useEffect(() => {
     load()
@@ -118,10 +133,9 @@ export default function Expenses() {
   }
 
   const reversed = new Set((rows ?? []).filter((r) => r.reverses_id).map((r) => r.reverses_id))
-  const total = (rows ?? []).reduce((s, r) => s + r.amount, 0) // встречные записи с минусом — итог уже чистый
-  const byCat = new Map<string, number>()
-  for (const r of rows ?? []) byCat.set(r.expense_categories?.name ?? '—', (byCat.get(r.expense_categories?.name ?? '—') ?? 0) + r.amount)
-  const cats2 = [...byCat.entries()].filter(([, v]) => v !== 0).sort((a, b) => b[1] - a[1])
+  // итог и разбивка — серверные (по всем строкам месяца, встречные записи с минусом уже учтены)
+  const total = summary?.total ?? 0
+  const cats2 = (summary?.by_category ?? []).map((c) => [c.name, Number(c.amount)] as const)
 
   return (
     <>

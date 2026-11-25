@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../supabase'
+import { asPage, fetchAll } from '../lib/fetchAll'
 import { formatSum } from '../lib/pricing'
 import { uz } from '../uz'
 
@@ -36,15 +37,18 @@ export default function BreakageList({ orderId, since, onChanged }: { orderId?: 
   const [err, setErr] = useState('')
 
   const load = useCallback(async () => {
-    let q = supabase
-      .from('glass_breakages')
-      .select('id, order_id, reason, photo_path, payer, amount, pieces, decided, created_at, employee_id, orders(order_no), order_items(pos, width_mm, height_mm), employees!employee_id(full_name)')
-      .order('created_at', { ascending: false })
-      .limit(300)
-    if (orderId) q = q.eq('order_id', orderId)
-    if (since) q = q.gte('created_at', since)
-    const { data } = await q
-    const list = ((data as unknown as Row[]) ?? []).map((r) => ({ ...r, amount: Number(r.amount) }))
+    // читаем ВСЕ записи страницами (раньше limit(300) молча терял старые)
+    const { data } = await fetchAll<Row>((a, b) => {
+      let q = supabase
+        .from('glass_breakages')
+        .select('id, order_id, reason, photo_path, payer, amount, pieces, decided, created_at, employee_id, orders(order_no), order_items(pos, width_mm, height_mm), employees!employee_id(full_name)')
+        .order('created_at', { ascending: false })
+        .order('id')
+      if (orderId) q = q.eq('order_id', orderId)
+      if (since) q = q.gte('created_at', since)
+      return asPage<Row>(q.range(a, b))
+    })
+    const list = data.map((r) => ({ ...r, amount: Number(r.amount) }))
     setRows(list)
     onChanged?.(list)
     const paths = list.map((r) => r.photo_path).filter((p): p is string => !!p)

@@ -11,8 +11,9 @@ const fmt = (n: number) => new Intl.NumberFormat('ru-RU').format(Math.round(n))
 
 interface OrderR { id: string; raqami: number; ismi: string; alyumin: number; plast: number; termo: number; umumiy: number; soni: number; dogovor: number; foyda: number; holati: string }
 interface SalR { id: string; name: string; rate: string | null; etap: { id: string; amount: number; date: string }[]; oldi: number; oyligi: number }
-interface PrixodR { id: string; date: string; raqami: number; ismi: string; amount: number; note: string | null }
-interface RasxodR { id: string; date: string; category: string; category_id: number; amount: number; note: string | null; employee: string | null }
+// storno: строка отмены/возврата (со знаком «−»); сумма всех строк месяца = итог, правке не подлежит
+interface PrixodR { id: string; date: string; raqami: number; ismi: string; amount: number; note: string | null; storno?: boolean }
+interface RasxodR { id: string; date: string; category: string; category_id: number; amount: number; note: string | null; employee: string | null; storno?: boolean }
 interface Month {
   month: string
   orders: OrderR[]
@@ -82,19 +83,19 @@ export default function Savdo() {
     { key: 'qoldiq', label: 'QOLDIQ', type: 'money', width: 110, total: true, className: (r) => (r.qoldiq > 0 ? 'neg' : '') },
   ]
   const prixodCols: Col<PrixodR>[] = [
-    { key: 'date', label: 'SANA', type: 'date', width: 100, editable: true, sticky: true },
+    { key: 'date', label: 'SANA', type: 'date', width: 100, editable: (r) => !r.storno, sticky: true },
     { key: 'raqami', label: 'ISH №', width: 70 },
     { key: 'ismi', label: 'MIJOZ', width: 200 },
-    { key: 'amount', label: 'PRIXOD', type: 'money', width: 130, editable: true, total: true },
-    { key: 'note', label: 'IZOH', width: 220, editable: true },
+    { key: 'amount', label: 'PRIXOD', type: 'money', width: 130, editable: (r) => !r.storno, total: true, className: (r) => (r.storno ? 'neg' : '') },
+    { key: 'note', label: 'IZOH', width: 220, editable: (r) => !r.storno },
   ]
   const catOpts = (d?.categories ?? []).map((c) => ({ value: String(c.id), label: c.name }))
   const rasxodCols: Col<RasxodR>[] = [
-    { key: 'date', label: 'SANA', type: 'date', width: 100, editable: true, sticky: true },
-    { key: 'category_id', label: 'KATEGORIYA', type: 'select', width: 170, editable: true, options: catOpts, render: (r) => r.category },
-    { key: 'note', label: 'SABABI', width: 240, editable: true },
+    { key: 'date', label: 'SANA', type: 'date', width: 100, editable: (r) => !r.storno, sticky: true },
+    { key: 'category_id', label: 'KATEGORIYA', type: 'select', width: 170, editable: (r) => !r.storno, options: catOpts, render: (r) => r.category },
+    { key: 'note', label: 'SABABI', width: 240, editable: (r) => !r.storno },
     { key: 'employee', label: 'XODIM', width: 140 },
-    { key: 'amount', label: 'SUMMA', type: 'money', width: 130, editable: true, total: true },
+    { key: 'amount', label: 'SUMMA', type: 'money', width: 130, editable: (r) => !r.storno, total: true, className: (r) => (r.storno ? 'neg' : '') },
   ]
   const catRows = (d?.by_category ?? []).map((c) => ({ id: c.name, ...c }))
   const catCols: Col<(typeof catRows)[number]>[] = [

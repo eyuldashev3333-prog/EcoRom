@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../supabase'
+import { asPage, fetchAll } from '../lib/fetchAll'
 import { formatSum } from '../lib/pricing'
 import { fmtQty, loadStock, stockKey, unitLabel, type StockRow } from '../lib/stock'
 import { uz } from '../uz'
@@ -51,12 +52,18 @@ export default function Purchases() {
   const [bars, setBars] = useState<Record<string, { n: string; len: string }>>({})
 
   const loadList = useCallback(async () => {
-    const { data } = await supabase
-      .from('purchases')
-      .select('id, purchased_at, total, delivery_cost, note, reverses_id, suppliers(name), purchase_items(qty, part, catalog_items(name))')
-      .order('created_at', { ascending: false })
-      .limit(100)
-    setList((data as unknown as Purchase[]) ?? [])
+    // весь журнал закупок страницами (раньше limit(100) показывал только последние)
+    const { data } = await fetchAll<Purchase>((a, b) =>
+      asPage<Purchase>(
+        supabase
+          .from('purchases')
+          .select('id, purchased_at, total, delivery_cost, note, reverses_id, suppliers(name), purchase_items(qty, part, catalog_items(name))')
+          .order('created_at', { ascending: false })
+          .order('id')
+          .range(a, b),
+      ),
+    200)
+    setList(data)
   }, [])
   useEffect(() => {
     loadStock().then(setStock)

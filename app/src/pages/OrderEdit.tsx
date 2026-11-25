@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../supabase'
+import { asPage, fetchAll } from '../lib/fetchAll'
 import WindowSvg from '../components/WindowSvg'
 import OrderCard from '../components/OrderCard'
 import { RahbarActions } from '../components/OrderActions'
@@ -81,7 +82,7 @@ export default function OrderEdit() {
   const [bkTick, setBkTick] = useState(0) // обновить список боя стекла после новой записи
 
   useEffect(() => {
-    supabase.from('clients').select('id, full_name, phone, address').order('full_name').limit(2000).then(({ data }) => setClients((data as ClientRow[]) ?? []))
+    fetchAll<ClientRow>((a, b) => asPage(supabase.from('clients').select('id, full_name, phone, address').order('full_name').order('id').range(a, b))).then(({ data }) => setClients(data))
   }, [])
 
   useEffect(() => {

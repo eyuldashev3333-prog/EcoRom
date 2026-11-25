@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../supabase'
+import { asPage, fetchAll } from '../lib/fetchAll'
 import { formatSum } from '../lib/pricing'
 import { signedUrls } from '../lib/photo'
 import { uz } from '../uz'
@@ -47,15 +48,18 @@ export default function ServiceTickets({ orderId, onlyOpen = false, reloadKey = 
   const [err, setErr] = useState('')
 
   const load = useCallback(async () => {
-    let q = supabase
-      .from('service_tickets')
-      .select('*, orders(order_no, clients(full_name)), order_items(pos, width_mm, height_mm), assignee:employees!assigned_to(full_name)')
-      .order('created_at', { ascending: false })
-      .limit(300)
-    if (orderId) q = q.eq('order_id', orderId)
-    if (onlyOpen) q = q.neq('status', 'closed')
-    const { data } = await q
-    const list = ((data as unknown as Ticket[]) ?? []).map((r) => ({ ...r, cost: Number(r.cost) }))
+    // читаем ВСЕ заявки страницами (раньше limit(300) молча терял старые)
+    const { data } = await fetchAll<Ticket>((a, b) => {
+      let q = supabase
+        .from('service_tickets')
+        .select('*, orders(order_no, clients(full_name)), order_items(pos, width_mm, height_mm), assignee:employees!assigned_to(full_name)')
+        .order('created_at', { ascending: false })
+        .order('id')
+      if (orderId) q = q.eq('order_id', orderId)
+      if (onlyOpen) q = q.neq('status', 'closed')
+      return asPage<Ticket>(q.range(a, b))
+    })
+    const list = data.map((r) => ({ ...r, cost: Number(r.cost) }))
     setRows(list)
     onLoaded?.(list)
     setUrls(await signedUrls(list.flatMap((r) => [...(r.photo_paths ?? []), ...(r.work_photo_paths ?? [])])))

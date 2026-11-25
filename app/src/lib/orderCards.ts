@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../supabase'
+import { asPage, fetchAll } from './fetchAll'
 import type { WindowDesign } from './window'
 
 // Данные карточек заказов (одни и те же карточки в «Savdo» и в «Montaj va servis»)
@@ -90,16 +91,17 @@ export function useOrderCards(): { cards: CardData[] | null; names: Map<string, 
   useEffect(() => {
     let live = true
     ;(async () => {
+      // каждая выборка читается страницами до конца: PostgREST режет ответ по max_rows=1000 молча (раньше limit(5000/400/3000) тихо терял заказы)
       const [all, act, paid, ws, svc, jobs, emps, checks, photos] = await Promise.all([
-        supabase.from('orders').select(SELECT).order('order_no', { ascending: false }).limit(5000),
-        supabase.from('orders').select(`${SELECT}, order_items(pos, design, glass_status)`).in('status', ACTIVE).eq('is_imported', false).order('order_no', { ascending: false }).limit(400),
-        supabase.from('v_order_paid').select('order_id, debt'),
+        fetchAll((a, b) => asPage(supabase.from('orders').select(SELECT).order('order_no', { ascending: false }).order('id').range(a, b))),
+        fetchAll((a, b) => asPage(supabase.from('orders').select(`${SELECT}, order_items(pos, design, glass_status)`).in('status', ACTIVE).eq('is_imported', false).order('order_no', { ascending: false }).order('id').range(a, b)), 250),
+        fetchAll((a, b) => asPage(supabase.from('v_order_paid').select('order_id, debt').order('order_id').range(a, b))),
         supabase.rpc('workshop_state'),
-        supabase.from('service_tickets').select('order_id').neq('status', 'closed'),
-        supabase.from('install_jobs').select('id, order_id, status, plan_date, accepted_by, created_at, install_job_members(employee_id)').order('created_at', { ascending: false }),
-        supabase.from('employees').select('id, full_name'),
-        supabase.from('order_material_checks').select('order_id, result, note, created_at, employee_id').order('created_at').limit(3000),
-        supabase.from('install_order_photos').select('order_id'),
+        fetchAll((a, b) => asPage(supabase.from('service_tickets').select('order_id').neq('status', 'closed').order('id').range(a, b))),
+        fetchAll((a, b) => asPage(supabase.from('install_jobs').select('id, order_id, status, plan_date, accepted_by, created_at, install_job_members(employee_id)').order('created_at', { ascending: false }).order('id').range(a, b))),
+        fetchAll((a, b) => asPage(supabase.from('employees').select('id, full_name').order('id').range(a, b))),
+        fetchAll((a, b) => asPage(supabase.from('order_material_checks').select('order_id, result, note, created_at, employee_id').order('created_at').order('id').range(a, b))),
+        fetchAll((a, b) => asPage(supabase.from('install_order_photos').select('order_id').order('id').range(a, b))),
       ])
       if (!live) return
       const items = new Map<string, { pos: number; design: WindowDesign; glass_status: string | null }[]>()

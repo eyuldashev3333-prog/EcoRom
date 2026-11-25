@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../supabase'
+import { asPage, fetchAll } from '../lib/fetchAll'
 import { Dialog } from '../components/Dialog'
 import { formatSum } from '../lib/pricing'
 import { fmtQty, loadStock, stockKey, unitLabel, type StockRow } from '../lib/stock'
@@ -67,10 +68,12 @@ export default function Stock() {
 
   const load = async () => {
     setRows(await loadStock())
-    const from = new Date()
-    from.setDate(1)
-    const { data } = await supabase.from('stock_movements').select('qty, unit_cost').eq('kind', 'adjust').lt('qty', 0).gte('created_at', from.toISOString().slice(0, 10))
-    setMonthLoss(((data as { qty: number; unit_cost: number | null }[]) ?? []).reduce((s, m) => s - Number(m.qty) * Number(m.unit_cost ?? 0), 0))
+    // начало месяца — по Ташкенту (раньше брали UTC-дату локального «1-е число» и ловили сдвиг на сутки)
+    const monthStart = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Tashkent' }).slice(0, 7) + '-01'
+    const { data } = await fetchAll<{ qty: number; unit_cost: number | null }>((a, b) =>
+      asPage(supabase.from('stock_movements').select('qty, unit_cost').eq('kind', 'adjust').lt('qty', 0).gte('created_at', monthStart).order('id').range(a, b)),
+    )
+    setMonthLoss(data.reduce((s, m) => s - Number(m.qty) * Number(m.unit_cost ?? 0), 0))
   }
   useEffect(() => {
     load()

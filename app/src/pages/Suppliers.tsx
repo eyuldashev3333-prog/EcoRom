@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../supabase'
+import { asPage, fetchAll } from '../lib/fetchAll'
 import { formatSum } from '../lib/pricing'
 import { uz } from '../uz'
 
@@ -37,8 +38,8 @@ export default function Suppliers() {
   const [busy, setBusy] = useState(false)
 
   const load = useCallback(async () => {
-    const { data } = await supabase.from('v_supplier_debt').select('*').eq('is_active', true).order('name')
-    setRows(((data as Row[]) ?? []).map((r) => ({ ...r, purchased: Number(r.purchased), paid: Number(r.paid), debt: Number(r.debt) })))
+    const { data } = await fetchAll<Row>((a, b) => asPage<Row>(supabase.from('v_supplier_debt').select('*').eq('is_active', true).order('name').order('supplier_id').range(a, b)))
+    setRows((data ?? []).map((r) => ({ ...r, purchased: Number(r.purchased), paid: Number(r.paid), debt: Number(r.debt) })))
   }, [])
   const loadHist = useCallback(async (id: string) => {
     const [p, s] = await Promise.all([

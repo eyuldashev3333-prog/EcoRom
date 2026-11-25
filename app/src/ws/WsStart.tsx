@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
+import { asPage, fetchAll } from '../lib/fetchAll'
 import { uz } from '../uz'
 import './ws.css'
 import { Phone } from './parts'
@@ -109,7 +110,9 @@ export function WsCustomers() {
   const [rows, setRows] = useState<Draft[] | null>(null)
   const [sel, setSel] = useState<string | null>(null)
   useEffect(() => {
-    supabase.from('clients').select('id, full_name, phone, address').order('full_name').limit(3000).then(({ data }) => setRows(((data as { id: string; full_name: string; phone: string | null; address: string | null }[]) ?? []).map((c) => ({ id: c.id, full_name: c.full_name, phone: c.phone ?? '', address: c.address ?? '' }))))
+    fetchAll<{ id: string; full_name: string; phone: string | null; address: string | null }>((a, b) =>
+      asPage(supabase.from('clients').select('id, full_name, phone, address').order('full_name').order('id').range(a, b)),
+    ).then(({ data }) => setRows(data.map((c) => ({ id: c.id, full_name: c.full_name, phone: c.phone ?? '', address: c.address ?? '' }))))
   }, [])
   const chosen = rows?.find((r) => r.id === sel)
   return (
@@ -213,12 +216,9 @@ export function WsOrders() {
   const [sel, setSel] = useState<string | null>(null)
   const [az, setAz] = useState(false)
   useEffect(() => {
-    supabase
-      .from('orders')
-      .select('id, address, windows_count, created_at, clients(id, full_name, created_at)')
-      .order('created_at', { ascending: false })
-      .limit(1500)
-      .then(({ data }) => setRows((data as unknown as OrderRow[]) ?? []))
+    fetchAll<OrderRow>((a, b) =>
+      asPage<OrderRow>(supabase.from('orders').select('id, address, windows_count, created_at, clients(id, full_name, created_at)').order('created_at', { ascending: false }).order('id').range(a, b)),
+    ).then(({ data }) => setRows(data))
   }, [])
   const groups = new Map<string, { name: string; at: string; orders: OrderRow[] }>()
   for (const r of rows ?? []) {

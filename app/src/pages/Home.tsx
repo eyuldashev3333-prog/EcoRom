@@ -39,18 +39,12 @@ function useRahbarData(enabled: boolean): RahbarData {
     const up = (p: Partial<RahbarData>) => setD((x) => ({ ...x, ...p }))
     supabase.rpc('leaks_report').then(({ data }) => data && up({ leaks: data as Leaks }))
     supabase.rpc('workshop_state').then(({ data }) => data && up({ zavod: data as ZavodState }))
-    supabase.from('service_tickets').select('id', { count: 'exact', head: true }).neq('status', 'closed').then(({ count }) => up({ openService: count ?? 0 }))
-    supabase.from('v_supplier_debt').select('debt').then(({ data }) => up({ supDebt: ((data as { debt: string }[]) ?? []).reduce((a, x) => a + Math.max(0, Number(x.debt)), 0) }))
-    // долг клиентов: только по активным заказам (без отменённых)
-    Promise.all([supabase.from('v_order_paid').select('order_id, debt'), supabase.from('orders').select('id').neq('status', 'cancelled')]).then(([dd, o]) => {
-      const active = new Set(((o.data as { id: string }[]) ?? []).map((x) => x.id))
-      up({ debt: ((dd.data as { order_id: string; debt: string }[]) ?? []).filter((x) => active.has(x.order_id)).reduce((a, x) => a + Math.max(0, Number(x.debt)), 0) })
+    // все цифры считает сервер одним запросом (home_summary): касса, долги (без отменённых), число заказов, открытый сервис
+    supabase.rpc('home_summary').then(({ data }) => {
+      const s = data as { cash: number; since: string | null; client_debt: number; supplier_debt: number; orders: number; open_service: number } | null
+      if (!s) return
+      up({ cash: Number(s.cash), since: s.since ?? '', debt: Number(s.client_debt), supDebt: Number(s.supplier_debt), orders: Number(s.orders), openService: Number(s.open_service) })
     })
-    supabase.from('v_cash_balance').select('cash, since').maybeSingle().then(({ data }) => {
-      const c = data as { cash: string; since: string } | null
-      up({ cash: Number(c?.cash ?? 0), since: c?.since ?? '' })
-    })
-    supabase.from('orders').select('id', { count: 'exact', head: true }).then(({ count }) => up({ orders: count ?? 0 }))
   }, [enabled])
   return d
 }

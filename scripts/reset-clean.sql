@@ -24,7 +24,6 @@ delete from purchase_drafts;
 delete from stock_movements;
 delete from offcuts;
 -- заказы и всё, что к ним привязано
-delete from install_photo_wait;
 delete from install_order_photos;
 delete from glass_breakages;
 delete from service_tickets;
