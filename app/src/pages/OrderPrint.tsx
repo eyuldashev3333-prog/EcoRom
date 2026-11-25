@@ -57,7 +57,7 @@ export default function OrderPrint() {
   const [params, setParams] = useSearchParams()
   const mode: Mode = (MODES as string[]).includes(params.get('mode') ?? '') ? (params.get('mode') as Mode) : 'client'
   const showPrice = mode === 'client' || mode === 'offer'
-  const [reqOpen, setReqOpen] = useState(false)
+  const [reqOpen, setReqOpen] = useState(params.get('req') === '1') // из меню редактора «Rekvizitlar» сразу открывается окно реквизитов
   const catalog = useCatalog()
   const [order, setOrder] = useState<Order | null>(null)
   const [items, setItems] = useState<Item[]>([])

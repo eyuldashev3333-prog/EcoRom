@@ -6,6 +6,7 @@ import BottomNav from './shell/BottomNav'
 import { useAuth } from './auth'
 import { uz } from './uz'
 import Login from './pages/Login'
+import RouteBoundary from './components/RouteBoundary'
 import Home from './pages/Home'
 import Catalog from './pages/Catalog'
 import Exchange from './pages/Exchange'
@@ -80,9 +81,10 @@ export default function App() {
       <div className="main">
       <TopBar />
       {home ? (
-        <Home />
+        <RouteBoundary><Home /></RouteBoundary>
       ) : (
       <main className={loc.pathname.startsWith('/jadval') ? 'page wide' : 'page'} key={loc.pathname}>
+        <RouteBoundary key={loc.pathname}>
         <Routes>
           <Route path="/catalog" element={me.role === 'rahbar' ? <Catalog /> : <Navigate to="/" />} />
           <Route path="/exchange" element={me.role === 'rahbar' ? <Exchange /> : <Navigate to="/" />} />
@@ -146,6 +148,7 @@ export default function App() {
           <Route path="/jadval/savdo" element={me.role === 'rahbar' ? <Suspense fallback={<p className="muted">{uz.loading}</p>}><Savdo /></Suspense> : <Navigate to="/" />} />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
+        </RouteBoundary>
       </main>
       )}
       </div>

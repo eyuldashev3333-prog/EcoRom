@@ -344,8 +344,8 @@ a.r:hover, button.r:hover { background: var(--hover); color: var(--ink); }
 .team-list .check { padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--bg-elev); }
 
 /* карточки заказов (канбан) */
-.kanban { display: grid; gap: 12px; align-items: start; grid-template-columns: repeat(4, minmax(0, 1fr)); }
-@media (min-width: 900px) and (max-width: 1199px) { .kanban { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.kanban { display: grid; gap: 12px; align-items: start; grid-template-columns: repeat(5, minmax(0, 1fr)); }
+@media (min-width: 900px) and (max-width: 1399px) { .kanban { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .kcol { background: var(--bg-sunk, #f3f4f6); border: 1px solid var(--line); border-radius: var(--r-lg, 12px); padding: 8px; display: grid; gap: 8px; min-width: 0; }
 .kcol > header { display: flex; justify-content: space-between; align-items: center; padding: 4px 6px; font-size: 12px; font-weight: 600; letter-spacing: .02em; text-transform: uppercase; color: var(--ink-2); }
 .kcol > header b { font-variant-numeric: tabular-nums; background: var(--bg-elev); border: 1px solid var(--line); border-radius: 999px; padding: 0 8px; }

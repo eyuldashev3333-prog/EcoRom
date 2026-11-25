@@ -7,6 +7,9 @@ export const uz = {
   password: 'Parol',
   signIn: 'Kirish',
   signOut: 'Chiqish',
+  screenCrashed: "Bu ekranda xatolik yuz berdi. Boshqa bo'limlar ishlayveradi — sahifani yangilang yoki bosh sahifaga qayting.",
+  reload: 'Yangilash',
+  toHome: 'Bosh sahifa',
   loginSub: 'Zavod boshqaruv tizimi',
   wrongLogin: "Login yoki parol noto'g'ri",
   tgHint: "Bir marta login va parol bilan kiring — keyingi safar Telegram orqali avtomatik kirasiz.",
@@ -55,7 +58,7 @@ export const uz = {
     noData: "Bu oyda xarajat yo'q",
   },
   cards: {
-    columns: { new: 'Yangi', shop: 'Ishlab chiqarishda', ready: 'Tayyor', install: "O'rnatishda", done: 'Yakunlangan' } as Record<string, string>,
+    columns: { new: 'Yangi', shop: 'Ishlab chiqarishda', ready: 'Tayyor', install: "O'rnatishda", pay: "Yakunlash (qarz / yopish)", done: 'Yakunlangan' } as Record<string, string>,
     deadline: 'Muddat',
     noDeadline: 'Muddat qo‘yilmagan',
     daysLeft: 'kun qoldi',
@@ -87,6 +90,7 @@ export const uz = {
   // кнопки под карточкой заказа (канбан): у каждой колонки и роли свои
   flow: {
     toShop: 'Zavodga yuborish',
+    closeOrder: 'Buyurtmani yopish',
     resend: 'Zavodga qayta yuborish',
     whoWorks: 'Kim ishlaydi?',
     waiting: 'Zavod javobini kutmoqda',

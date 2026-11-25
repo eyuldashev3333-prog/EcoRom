@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useEffect, useMemo, useState } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import OrderCard from '../components/OrderCard'
 import { RahbarActions } from '../components/OrderActions'
 import { columnOf, useOrderCards, type CardData, type Column } from '../lib/orderCards'
@@ -8,13 +8,15 @@ import { uz } from '../uz'
 
 const t = uz.order
 const c = uz.cards
-const COLS: Column[] = ['new', 'shop', 'ready', 'install'] // завершённые — отдельный экран (/orders/done)
+const COLS: Column[] = ['new', 'shop', 'ready', 'install', 'pay'] // закрытые — отдельный экран (/orders/done)
 const tashkentMonth = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Tashkent' }).slice(0, 7)
 
 // Заказы канбаном: колонки по этапам, под каждой карточкой — кнопки своей колонки (нажал — карточка сразу переехала)
 export function OrdersBoard() {
   const { cards, names, reload } = useOrderCards()
-  const [q, setQ] = useState(() => new URLSearchParams(window.location.hash.split('?')[1] ?? '').get('q') ?? '') // глобальный поиск из шапки
+  const [sp] = useSearchParams()
+  const [q, setQ] = useState(sp.get('q') ?? '') // глобальный поиск из шапки
+  useEffect(() => setQ(sp.get('q') ?? ''), [sp]) // повторный поиск из шапки обновляет строку списка
   const [sort, setSort] = useState<'no' | 'name' | 'deadline'>('no')
   const [byMonth, setByMonth] = useState(false)
   const [month, setMonth] = useState(tashkentMonth())

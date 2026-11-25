@@ -17,9 +17,9 @@ interface Person {
 
 // ---------- Rahbar (канбан «Savdo») ----------
 // compact — в канбане: только главная кнопка колонки; в карточке заказа — все
-export function RahbarActions({ c, onDone, compact = false }: { c: CardData; onDone: () => void; compact?: boolean }) {
+export function RahbarActions({ c, onDone, compact = false, autoOpen }: { c: CardData; onDone: () => void; compact?: boolean; autoOpen?: 'shop' | 'team' }) {
   // стекло — в блоке «Shisha» карточки заказа (там же размеры), здесь только движение заказа по колонкам
-  const [dlg, setDlg] = useState<null | 'shop' | 'team' | 'install' | 'ready' | 'done'>(null)
+  const [dlg, setDlg] = useState<null | 'shop' | 'team' | 'install' | 'ready' | 'done'>(autoOpen ?? null) // autoOpen: из меню редактора «Zavodga yuborish» сразу открывается выбор команды
   const [err, setErr] = useState<string | null>(null)
   const close = () => setDlg(null)
   const finish = () => {
@@ -53,6 +53,11 @@ export function RahbarActions({ c, onDone, compact = false }: { c: CardData; onD
           <button type="button" onClick={() => setDlg('done')}>{f.installed}</button>
           {!compact && <button type="button" className="ghost" onClick={() => setDlg('install')}>{f.install}</button>}
         </>
+      )}
+      {c.status === 'installed' && (
+        <button type="button" onClick={() => rpc('set_order_status', { p_order: c.id, p_status: 'closed' })}>
+          {f.closeOrder}
+        </button>
       )}
       {err && <p className="warn small" style={{ flexBasis: '100%', margin: 0 }}>{err}</p>}
 

@@ -291,7 +291,7 @@ export default function WsEditor() {
           <button type="button" className="m3" disabled={needSaved} onClick={() => go(`/orders/${id}/print?mode=offer`)}>
             {t.pdfOffer}
           </button>
-          <button type="button" className="m4" disabled={needSaved} onClick={() => go(`/orders/${id}/print?mode=offer`)}>
+          <button type="button" className="m4" disabled={needSaved} onClick={() => go(`/orders/${id}/print?mode=offer&req=1`)}>
             {t.requisites}
           </button>
           <button type="button" className="m5" disabled={needSaved} onClick={() => go(`/orders/${id}`)}>

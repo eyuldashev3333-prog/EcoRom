@@ -3,6 +3,7 @@ import { supabase } from '../supabase'
 import { itemColor, useCatalog } from '../lib/catalog'
 import { shopLegend } from '../lib/legend'
 import { itemPrice, round2 } from '../lib/pricing'
+import { suggestedTotal } from '../lib/orderPrice'
 import { quoteItem, workCost, type ItemOptions, type Material, type QuoteLine } from '../lib/quote'
 import { designProblems, measure, type WindowDesign } from '../lib/window'
 import { newDesign } from '../lib/window'
@@ -172,7 +173,7 @@ export function useWsOrder(paramId?: string) {
   const cost = calc.reduce((s, c, i) => s + c.q.cost * items[i].qty, 0)
   const area = calc.reduce((s, c, i) => s + c.m.area_m2 * items[i].qty, 0)
   const windows = items.reduce((s, it) => s + it.qty, 0)
-  const suggested = round2(items.reduce((s, it, i) => s + prices[i].withDiscount * it.qty, 0) * taxK)
+  const suggested = suggestedTotal(prices.map((p) => p.withDiscount), items.map((it) => it.qty), taxK)
   // договор: если он когда-то правился руками (не равен округлённой расчётной цене) — оставляем; иначе следует за расчётом
   const manualContract = savedContract > 0 && savedContract !== roundDown1000(savedSuggested)
   const contract = manualContract ? savedContract : roundDown1000(suggested)

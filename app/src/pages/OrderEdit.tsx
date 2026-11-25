@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useRef } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { supabase } from '../supabase'
 import { asPage, fetchAll } from '../lib/fetchAll'
 import WindowSvg from '../components/WindowSvg'
@@ -18,6 +18,7 @@ import BreakageList from '../components/BreakageList'
 import CuttingPlan from '../components/CuttingPlan'
 import { itemColor, useCatalog } from '../lib/catalog'
 import { formatSum, itemPrice, profit, round2 } from '../lib/pricing'
+import { suggestedTotal } from '../lib/orderPrice'
 import { quoteItem, workCost, type ItemOptions, type Material, type QuoteLine } from '../lib/quote'
 import { designProblems, measure, type WindowDesign } from '../lib/window'
 import { uz } from '../uz'
@@ -53,6 +54,8 @@ const roundDown1000 = (n: number) => Math.floor(n / 1000) * 1000
 
 export default function OrderEdit() {
   const { id } = useParams()
+  const [search] = useSearchParams()
+  const sendParam = search.get('send') === '1' // пришли из меню редактора «Zavodga yuborish»
   const version = useRef<string | null>(null) // updated_at заказа: сервер отклонит сохранение из устаревшей вкладки
   const requestId = useRef(crypto.randomUUID()) // повтор запроса «новый заказ» не создаст второй
   const nav = useNavigate()
@@ -131,18 +134,17 @@ export default function OrderEdit() {
   const taxK = 1 + catalog.settings.taxPct / 100 // налог из прайса (по умолчанию 0)
   // прайс в одной валюте ($), результат в другой (so'm), а курс не введён — суммы были бы неверными
   const rateMissing = catalog.settings.currency !== catalog.settings.resultCurrency && catalog.settings.rate === 1
+  // цены окон без налога; налог — один раз на сумму (та же формула, что в редакторе «как WinStudio»: lib/orderPrice.ts)
   const itemPrices = items.map((it, i) =>
-    round2(
-      itemPrice(calc[i]?.q.cost ?? 0, workCost(calc[i]?.q.lines ?? []), markupUsed, discount, it.options, catalog.settings.schemes.find((s) => s.id === it.options.scheme)) * taxK,
-    ),
+    round2(itemPrice(calc[i]?.q.cost ?? 0, workCost(calc[i]?.q.lines ?? []), markupUsed, discount, it.options, catalog.settings.schemes.find((s) => s.id === it.options.scheme))),
   )
-  const suggested = round2(items.reduce((s, it, i) => s + itemPrices[i] * it.qty, 0))
+  const qtys = items.map((it) => it.qty)
+  const suggested = suggestedTotal(itemPrices, qtys, taxK)
   // цена без общей скидки: из неё и процента получается сумма скидки
-  const fullPrice = round2(
-    items.reduce(
-      (s, it, i) => s + round2(itemPrice(calc[i]?.q.cost ?? 0, workCost(calc[i]?.q.lines ?? []), markupUsed, 0, it.options, catalog.settings.schemes.find((x) => x.id === it.options.scheme)) * taxK) * it.qty,
-      0,
-    ),
+  const fullPrice = suggestedTotal(
+    items.map((it, i) => round2(itemPrice(calc[i]?.q.cost ?? 0, workCost(calc[i]?.q.lines ?? []), markupUsed, 0, it.options, catalog.settings.schemes.find((x) => x.id === it.options.scheme)))),
+    qtys,
+    taxK,
   )
   const pctSum = discount > 0 ? Math.max(0, Math.round(fullPrice - suggested)) : 0
   const liveCost = calc.reduce((s, c, i) => s + c.live.cost * items[i].qty, 0)
@@ -259,7 +261,7 @@ export default function OrderEdit() {
       {card && !imported && (
         <div className="ocard-solo">
           <OrderCard c={card} names={names}>
-            <RahbarActions c={card} onDone={afterAction} />
+            <RahbarActions c={card} onDone={afterAction} autoOpen={sendParam && (card.status === 'new' || card.status === 'in_production') ? 'shop' : undefined} />
           </OrderCard>
         </div>
       )}

@@ -49,9 +49,10 @@ export function glassOf(list: (string | null | undefined)[]): GlassState {
   return [...s][0] as GlassState
 }
 
-export type Column = 'new' | 'shop' | 'ready' | 'install' | 'done'
+export type Column = 'new' | 'shop' | 'ready' | 'install' | 'pay' | 'done'
+// «pay» — установлен, но ещё не закрыт: сюда попадают заказы с долгом (собрать оплату) и без фото (закрыть нельзя); раньше они пропадали с доски
 export const columnOf = (status: string): Column =>
-  status === 'new' ? 'new' : status === 'in_production' ? 'shop' : status === 'ready' ? 'ready' : status === 'installing' ? 'install' : 'done'
+  status === 'new' ? 'new' : status === 'in_production' ? 'shop' : status === 'ready' ? 'ready' : status === 'installing' ? 'install' : status === 'installed' ? 'pay' : 'done'
 
 const ACTIVE = ['new', 'in_production', 'ready', 'installing', 'installed']
 const DAY = 864e5
