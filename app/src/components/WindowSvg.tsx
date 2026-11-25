@@ -211,6 +211,10 @@ export default function WindowSvg({ design, frameColor = '#f4f4f2', selectedId, 
               {!leaf.panel && openingLines(leaf.opening, ly.glass).map((d, i) => (
                 <path key={i} d={d} fill="none" stroke="#1a1a1a" strokeWidth={stroke * 1.1} />
               ))}
+              {/* дверь: цоколь (нижняя накладка) у створки — на чертеже, печати и в цехе дверь отличается от обычной створки */}
+              {leaf.door && ly.sash && (
+                <rect x={ly.sash.x + sashBody * 0.5} y={ly.sash.y + ly.sash.h - sashBody * 0.9} width={Math.max(0, ly.sash.w - sashBody)} height={sashBody * 0.55} fill="#8d97a1" stroke={C.line} strokeWidth={stroke} />
+              )}
               {leaf.opening === 'fixed' && !leaf.panel && (
                 <path
                   d={`M${ly.glass.x + ly.glass.w / 2 - CROSS},${ly.glass.y + ly.glass.h / 2} h${CROSS * 2} M${ly.glass.x + ly.glass.w / 2},${ly.glass.y + ly.glass.h / 2 - CROSS} v${CROSS * 2}`}
