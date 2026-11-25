@@ -96,7 +96,7 @@ export default function WsEditor() {
     return () => clearTimeout(h)
   }, [toast])
   useEffect(() => {
-    if (w.save.state === 'error') setToast({ text: `${t.saveError}: ${w.save.text ?? ''}`, bad: true })
+    if (w.save.state === 'error' && !w.conflict && w.save.text !== 'network') setToast({ text: `${t.saveError}: ${w.save.text ?? ''}`, bad: true })
   }, [w.save])
   // меню закрывается клавишей Esc (на ПК)
   useEffect(() => {
@@ -163,6 +163,14 @@ export default function WsEditor() {
     <Phone>
       <div className="ws-titlebar">{t.brand}</div>
       {ro && <div className="ws-banner">{t.locked}</div>}
+      {w.save.state === 'error' && w.conflict && (
+        <div className="ws-banner bad">
+          {t.saveConflict} <button type="button" className="ws-linkbtn" onClick={() => window.location.reload()}>{t.reload}</button>
+        </div>
+      )}
+      {w.save.state === 'error' && !w.conflict && <div className="ws-banner bad">{w.save.text === 'network' ? t.saveNetwork : `${t.saveError}: ${w.save.text ?? ''}`}</div>}
+      {w.warnings.includes('below_cost') && <div className="ws-banner">{t.warnBelowCost}</div>}
+      {w.warnings.includes('price_zero') && <div className="ws-banner">{t.warnPriceZero}</div>}
       <div className="ws-edit">
         <div className="ws-canvas">
           <button type="button" className="ws-burger" aria-label={t.menu} onClick={() => setShowMenu(true)}>

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useRef } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../supabase'
 import { asPage, fetchAll } from '../lib/fetchAll'
@@ -53,6 +53,8 @@ const roundDown1000 = (n: number) => Math.floor(n / 1000) * 1000
 
 export default function OrderEdit() {
   const { id } = useParams()
+  const version = useRef<string | null>(null) // updated_at заказа: сервер отклонит сохранение из устаревшей вкладки
+  const requestId = useRef(crypto.randomUUID()) // повтор запроса «новый заказ» не создаст второй
   const nav = useNavigate()
   const catalog = useCatalog()
   const [marginAlert, setMarginAlert] = useState(15) // порог низкой маржи, % (app_settings.margin_alert_pct)
@@ -90,6 +92,7 @@ export default function OrderEdit() {
     ;(async () => {
       const { data: o } = await supabase.from('orders').select('*, clients(id, full_name, phone, address)').eq('id', id).maybeSingle()
       if (!o) return setMsg({ ok: false, text: t.notFound })
+      version.current = o.updated_at ?? null
       setOrderNo(o.order_no)
       setStatus(o.status)
       setClient({ id: o.clients.id, full_name: o.clients.full_name, phone: o.clients.phone ?? '', address: o.clients.address ?? '' })
@@ -203,6 +206,8 @@ export default function OrderEdit() {
     setMsg(null)
     const payload = {
       id: id ?? null,
+      request_id: id ? undefined : requestId.current,
+      version: id ? version.current : undefined,
       client,
       address: address || client.address,
       contact_phone: client.phone,
@@ -237,6 +242,7 @@ export default function OrderEdit() {
     if (error) return setMsg({ ok: false, text: error.message })
     setMsg({ ok: true, text: data.resent ? t.resentOk : `${t.saved} #${data.order_no}` })
     setOrderNo(data.order_no)
+    version.current = (data.version as string) ?? version.current
     setSavedContract(contractNum)
     if (!id) nav(`/orders/${data.id}`, { replace: true })
   }

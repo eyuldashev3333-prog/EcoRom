@@ -219,6 +219,8 @@
 .ws-root .ws-toast { position: absolute; left: 50%; bottom: 90px; transform: translateX(-50%); background: rgba(40, 40, 40, 0.92); color: #fff; padding: 8px 14px; font-size: 13px; z-index: 40; max-width: 86%; text-align: center; }
 .ws-root .ws-toast.bad { background: rgba(160, 30, 30, 0.95); }
 .ws-root .ws-banner { flex: none; background: #fff3cd; color: #6b4e00; font-size: 12px; text-align: center; padding: 3px 8px; }
+.ws-root .ws-banner.bad { background: #f8d7da; color: #7a1c24; }
+.ws-root .ws-linkbtn { background: none; border: 0; color: inherit; text-decoration: underline; font: inherit; cursor: pointer; padding: 0 4px; }
 
 .ws-root .ws-ocust { background: #1d5e0c; color: #fff; padding: 6px 8px; font-size: 15px; }
 .ws-root .ws-ocust small, .ws-root .ws-oord small { display: block; font-size: 12px; opacity: 0.75; }

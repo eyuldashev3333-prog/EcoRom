@@ -26,6 +26,14 @@ export interface WsClient {
 }
 
 const newKey = () => Math.random().toString(36).slice(2)
+// сетевая ошибка (fetch) в supabase-js приходит как error, но на всякий случай ловим и исключение
+const callSave = async (payload: unknown) => {
+  try {
+    return await supabase.rpc('save_order', { p: payload })
+  } catch (e) {
+    return { data: null, error: { message: String(e) } } as { data: null; error: { message: string } }
+  }
+}
 const roundDown1000 = (n: number) => Math.floor(n / 1000) * 1000
 export const wsNewKey = newKey
 export const wsNewDesign = () => newDesign(1500, 1500)
@@ -35,6 +43,7 @@ export type SaveState = 'idle' | 'saving' | 'saved' | 'error'
 // Загрузка заказа, расчёт каждого окна и автосохранение (как WinStudio: отдельной кнопки «сохранить» нет).
 // Автосохранение работает только пока заказ «Yangi»; в цехе правки уходят только явным «Сохранить» (заказ повторно уйдёт в цех).
 export const WS_DRAFT_KEY = 'ecorom.wsdraft'
+export const WS_REQ_KEY = 'ecorom.wsreq'
 
 // paramId — заказ из базы; без него — черновик нового заказа (мастер «новый заказ»): в базу он попадает вместе с первым окном,
 // потому что сервер не принимает заказ без окон (миграция 042).
@@ -56,7 +65,25 @@ export function useWsOrder(paramId?: string) {
   const [savedSuggested, setSavedSuggested] = useState(0)
   const [items, setItems] = useState<WsItem[]>([])
   const [save, setSave] = useState<{ state: SaveState; text?: string }>({ state: 'idle' })
+  const [warnings, setWarnings] = useState<string[]>([])
+  const [conflict, setConflict] = useState(false) // заказ изменён в другой вкладке/другим человеком: автосохранение остановлено
   const dirty = useRef(false)
+  const saving = useRef(false)
+  const version = useRef<string | null>(null) // updated_at заказа на момент загрузки/последнего сохранения (защита от устаревшей вкладки)
+  // один ключ на весь «новый заказ»: если ответ потерялся и запрос повторится, сервер вернёт тот же заказ, а не создаст второй
+  const requestId = useRef<string>(
+    (() => {
+      try {
+        const k = sessionStorage.getItem(WS_REQ_KEY)
+        if (k) return k
+        const n = crypto.randomUUID()
+        sessionStorage.setItem(WS_REQ_KEY, n)
+        return n
+      } catch {
+        return crypto.randomUUID()
+      }
+    })(),
+  )
 
   useEffect(() => {
     const first = initialId.current
@@ -79,6 +106,7 @@ export function useWsOrder(paramId?: string) {
       const { data: o } = await supabase.from('orders').select('*, clients(id, full_name, phone, address)').eq('id', first).maybeSingle()
       if (!o) return setError('notFound')
       setOrderNo(o.order_no)
+      version.current = o.updated_at ?? null
       setStatus(o.status)
       setClient({ id: o.clients.id, full_name: o.clients.full_name, phone: o.clients.phone ?? '', address: o.clients.address ?? '' })
       setAddress(o.address ?? '')
@@ -178,9 +206,14 @@ export function useWsOrder(paramId?: string) {
       if (locked) return { ok: false }
       if (problems.length || unknown.length) return { ok: false, text: 'problems' }
       if (!items.length) return { ok: false } // сервер не принимает заказ без окон: пустой черновик не сохраняется
+      if (conflict) return { ok: false, text: 'conflict' }
+      if (saving.current) return { ok: false, text: 'busy' } // предыдущее сохранение ещё идёт: итоговая правка уйдёт со следующим
+      saving.current = true
       setSave({ state: 'saving' })
       const payload = {
         id: id || null,
+        request_id: id ? undefined : requestId.current,
+        version: id ? version.current : undefined,
         client,
         address: address || client.address,
         contact_phone: client.phone,
@@ -210,11 +243,24 @@ export function useWsOrder(paramId?: string) {
           note: it.note,
         })),
       }
-      const { data, error: err } = await supabase.rpc('save_order', { p: payload })
-      if (err) {
-        setSave({ state: 'error', text: err.message })
-        return { ok: false, text: err.message }
+      let res: Awaited<ReturnType<typeof callSave>>
+      try {
+        res = await callSave(payload)
+      } finally {
+        saving.current = false
       }
+      const { data, error: err } = res
+      if (err) {
+        // понятное сообщение вместо «TypeError: Failed to fetch»; сеть пропала — автосохранение повторится само
+        const net = /failed to fetch|networkerror|load failed|network request failed/i.test(err.message)
+        const stale = /ZAKAZ_YANGILANGAN/.test(err.message)
+        if (stale) setConflict(true)
+        const text = stale ? 'conflict' : net ? 'network' : err.message
+        setSave({ state: 'error', text })
+        return { ok: false, text }
+      }
+      version.current = (data.version as string) ?? version.current
+      setWarnings((data.warnings as string[]) ?? [])
       dirty.current = false
       setSavedContract(contract)
       setSavedSuggested(suggested)
@@ -223,22 +269,22 @@ export function useWsOrder(paramId?: string) {
       if (!id) {
         // первое сохранение черновика: заказ и клиент созданы — запоминаем их id, чтобы дальше обновлять, а не создавать заново
         setId(oid)
-        const { data: o } = await supabase.from('orders').select('client_id').eq('id', oid).maybeSingle()
-        if (o?.client_id) setClient((c) => ({ ...c, id: o.client_id as string }))
+        if (data.client_id) setClient((c) => ({ ...c, id: data.client_id as string }))
         try {
           sessionStorage.removeItem(WS_DRAFT_KEY)
+          sessionStorage.removeItem(WS_REQ_KEY)
         } catch {
           /* не страшно */
         }
       }
       // новые окна получили id в базе: подтягиваем их, чтобы следующее сохранение обновляло, а не дублировало позиции
-      const { data: rows } = await supabase.from('order_items').select('id, pos').eq('order_id', oid).order('pos')
-      if (rows) setItems((xs) => xs.map((x, i) => (x.id ? x : { ...x, id: (rows as { id: string; pos: number }[]).find((r) => r.pos === i + 1)?.id })))
+      const rows = (data.items as { id: string; pos: number }[]) ?? []
+      setItems((xs) => xs.map((x, i) => (x.id ? x : { ...x, id: rows.find((r) => r.pos === i + 1)?.id })))
       setSave({ state: 'saved' })
       return { ok: true }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [id, client, address, deadline, notes, items, calc, contract, suggested, discount, markupUsed, locked, problems.length, unknown.length],
+    [id, client, address, deadline, notes, items, calc, contract, suggested, discount, markupUsed, locked, problems.length, unknown.length, conflict],
   )
   const saveRef = useRef(doSave)
   saveRef.current = doSave
@@ -247,10 +293,36 @@ export function useWsOrder(paramId?: string) {
 
   // автосохранение через секунду после последней правки (только «Yangi»)
   useEffect(() => {
-    if (!loaded || !autosave || !dirty.current || !items.length) return
+    if (!loaded || !autosave || !dirty.current || !items.length || conflict) return
     const h = setTimeout(() => void saveRef.current(), 1000)
     return () => clearTimeout(h)
-  }, [loaded, autosave, items, address, deadline, notes])
+  }, [loaded, autosave, items, address, deadline, notes, conflict])
 
-  return { taxPct: catalog.settings.taxPct, id, persisted, catalog, loaded, error, status, locked, autosave, orderNo, client, address, deadline, notes, items, calc, prices, margins, cost, area, windows, suggested, contract, problems, unknown, save, patchItem, addItem, removeItem, setMeta, doSave, flush, markupUsed }
+  // ошибка сохранения (сеть) — повторяем каждые 4 с, пока не получится; правка не теряется
+  useEffect(() => {
+    if (save.state !== 'error' || conflict || !dirty.current) return
+    const h = setTimeout(() => void saveRef.current(), 4000)
+    return () => clearTimeout(h)
+  }, [save, conflict])
+
+  // правка не должна пропасть при закрытии/сворачивании вкладки: сворачивание — сохраняем сразу; закрытие — просим подтверждение
+  useEffect(() => {
+    const onHide = () => {
+      if (document.visibilityState === 'hidden' && dirty.current && autosave && !conflict) void saveRef.current()
+    }
+    const onUnload = (e: BeforeUnloadEvent) => {
+      if ((dirty.current || saving.current) && autosave) {
+        e.preventDefault()
+        e.returnValue = ''
+      }
+    }
+    document.addEventListener('visibilitychange', onHide)
+    window.addEventListener('beforeunload', onUnload)
+    return () => {
+      document.removeEventListener('visibilitychange', onHide)
+      window.removeEventListener('beforeunload', onUnload)
+    }
+  }, [autosave, conflict])
+
+  return { warnings, conflict, taxPct: catalog.settings.taxPct, id, persisted, catalog, loaded, error, status, locked, autosave, orderNo, client, address, deadline, notes, items, calc, prices, margins, cost, area, windows, suggested, contract, problems, unknown, save, patchItem, addItem, removeItem, setMeta, doSave, flush, markupUsed }
 }
