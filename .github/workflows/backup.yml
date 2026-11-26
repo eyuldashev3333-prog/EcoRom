@@ -1,5 +1,6 @@
 name: Daily backup to Telegram
-# Каждый день в 23:00 по Ташкенту (18:00 UTC). Также держит бесплатную базу «живой».
+# Рассылка бэкапа — ТОЛЬКО по запуску из ежедневного отчёта в 23:00 Ташкент (supabase/functions/daily-report → workflow_dispatch).
+# Своё расписание GitHub (приходит с задержкой в часы) только читает базу без рассылки — держит бесплатную базу «живой».
 on:
   schedule:
     - cron: '0 18 * * *'
@@ -22,7 +23,7 @@ jobs:
           cache: npm
           cache-dependency-path: scripts/package-lock.json
       - run: npm ci
-      - run: node backup.mjs
+      - run: node backup.mjs ${{ github.event_name == 'schedule' && '--no-send' || '' }}
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
