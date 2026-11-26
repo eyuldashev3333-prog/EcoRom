@@ -55,6 +55,24 @@ function keyboard(role: string | null, payload: Record<string, string>) {
   return openButton
 }
 
+// роль → что бот присылает этому человеку (и чего не присылает)
+const ROLE_NAMES: Record<string, string> = { rahbar: 'Rahbar', ishlab: 'Ishlab chiqarish', montajchi: "O'rnatuvchi", haydovchi: 'Haydovchi', xodim: 'Xodim' }
+const NO_MONEY = 'Narxlar, kassa, savdo va xarajatlar sizga yuborilmaydi.'
+function roleInfo(role: string) {
+  switch (role) {
+    case 'rahbar':
+      return 'Sizga keladi: barcha buyurtmalar holati, zavod va montaj javoblari, servis, pul va oylik hisobotlar, har kungi bekap.\nBotga xarajat yozishingiz mumkin: «obed 150000», xarid: «xarid Otliv oq 200 30 m 600000».'
+    case 'ishlab':
+      return `Sizga keladi: zavodga yuborilgan yangi buyurtmalar (o'lchamlar, narxsiz), material so'rovi va o'z ish haqingiz.\n${NO_MONEY}`
+    case 'montajchi':
+      return `Sizga keladi: montaj va servis vazifalari (manzil, sana), ertalabki ro'yxat va o'z ish haqingiz.\n${NO_MONEY}`
+    case 'haydovchi':
+      return `Sizga keladi: reyslar (manzil, telefon, sana) va o'z ish haqingiz.\n${NO_MONEY}`
+    default:
+      return `Sizga keladi: o'z ish haqingiz haqidagi xabarlar.\n${NO_MONEY}`
+  }
+}
+
 const fmtSum = (n: number) => new Intl.NumberFormat('ru-RU').format(n).replace(/ /g, ' ')
 interface Draft {
   id: string
@@ -324,10 +342,24 @@ Deno.serve(async (req) => {
 
   const msg = update.message
   if (msg?.text?.startsWith('/start')) {
-    const { data: emp } = await admin.from('employees').select('full_name, is_active').eq('telegram_id', msg.chat.id).maybeSingle()
+    // привязка по одноразовой ссылке с главной страницы: /start link_<код>
+    const code = msg.text.match(/^\/start\s+link_([A-Za-z0-9]+)/)?.[1]
+    if (code && msg.chat.type === 'private') {
+      const { data: r, error } = await admin.rpc('tg_link_claim', { p_code: code, p_tg: msg.chat.id })
+      const text = error
+        ? `Xatolik: ${error.message}`
+        : r?.ok
+          ? `✅ Telegram ulandi.\nAkkaunt: ${r.login} · ${r.full_name}\nLavozim: ${ROLE_NAMES[r.role] ?? r.role}\n\n${roleInfo(r.role)}`
+          : r?.reason === 'inactive'
+            ? 'Bu akkaunt faol emas. Rahbarga murojaat qiling.'
+            : 'Havola eskirgan yoki ishlatilgan. Tizimda «Telegramni ulash» tugmasini qayta bosing.'
+      await tg('sendMessage', { chat_id: msg.chat.id, text, reply_markup: openButton })
+      return new Response('ok')
+    }
+    const { data: emp } = await admin.from('employees').select('full_name, login, role, is_active').eq('telegram_id', msg.chat.id).maybeSingle()
     const text = emp?.is_active
-      ? `Assalomu alaykum, ${emp.full_name}! Tizimni ochish uchun pastdagi tugmani bosing.`
-      : "Assalomu alaykum! ECOROM tizimi. Tugmani bosing va rahbar bergan login-parol bilan bir marta kiring — keyin Telegram orqali avtomatik kirasiz."
+      ? `Assalomu alaykum, ${emp.full_name}!\nAkkaunt: ${emp.login} · ${ROLE_NAMES[emp.role] ?? emp.role}\n\n${roleInfo(emp.role)}\n\nTizimni ochish uchun pastdagi tugmani bosing.`
+      : 'Assalomu alaykum! ECOROM tizimi.\nTelegram hali akkauntga ulanmagan: tizimga login-parol bilan kiring va bosh sahifada «Telegramni ulash» tugmasini bosing.'
     await tg('sendMessage', { chat_id: msg.chat.id, text, reply_markup: openButton })
   } else if (msg?.text && msg.from) {
     // причина после «Yetmaydi/Brak» (если бот её ждёт)
@@ -372,6 +404,13 @@ Deno.serve(async (req) => {
         const c = draftCard(d as Draft)
         await tg('sendMessage', { chat_id: msg.chat.id, text: c.text, reply_markup: c.reply_markup })
       }
+    } else if (msg.chat.type === 'private') {
+      // не руководитель: расходы/закупки не принимаются, ничего о деньгах не показываем
+      const { data: emp } = await admin.from('employees').select('is_active').eq('telegram_id', msg.from.id).maybeSingle()
+      const text = emp?.is_active
+        ? 'Botga xarajat va xarid yozish faqat rahbar uchun. Ishingiz bo‘yicha xabarlar shu yerga keladi; tizimni ochish uchun tugmani bosing.'
+        : 'Telegram hali akkauntga ulanmagan: tizimga kiring va bosh sahifada «Telegramni ulash» tugmasini bosing.'
+      await tg('sendMessage', { chat_id: msg.chat.id, text, reply_markup: openButton })
     }
   }
   return new Response('ok')

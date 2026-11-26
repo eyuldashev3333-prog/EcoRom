@@ -42,5 +42,13 @@ if (schema === 'public') {
              select setval(pg_get_serial_sequence('public.stages','id'), greatest((select coalesce(max(id),0) from public.stages),1));
              select setval(pg_get_serial_sequence('public.expense_categories','id'), greatest((select coalesce(max(id),0) from public.expense_categories),1));
              select setval(pg_get_serial_sequence('public.audit_log','id'), greatest((select coalesce(max(id),0) from public.audit_log),1));`)
+  // остальные счётчики (serial/identity) восстановленных таблиц — на max(колонки)
+  const seqs = await sql(`select c.table_name t, c.column_name col, pg_get_serial_sequence('public.'||c.table_name, c.column_name) s
+    from information_schema.columns c where c.table_schema='public' and c.table_name in (${TABLES.map((t) => `'${t}'`).join(',')})
+    and pg_get_serial_sequence('public.'||c.table_name, c.column_name) is not null`)
+  for (const x of seqs) {
+    if (['stages', 'expense_categories', 'audit_log'].includes(x.t)) continue
+    await sql(`select setval('${x.s}', greatest((select coalesce(max(${x.col}),0) from public.${x.t}),1))`)
+  }
 }
 console.log(`restore done from ${dump.created_at} into schema ${schema}`)

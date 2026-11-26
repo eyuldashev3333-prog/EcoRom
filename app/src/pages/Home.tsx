@@ -16,6 +16,7 @@ import { sectionsFor, type SectionDef } from '../shell/sections'
 import MontajBoard from '../components/MontajBoard'
 import DeliveryList from '../components/DeliveryList'
 import FinanceCharts from '../components/FinanceCharts'
+import TelegramLink from '../components/TelegramLink'
 import { uz } from '../uz'
 
 const s = uz.shell
@@ -454,6 +455,7 @@ export default function Home() {
 
   return (
     <div className={`home sec-${current}`}>
+      <TelegramLink />
       <div className="pager" ref={pager} onScroll={onScroll}>
         {sections.map((x, i) => (
           <section key={x.id} className="pane" aria-hidden={i !== idx}>
