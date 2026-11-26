@@ -3,12 +3,14 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.45.4'
 import { parseExpense } from './parse-expense.ts'
 import { isPurchase, parsePurchase } from './parse-purchase.ts'
+import { askAi, doneText, draftText, undoText, type AiResult, type CheckedLine, type DoneResult, type StockRow } from './ai-expense.ts'
 
 const BOT = Deno.env.get('TELEGRAM_BOT_TOKEN')!
 const SECRET = Deno.env.get('TG_WEBHOOK_SECRET')! // вебхук Telegram (X-Telegram-Bot-Api-Secret-Token)
 const INTERNAL = Deno.env.get('ECOROM_INTERNAL_SECRET') ?? '' // рассылка из базы (X-Ecorom-Secret) — отдельный секрет, не тот же, что у вебхука
 const TRANSITION = false // переход завершён: рассылка из базы только по ECOROM_INTERNAL_SECRET
 const APP_URL = 'https://eyuldashev3333-prog.github.io/EcoRom/'
+const OPENAI_KEY = Deno.env.get('OPENAI_API_KEY') ?? '' // ИИ-разбор расходов/закупок руководителя
 
 const tg = (method: string, payload: unknown) =>
   fetch(`https://api.telegram.org/bot${BOT}/${method}`, {
@@ -256,6 +258,39 @@ Deno.serve(async (req) => {
     return new Response('ok')
   }
 
+  // пачка расходов/закупок от ИИ: Tasdiqlash / Bekor qilish / ↩ (отменить записанное). Текст — только из ответа базы.
+  if (cq?.data?.startsWith('bb:')) {
+    const [, act, id] = cq.data.split(':')
+    const chat = cq.message?.chat?.id
+    const mid = cq.message?.message_id
+    const draft = (cq.message?.text ?? '').split('\n\n✅')[0]
+    const fail = (e: { message?: string } | null) => tg('answerCallbackQuery', { callback_query_id: cq.id, text: e?.message ?? 'Xatolik', show_alert: true })
+    const edit = (text: string, reply_markup?: unknown) => tg('editMessageText', { chat_id: chat, message_id: mid, text, reply_markup: reply_markup ?? { inline_keyboard: [] } })
+    if (act === 'ok') {
+      const { data, error } = await admin.rpc('bot_batch_confirm', { p_tg: cq.from.id, p_id: id })
+      if (error) await fail(error)
+      else {
+        await tg('answerCallbackQuery', { callback_query_id: cq.id, text: 'Yozildi' })
+        await edit(doneText(data as DoneResult), { inline_keyboard: [[{ text: '↩ Bekor qilish', callback_data: `bb:undo:${id}` }]] })
+      }
+    } else if (act === 'no') {
+      const { error } = await admin.rpc('bot_batch_cancel', { p_tg: cq.from.id, p_id: id })
+      if (error) await fail(error)
+      else {
+        await tg('answerCallbackQuery', { callback_query_id: cq.id, text: 'Bekor qilindi' })
+        await edit(`${draft}\n\n❌ Bekor qilindi — hech narsa yozilmadi.`)
+      }
+    } else if (act === 'undo') {
+      const { data, error } = await admin.rpc('bot_batch_undo', { p_tg: cq.from.id, p_id: id })
+      if (error) await fail(error)
+      else {
+        await tg('answerCallbackQuery', { callback_query_id: cq.id, text: 'Bekor qilindi' })
+        await edit(`${cq.message?.text ?? ''}\n\n${undoText(data)}`)
+      }
+    }
+    return new Response('ok')
+  }
+
   // расходы Rahbar: подтвердить / сменить категорию / отменить / отменить уже записанное
   if (cq?.data?.startsWith('ex:')) {
     const [, act, id, extra] = cq.data.split(':')
@@ -368,8 +403,41 @@ Deno.serve(async (req) => {
       await tg('sendMessage', { chat_id: msg.chat.id, text: `Rahmat! №${r.order_no} bo‘yicha rahbarga yuborildi.` })
       return new Response('ok')
     }
-    // расход от Rahbar: «obed 150000» → черновик с кнопками (запись — только после «Tasdiqlash»)
+    // расходы и закупки Rahbar: ИИ понимает сообщение (одна строка или список) → карточка «Tasdiqlash / Bekor qilish»
     const { data: boss } = await admin.from('employees').select('id').eq('telegram_id', msg.from.id).eq('role', 'rahbar').eq('is_active', true).maybeSingle()
+    if (boss && msg.chat.type === 'private') {
+      await tg('sendChatAction', { chat_id: msg.chat.id, action: 'typing' })
+      let ai: AiResult
+      try {
+        if (!OPENAI_KEY) throw new Error('OPENAI_API_KEY yo‘q')
+        // омбор, категории, сотрудники — каждый раз свежие из базы
+        const [{ data: stock }, { data: cats }, { data: people }] = await Promise.all([
+          admin.from('v_stock_balance').select('item_id, part, name, unit, kind, sort').order('kind').order('sort').order('name').order('part'),
+          admin.from('expense_categories').select('id, name, keywords').eq('is_active', true).order('id'),
+          admin.from('employees').select('id, full_name').eq('is_active', true).order('full_name'),
+        ])
+        ai = await askAi(OPENAI_KEY, msg.text, { stock: (stock ?? []) as StockRow[], cats: cats ?? [], people: people ?? [] })
+      } catch (e) {
+        console.error('ai', e)
+        await tg('sendMessage', { chat_id: msg.chat.id, text: 'Hozir tushuna olmadim (AI ishlamayapti) — hech narsa yozilmadi. Birozdan keyin qayta yozing.' })
+        return new Response('ok')
+      }
+      const { data: b, error } = await admin.rpc('bot_batch_create', { p_tg: msg.from.id, p_text: msg.text, p_lines: ai.lines, p_usage: ai.usage })
+      if (error) {
+        await tg('sendMessage', { chat_id: msg.chat.id, text: `Xatolik: ${error.message} — hech narsa yozilmadi.` })
+        return new Response('ok')
+      }
+      const lines = (b.lines ?? []) as CheckedLine[]
+      const any = lines.some((l) => l.kind !== 'unclear')
+      await tg('sendMessage', {
+        chat_id: msg.chat.id,
+        text: draftText(lines),
+        reply_markup: any
+          ? { inline_keyboard: [[{ text: '✅ Tasdiqlash', callback_data: `bb:ok:${b.id}` }, { text: '❌ Bekor qilish', callback_data: `bb:no:${b.id}` }]] }
+          : undefined,
+      })
+      return new Response('ok')
+    }
     if (boss && isPurchase(msg.text)) {
       const pp = parsePurchase(msg.text)
       if (!pp.ok) {
