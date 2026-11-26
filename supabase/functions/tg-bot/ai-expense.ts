@@ -77,7 +77,7 @@ purchase:
 - qty = the quantity, in the unit of that OMBOR row. If the director's unit clearly differs from the OMBOR unit and they are not the same thing (e.g. "dona" vs "m"), use "unclear" with reason "birlik mos emas (omborda: <unit>)".
 - If nothing in OMBOR matches -> "unclear", reason "omborda yo'q". If two rows fit equally -> "unclear", reason "aniq emas: <row A> yoki <row B>".
 expense:
-- category_id = the best category id from CATEGORIES (use the keywords). Never use "ISH HAQI (tarix)", "OYNA SINISHI", "SERVIS" — they are filled automatically by other parts of the system. If nothing fits, use "KUT-HARAJAT".
+- category_id = the best category id from CATEGORIES. The keywords were set by the director: if a keyword of a category appears in the text (any spelling: "такси" = "taksi"), use THAT category, even if another category also seems to fit (e.g. "taksi" -> "KOCHA KIRA", not "TRANSPORT"). Never use "ISH HAQI (tarix)", "OYNA SINISHI", "SERVIS" — they are filled automatically by other parts of the system. If nothing fits, use "KUT-HARAJAT".
 - employee_ref = number from EMPLOYEES only when money is handed to that employee personally (e.g. "Islomga qarz berdim"); otherwise null, even if a driver/car/worker is mentioned ("benzin Damas" -> null).
 - Salary, advance or bonus to an employee (ish haqi, avans, oylik, mukofot, зарплата, аванс) is NOT an expense here -> "unclear", reason "ish haqi/avans — tizimdagi «Ish haqi» bo'limida yozing".
 - note = a short description in the director's own words (e.g. "obed", "benzin Damas").

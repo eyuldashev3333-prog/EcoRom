@@ -21,6 +21,8 @@
   { "t": "paket ok+ok 12 kv 1 800 000", "e": ["P|Paket (Ok+Ok)|12|1800000"] },
   { "t": "obed 50000 benzin 80000 taksi 20000", "e": ["E|50000|PITANIYA", "E|80000|TRANSPORT", "E|20000|KOCHA KIRA"] },
   { "t": "soliq 2 mln", "e": ["E|2000000|SOLIQ"] },
+  { "t": "такси 50 000", "e": ["E|50000|KOCHA KIRA"] },
+  { "t": "taksi 50000", "e": ["E|50000|KOCHA KIRA"] },
   { "t": "заплатил за свет 380 тыс", "e": ["E|380000|SVET"] },
   { "t": "xarid otliv 30 m 600000", "e": ["U"] },
   { "t": "podokonnik oq 30 sm 12 metr 1 440 000", "e": ["P|Ok 30 sm|12|1440000"] },
