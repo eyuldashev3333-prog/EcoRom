@@ -244,7 +244,9 @@ html, body { overscroll-behavior: none; }
 .ws-root .ws-field input,
 .ws-root .ws-field input:hover,
 .ws-root .ws-field input:focus {
-  flex: none; display: block; width: 100%; height: 44px; min-height: 0; line-height: 44px; padding: 0; margin: 0; box-sizing: border-box;
+  /* линия фокуса — сразу под буквами: высота = строка текста + линия; отступ сверху держит текст на прежнем месте
+     (раньше 44px с текстом по центру — линия была на ~10px ниже текста, у соседнего поля) */
+  flex: none; display: block; width: 100%; height: 30px; min-height: 0; line-height: 28px; padding: 0; margin: 7px 0 0; box-sizing: border-box;
   border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: transparent; box-shadow: none; outline: none;
   -webkit-appearance: none; appearance: none; font-size: 20px; text-align: center; color: #000;
 }
@@ -252,7 +254,7 @@ html, body { overscroll-behavior: none; }
 .ws-root .ws-field input::placeholder { color: #b9c4cf; }
 .ws-root .ws-input,
 .ws-root .ws-input:hover,
-.ws-root .ws-input:focus { box-sizing: border-box; height: 44px; min-height: 0; padding: 0; margin: 0; border: 0; border-bottom: 2px solid #7fcdbf; border-radius: 0; box-shadow: none; outline: none; background: #fff; -webkit-appearance: none; appearance: none; }
+.ws-root .ws-input:focus { box-sizing: border-box; height: 30px; line-height: 28px; min-height: 0; padding: 0; margin: 7px 0; border: 0; border-bottom: 2px solid #7fcdbf; border-radius: 0; box-shadow: none; outline: none; background: #fff; -webkit-appearance: none; appearance: none; }
 .ws-root .ws-top { overflow-y: auto; -webkit-overflow-scrolling: touch; }
 
 /* линия «1 dona» и корзина не липнут к таблице */
@@ -273,7 +275,7 @@ html, body { overscroll-behavior: none; }
   .ws-root .ws-formhead { font-size: 18px; line-height: 26px; padding: 6px 8px; }
   .ws-root .ws-field { height: 78px; }
   .ws-root .ws-field span { font-size: 14px; height: 26px; line-height: 26px; }
-  .ws-root .ws-field input, .ws-root .ws-field input:hover, .ws-root .ws-field input:focus { height: 50px; line-height: 50px; font-size: 22px; }
+  .ws-root .ws-field input, .ws-root .ws-field input:hover, .ws-root .ws-field input:focus { height: 32px; line-height: 30px; margin-top: 9px; font-size: 22px; }
   .ws-root .ws-submit { height: 64px; font-size: 24px; }
   .ws-root .ws-msg { max-width: 440px; }
   .ws-root .ws-listhead, .ws-root .ws-list, .ws-root .ws-bottom, .ws-root .ws-obar { width: 100%; max-width: 1000px; margin-left: auto; margin-right: auto; box-sizing: border-box; }
