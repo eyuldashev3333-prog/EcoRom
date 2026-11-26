@@ -125,6 +125,7 @@ export default function WsEditor() {
     count: x.qty,
     noDiscount: w.prices[i].noDiscount,
     withDiscount: w.prices[i].withDiscount,
+    own: !!x.options.own_price,
   }))
   const tableData: TableData | null =
     it && cur
@@ -141,7 +142,8 @@ export default function WsEditor() {
   const setDesign = (nd: WindowDesign) => it && !ro && w.patchItem(it.key, { design: nd })
   const changeSize = (nw: number, nh: number) => {
     if (!design) return
-    if (hasUnequalParts(design)) setEq({ w: nw, h: nh })
+    // WinStudio спрашивает «выровнять?», если части неравны ПОСЛЕ смены габарита (750/750 → 1800 даёт 750/1050)
+    if (hasUnequalParts(resize(design, nw, nh))) setEq({ w: nw, h: nh })
     else setDesign(resize(design, nw, nh))
   }
   const askNumber = (value: number, apply: (n: number) => void) => setPad({ value, min: 0, max: 1e12, plain: true, apply })

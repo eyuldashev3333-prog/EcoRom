@@ -39,27 +39,55 @@ function Radios({ kind, value, onChange, catalog, swatch }: { kind: string; valu
   )
 }
 
-// подоконник/отлив: галочка + карандаш у выбранного (длина и количество)
+// подоконник/отлив как в WinStudio: галочка; у выбранного — список кусков «(n) длина мм · шт» (каждый правится и удаляется)
+// и кнопка «ещё кусок». Расчёт: Σ длина×шт × цена + Σ шт × 2 заглушки (WinStudio p046l1/b.k, живая сверка 26.11.2026).
 function Checks({ kind, value, onChange, catalog, withLen, widthMm }: { kind: string; value: Sel[]; onChange: (v: Sel[]) => void; catalog: CatalogState; withLen?: boolean; widthMm: number }) {
-  const [edit, setEdit] = useState<Sel | null>(null)
+  // правка куска: индекс в общем списке value (-1 — новый кусок для id)
+  const [edit, setEdit] = useState<{ index: number; sel: Sel } | null>(null)
   const list = catalog.byKind(kind)
   return (
     <div>
       {list.map((i) => {
-        const sel = value.find((s) => s.id === i.id)
+        const pieces = value.map((s, index) => ({ s, index })).filter((p) => p.s.id === i.id)
         return (
-          <label key={i.id} className="ws-opt">
-            <input type="checkbox" checked={!!sel} onChange={(e) => onChange(e.target.checked ? [...value, { id: i.id }] : value.filter((s) => s.id !== i.id))} />
-            {i.name}
-            {withLen && sel && (
-              <button type="button" className="ed" aria-label={t.qty} onClick={(e) => { e.preventDefault(); setEdit(sel) }}>
-                <Pen />
-              </button>
+          <div key={i.id}>
+            <label className="ws-opt">
+              <input type="checkbox" checked={pieces.length > 0} onChange={(e) => onChange(e.target.checked ? [...value, { id: i.id }] : value.filter((s) => s.id !== i.id))} />
+              {i.name}
+              {withLen && pieces.length > 0 && (
+                <button type="button" className="ed" aria-label={`${t.qty} +`} onClick={(e) => { e.preventDefault(); setEdit({ index: -1, sel: { id: i.id } }) }}>
+                  <Pen />
+                </button>
+              )}
+            </label>
+            {withLen && pieces.length > 0 && (
+              <div className="ws-pieces">
+                {pieces.map(({ s, index }, n) => (
+                  <div key={index} className="ws-piece">
+                    <span>({n + 1})</span>
+                    <button type="button" aria-label="mm" onClick={() => setEdit({ index, sel: s })}>{s.length_mm ?? widthMm} mm</button>
+                    <button type="button" aria-label={t.qty} onClick={() => setEdit({ index, sel: s })}>{s.qty ?? 1} {uz.ws.pcs}</button>
+                    <button type="button" className="del" aria-label="✕" onClick={() => onChange(value.filter((_, j) => j !== index))}>
+                      <Trash />
+                    </button>
+                  </div>
+                ))}
+              </div>
             )}
-          </label>
+          </div>
         )
       })}
-      {edit && <LenDialog sel={edit} widthMm={widthMm} onCancel={() => setEdit(null)} onOk={(s) => { onChange(value.map((x) => (x.id === s.id ? s : x))); setEdit(null) }} />}
+      {edit && (
+        <LenDialog
+          sel={edit.sel}
+          widthMm={widthMm}
+          onCancel={() => setEdit(null)}
+          onOk={(s) => {
+            onChange(edit.index < 0 ? [...value, s] : value.map((x, j) => (j === edit.index ? s : x)))
+            setEdit(null)
+          }}
+        />
+      )}
     </div>
   )
 }

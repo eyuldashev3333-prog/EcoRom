@@ -84,11 +84,12 @@ export function CellDialog({ design, leafId, onApply, onClose }: { design: Windo
   const [net, setNet] = useState(!!lf?.net)
   if (!lf || lf.kind !== 'leaf') return null
   const noSash = opening === 'fixed'
+  const noNet = noSash || opening === 'fixed_sash' // у глухой створки сетки нет (как в WinStudio)
   const sp = SPLIT_TILES.find((s) => s.key === split)?.split
   const parts = sp ? sp.n : 1
   const apply = () => {
     const f = Array.from({ length: parts }, (_, i) => !!flags[i])
-    let d = updateLeaf(design, leafId, { opening, door: noSash ? false : door, net: noSash ? false : net, panel: sp ? false : f[0], ...(sp ? {} : { sub: undefined, panels: undefined }) })
+    let d = updateLeaf(design, leafId, { opening, door: noSash ? false : door, net: noNet ? false : net, panel: sp ? false : f[0], ...(sp ? {} : { sub: undefined, panels: undefined }) })
     if (sp) {
       // положение импостов сбрасывается на «поровну», только если деление изменили
       d = keyOfSub(lf.sub) === split ? updateLeaf(d, leafId, { panels: f }) : withSub(d, leafId, { dir: sp.dir, parts: sp.n }, f)
@@ -125,9 +126,9 @@ export function CellDialog({ design, leafId, onApply, onClose }: { design: Windo
             <span aria-hidden="true">▮</span>
             <input type="checkbox" checked={door && !noSash} disabled={noSash} onChange={(e) => setDoor(e.target.checked)} /> {t.door}
           </label>
-          <label className={noSash ? 'ws-chk off' : 'ws-chk'}>
+          <label className={noNet ? 'ws-chk off' : 'ws-chk'}>
             <span aria-hidden="true">▦</span>
-            <input type="checkbox" checked={net && !noSash} disabled={noSash} onChange={(e) => setNet(e.target.checked)} /> {t.mosq}
+            <input type="checkbox" checked={net && !noNet} disabled={noNet} onChange={(e) => setNet(e.target.checked)} /> {t.mosq}
           </label>
         </div>
         <div className="right">

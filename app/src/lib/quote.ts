@@ -13,7 +13,8 @@ export interface CatalogItem {
 }
 
 export type Side = 'l' | 't' | 'r' | 'b' // слева, сверху, справа, снизу
-export const SIDES: Side[] = ['l', 't', 'r', 'b']
+// порядок пиктограмм как в «дополнениях по размеру» WinStudio: лево, верх, низ, право (живой экран 26.11.2026)
+export const SIDES: Side[] = ['l', 't', 'b', 'r']
 export const DOBOR = ['15', '20', '40', '60', '80', '100'] as const
 export type Dobor = (typeof DOBOR)[number]
 export interface Sel {
@@ -172,9 +173,9 @@ export function quoteItem(m: Measure, opt: ItemOptions, catalog: Map<string, Cat
     lines.push({ item_id: it.id, part: label ?? '', kind: it.kind, name: label ? `${it.name} — ${label}` : it.name, qty: r3(qty), unit: unit ?? partUnit(it.unit, label ?? ''), price: p, sum: round2(qty * p), ...(col ? { col } : {}) })
   }
   // необязательная колонка прайса: добавляется только при цене > 0
-  const addIf = (it: CatalogItem | undefined, key: string, qty: number, label: string, unit: Unit) => {
+  const addIf = (it: CatalogItem | undefined, key: string, qty: number, label: string, unit: Unit, col?: string) => {
     const p = Number(it?.params?.[key] ?? 0)
-    if (it && p > 0 && qty > 0) add(it, qty, label, p, unit)
+    if (it && p > 0 && qty > 0) add(it, qty, label, p, unit, col)
   }
 
   const e = exactOf(m)
@@ -188,12 +189,20 @@ export function quoteItem(m: Measure, opt: ItemOptions, catalog: Map<string, Cat
     addIf(sys, 'armor_impost', e.impost_m, 'armatura impost', 'm')
     addIf(sys, 'armor_sash', e.sash_m - e.door_sash_m, 'armatura tavaqa', 'm')
     addIf(sys, 'armor_door', e.door_sash_m, 'armatura eshik', 'm')
+    // механика и усилители углов дверной створки входят в колонку «двер.створки» (WinStudio p054n1/d.N: стоимость створки =
+    // профиль + армировка + 4 угла + механика, по группам «окно»/«дверь»; живая сверка 25.11.2026, варианты v07, v08)
     for (const [o, n] of Object.entries(m.sash_all_by)) {
       const key = MECH_BY_OPENING[o]
-      if (key && n) addIf(sys, key, n, `mexanika ${key.slice(5)}`, 'pcs')
+      const win = m.sash_by[o as keyof typeof m.sash_by] ?? 0
+      if (key && win) addIf(sys, key, win, `mexanika ${key.slice(5)}`, 'pcs')
+      if (key && n - win > 0) addIf(sys, key, n - win, `mexanika ${key.slice(5)}`, 'pcs', 'doorSash')
     }
-    addIf(sys, 'corner_frame', 4, 'burchak kuchaytirgich rama', 'pcs')
-    addIf(sys, 'corner_sash', 4 * m.sashes, 'burchak kuchaytirgich tavaqa', 'pcs')
+    // по 4 усилителя на КАЖДУЮ раму (составные шаблоны Г/Т — несколько рам: сверка v14–v16)
+    addIf(sys, 'corner_frame', 4 * (m.frames || 1), 'burchak kuchaytirgich rama', 'pcs')
+    // стыки соединённых рам — соединительный профиль (колонка «соединит.проф», WinStudio считает его сама)
+    addIf(sys, 'connect', m.join_m, 'ulovchi profil', 'm', 'connect')
+    addIf(sys, 'corner_sash', 4 * (m.sashes - m.doors), 'burchak kuchaytirgich tavaqa', 'pcs')
+    addIf(sys, 'corner_sash', 4 * m.doors, 'burchak kuchaytirgich tavaqa', 'pcs', 'doorSash')
     addIf(sys, 'connector', 2 * m.imposts, 'impost konnektor', 'pcs')
   }
 
@@ -224,14 +233,17 @@ export function quoteItem(m: Measure, opt: ItemOptions, catalog: Map<string, Cat
     }
   }
 
-  const windowSashes = m.sashes - m.doors
+  // «глухая створка» (fixed_sash) — без ручки: живая сверка 25.11.2026 (v17), фурнитура WinStudio = 0
+  const fixW = m.sash_by.fixed_sash ?? 0
+  const fixD = (m.sash_all_by.fixed_sash ?? 0) - fixW
+  const windowSashes = m.sashes - m.doors - fixW
   const hw = opt.hardware ? catalog.get(opt.hardware) : undefined
   add(hw, windowSashes)
   const dhw = opt.door_hardware ? catalog.get(opt.door_hardware) : hw
-  add(dhw, m.doors)
+  add(dhw, m.doors - fixD)
   // ручка: одна на каждую створку, оконную и дверную (так считает WinStudio V44.4: «балконная» ручка в расчёте не участвует)
   addIf(hw, 'handle_simple', windowSashes, 'ruchka', 'pcs')
-  addIf(dhw, 'handle_simple', m.doors, 'ruchka', 'pcs')
+  addIf(dhw, 'handle_simple', m.doors - fixD, 'ruchka', 'pcs')
 
   const net = opt.net ? catalog.get(opt.net) : undefined
   if (net && e.nets_m2 > 0) {

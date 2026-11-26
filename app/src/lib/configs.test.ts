@@ -3,10 +3,10 @@ import { CONFIGS } from './configs'
 import { designProblems, layout, measure } from './window'
 
 describe('каталог конфигураций', () => {
-  it('ключи уникальны, 78 схем WinStudio + арочные', () => {
+  it('ключи уникальны, 63 схемы диалога WinStudio (живая сверка 26.11.2026) + арочные', () => {
     const keys = CONFIGS.map((c) => c.key)
     expect(new Set(keys).size).toBe(keys.length)
-    expect(CONFIGS.length).toBeGreaterThanOrEqual(78)
+    expect(CONFIGS.filter((c) => c.key.startsWith('ws')).length).toBe(63)
   })
   it('каждая схема: части дают габарит, нет проблем чертежа, площадь стекла > 0', () => {
     for (const c of CONFIGS) {

@@ -1,0 +1,1 @@
+{"id":"s06","tpl":0,"w":900,"h":2100,"cells":[{"at":[0.5,0.5],"open":"turn_l","door":true}],"opts":{"system":"Termo-57 (Laminatsiya)","glass":"Paket (Ok+Ok)","hardware":"Eshik (Termo)","sides":{"threshold":true,"corner":true,"connect90":["l","r"],"dobor":{"40":["l","t","r"]}}}}

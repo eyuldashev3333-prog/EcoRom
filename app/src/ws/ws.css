@@ -420,3 +420,9 @@ html, body { overscroll-behavior: none; }
 }
 
 .ws-root .ws-chk > span[aria-hidden] { display: inline-block; width: 16px; text-align: center; flex: none; }
+
+/* куски подоконника/отлива: «(n) длина mm · шт», как таблица WinStudio */
+.ws-root .ws-pieces { padding: 0 10px 6px 44px; display: grid; gap: 4px; }
+.ws-root .ws-piece { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.ws-root .ws-piece button { background: #fff; border: 1px solid #c8c8c8; border-radius: 4px; padding: 4px 8px; font-size: 13px; }
+.ws-root .ws-piece button.del { background: transparent; border: none; width: 30px; height: 30px; padding: 2px; opacity: 0.6; }

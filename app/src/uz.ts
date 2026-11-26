@@ -378,6 +378,7 @@ export const uz = {
     ok: 'OK',
     settings: 'oyna sozlamalari',
     qty: 'soni',
+    pcs: 'dona',
     notes: 'izoh',
     ownPrice: 'o‘z narxi',
     scheme: 'moliyaviy sxema',

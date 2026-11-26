@@ -258,6 +258,8 @@ export interface Measure {
   imposts: number // число отрезков импоста (для коннекторов импоста)
   impostList: number[] // длины всех деталей импоста, мм (в т.ч. импосты внутри ячейки) — для раскроя
   nets: number // число москитных сеток
+  frames: number // число рам (у составных шаблонов Г/Т — каждая рама отдельно: свои 4 усилителя угла)
+  join_m: number // длина стыков соединённых рам, м (колонка «соединит.проф» WinStudio)
   sash_by: Partial<Record<Opening, number>> // оконные (не дверные) створки по типам открывания
   sash_all_by: Partial<Record<Opening, number>> // все створки (и дверные) по типам открывания — для комплектов механики и ручек (как в WinStudio)
   panes: Pane[]
@@ -392,10 +394,12 @@ export function measure(d: WindowDesign, dims: Dims = DEFAULT_DIMS): Measure {
       if (lf.door) doorPerim += 2 * (sw + sh)
       else sashBy[lf.opening] = (sashBy[lf.opening] ?? 0) + 1
       sashAllBy[lf.opening] = (sashAllBy[lf.opening] ?? 0) + 1
-      if (lf.net) netCount += 1
+      // глухая створка (fixed_sash) — без сетки, как и без ручки (живая сверка 26.11.2026, вариант o14)
+      const hasNet = !!lf.net && lf.opening !== 'fixed_sash'
+      if (hasNet) netCount += 1
       sashes += 1
       sashRects.push({ leafId: lf.id, w: sw, h: sh, door: !!lf.door })
-      if (lf.net) {
+      if (hasNet) {
         nets += (sw * sh) / 1e6
         netsPerim += 2 * (sw + sh)
       }
@@ -436,6 +440,14 @@ export function measure(d: WindowDesign, dims: Dims = DEFAULT_DIMS): Measure {
     imposts: impostList.length,
     impostList,
     nets: netCount,
+    frames: rise > 0 ? 1 : frames.length,
+    // стык = общая сторона двух соседних рам (живая сверка v14: Г из рам 800×1300 и 900×2200 → 1.30 m)
+    join_m: frames.reduce((s, a, i) => s + frames.slice(i + 1).reduce((t, b) => {
+      const ov = (p0: number, p1: number, q0: number, q1: number) => Math.max(0, Math.min(p1, q1) - Math.max(p0, q0))
+      if (a.x + a.w === b.x || b.x + b.w === a.x) return t + ov(a.y, a.y + a.h, b.y, b.y + b.h)
+      if (a.y + a.h === b.y || b.y + b.h === a.y) return t + ov(a.x, a.x + a.w, b.x, b.x + b.w)
+      return t
+    }, 0), 0) / 1000,
     sash_by: sashBy,
     sash_all_by: sashAllBy,
     panes,
@@ -539,9 +551,16 @@ export function setSubSize(d: WindowDesign, leafId: string, index: number, value
   if (!cell) return d
   const fs = frameSides(layout(d).cells, cell.rect, d.width, d.height, layout(d).joins)
   const sb = subLayout(lf, leafLayers(cell.rect, fs, lf))
-  if (!sb || index !== 0) return d
+  if (!sb) return d
   const span = sb.sizes.reduce((a, b) => a + b, 0)
   const n = lf.sub.parts
+  // подпись WinStudio стоит у ПОСЛЕДНЕЙ части: задаём её, остальные делят остаток поровну
+  if (index === n - 1 && n > 1) {
+    const last = Math.max(100, Math.min(Math.round(value), span - 100 * (n - 1)))
+    const each = (span - last) / (n - 1)
+    return updateLeaf(d, leafId, { sub: { ...lf.sub, sizes: [...Array.from({ length: n - 1 }, () => each), last] } })
+  }
+  if (index !== 0) return d
   const first = Math.max(100, Math.min(Math.round(value), span - 100 * (n - 1)))
   const rest = (span - first) / (n - 1)
   return updateLeaf(d, leafId, { sub: { ...lf.sub, sizes: [first, ...Array.from({ length: n - 1 }, () => rest)] } })
@@ -582,8 +601,9 @@ export function resize(d: WindowDesign, width: number, height: number): WindowDe
   const scale = (n: Node, w: number, h: number): Node => {
     if (n.kind === 'leaf') return n
     const total = n.dir === 'v' ? w : h
-    const old = n.sizes.reduce((a, b) => a + b, 0)
-    const sizes = n.sizes.map((s) => Math.round((s / old) * total))
+    // как WinStudio (живая сверка 25.11.2026: 750/750 → ширина 1800 → 750/1050): первые части сохраняют размер,
+    // последняя забирает остаток (может стать и отрицательной — WinStudio так и считает)
+    const sizes = [...n.sizes]
     sizes[sizes.length - 1] = total - sizes.slice(0, -1).reduce((a, b) => a + b, 0)
     return {
       ...n,

@@ -58,16 +58,19 @@ export function columnCosts(lines: QuoteLine[]): Partial<Record<WsCol, number>> 
 export function columnQty(m: Measure, o: ItemOptions, widthMm: number, heightMm: number): Partial<Record<WsCol, { v: number; unit: 'm2' | 'm' | 'pcs' }>> {
   const sd = o.sides ?? {}
   const sideM = (s?: string[]) => ((s ?? []).reduce((a, x) => a + (x === 'l' || x === 'r' ? heightMm : widthMm), 0)) / 1000
+  // точные (неокруглённые) значения: WinStudio округляет только при показе, а «все окна» = точное × количество
+  // (живая сверка 25.11.2026: створки 4.264 → «4.26», а не 4.27 из разности округлённых; 3 окна × 3.4233 → «10.27»)
+  const e = m.exact ?? m
   const out: Partial<Record<WsCol, { v: number; unit: 'm2' | 'm' | 'pcs' }>> = {
-    area: { v: m.area_m2, unit: 'm2' },
-    frame: { v: m.frame_m, unit: 'm' },
-    impost: { v: m.impost_m, unit: 'm' },
-    bead: { v: m.bead_m, unit: 'm' },
-    gasket: { v: m.gasket_m, unit: 'm' },
-    sash: { v: Math.round((m.sash_m - m.door_sash_m) * 100) / 100, unit: 'm' },
-    doorSash: { v: m.door_sash_m, unit: 'm' },
-    glass: { v: m.glass_m2, unit: 'm2' },
-    sandwich: { v: m.sandwich_m2, unit: 'm2' },
+    area: { v: e.area_m2, unit: 'm2' },
+    frame: { v: e.frame_m, unit: 'm' },
+    impost: { v: e.impost_m, unit: 'm' },
+    bead: { v: e.bead_m, unit: 'm' },
+    gasket: { v: e.gasket_m, unit: 'm' },
+    sash: { v: e.sash_m - e.door_sash_m, unit: 'm' },
+    doorSash: { v: e.door_sash_m, unit: 'm' },
+    glass: { v: e.glass_m2, unit: 'm2' },
+    sandwich: { v: e.sandwich_m2, unit: 'm2' },
   }
   if (o.lamination_in) out.lamIn = { v: m.lam_in_m2, unit: 'm2' }
   if (o.lamination_out) out.lamOut = { v: m.lam_out_m2, unit: 'm2' }
@@ -75,11 +78,14 @@ export function columnQty(m: Measure, o: ItemOptions, widthMm: number, heightMm:
   if (sills) out.sills = { v: sills, unit: 'm' }
   const ebbs = selList(o, 'ebb').reduce((a, s) => a + ((s.length_mm ?? widthMm) / 1000) * (s.qty ?? 1), 0)
   if (ebbs) out.ebbs = { v: ebbs, unit: 'm' }
-  if (o.net && m.nets_m2 > 0) out.nets = { v: m.nets_m2, unit: 'm2' }
+  // WinStudio в строке «окно» колонки «моск.сетки» показывает число сеток («1 шт»), а не площадь (сверка 25.11.2026)
+  if (o.net && m.nets > 0) out.nets = { v: m.nets, unit: 'pcs' }
   if (sd.support) out.support = { v: widthMm / 1000, unit: 'm' }
   if (sd.threshold) out.threshold = { v: widthMm / 1000, unit: 'm' }
   if (sd.corner) out.corner = { v: heightMm / 1000, unit: 'm' }
   for (const k of ['connect', 'connect90', 'connect135', 'nashelnik'] as const) if (sd[k]?.length) out[k] = { v: sideM(sd[k]), unit: 'm' }
+  // стыки рам составного окна (Г/Т) WinStudio показывает в «соединит.проф» сама (сверка v14–v16: 1.30 m)
+  if (m.join_m > 0) out.connect = { v: (out.connect?.v ?? 0) + m.join_m, unit: 'm' }
   for (const d of ['15', '20', '40', '60', '80', '100'] as const) {
     const s = sd.dobor?.[d]
     if (s?.length) out[`dobor${d}` as WsCol] = { v: sideM(s), unit: 'm' }
@@ -91,14 +97,15 @@ export type QtyMap = Partial<Record<WsCol, { v: number; unit: 'm2' | 'm' | 'pcs'
 export type CostMap = Partial<Record<WsCol, number>>
 
 /** строки «все окна» и «стоимость» WinStudio — итог по ВСЕМ окнам заказа с учётом количества каждого (проверено вживую: при двух окнах «все окна» = сумма обоих) */
-export function aggregate(rows: { qty: QtyMap; cost: CostMap; count: number; noDiscount: number; withDiscount: number }[]): { qty: QtyMap; cost: CostMap; noDiscount: number; withDiscount: number } {
+export function aggregate(rows: { qty: QtyMap; cost: CostMap; count: number; noDiscount: number; withDiscount: number; own?: boolean }[]): { qty: QtyMap; cost: CostMap; noDiscount: number; withDiscount: number } {
   const qty: QtyMap = {}
   const cost: CostMap = {}
   let noDiscount = 0
   let withDiscount = 0
   for (const r of rows) {
     for (const [k, x] of Object.entries(r.qty) as [WsCol, { v: number; unit: 'm2' | 'm' | 'pcs' }][]) qty[k] = { v: (qty[k]?.v ?? 0) + x.v * r.count, unit: x.unit }
-    for (const [k, x] of Object.entries(r.cost) as [WsCol, number][]) cost[k] = (cost[k] ?? 0) + x * r.count
+    // окна со «своей ценой» WinStudio в строку «стоимость» по колонкам не включает (сверка p01/p02 26.11.2026); в итог — включает
+    if (!r.own) for (const [k, x] of Object.entries(r.cost) as [WsCol, number][]) cost[k] = (cost[k] ?? 0) + x * r.count
     noDiscount += r.noDiscount * r.count
     withDiscount += r.withDiscount * r.count
   }

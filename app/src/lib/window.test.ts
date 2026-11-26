@@ -50,12 +50,12 @@ describe('редактирование', () => {
     const e = mergeParent(d, layout(d).cells[0].leaf.id)
     expect(layout(e).cells).toHaveLength(1)
   })
-  it('смена габарита масштабирует деления', () => {
+  it('смена габарита как в WinStudio: первые части сохраняют размер, последняя забирает остаток', () => {
     const d0 = two()
     const d = setPartSize(d0, d0.root.id, 0, 400)
     expect(layout(d).cells.map((c) => c.rect.w)).toEqual([400, 800])
     const e = resize(d, 2400, 1500)
-    expect(layout(e).cells.map((c) => c.rect.w)).toEqual([800, 1600])
+    expect(layout(e).cells.map((c) => c.rect.w)).toEqual([400, 2000])
   })
   it('вложенное деление: фрамуга сверху + две колонки снизу', () => {
     const b = newDesign(1500, 2000)

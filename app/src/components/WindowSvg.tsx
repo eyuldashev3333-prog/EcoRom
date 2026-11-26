@@ -61,8 +61,10 @@ export function openingLines(o: Opening, g: Rect) {
     case 'turn_r': return [tri(R, tl, bl)]
     case 'tilt': return [tri(B, tl, tr)]
     case 'top': return [tri(T, bl, br)]
-    case 'tt_l': return [tri(L, tr, br), tri(B, tl, tr)]
-    case 'tt_r': return [tri(R, tl, bl), tri(B, tl, tr)]
+    // поворотно-откидная: откидывание — «Λ» (вершина вверху), как рисует WinStudio (живая сверка 25.11.2026, вариант v09);
+    // у просто откидной (tilt) — «V» с ручкой снизу
+    case 'tt_l': return [tri(L, tr, br), tri(T, bl, br)]
+    case 'tt_r': return [tri(R, tl, bl), tri(T, bl, br)]
     default: return []
   }
 }
@@ -196,7 +198,7 @@ export default function WindowSvg({ design, frameColor = '#f4f4f2', selectedId, 
                       <g key={k}>
                         <rect x={pr.x} y={pr.y} width={pr.w} height={pr.h} fill={band} stroke={C.line} strokeWidth={stroke} />
                         <rect x={gl.x} y={gl.y} width={gl.w} height={gl.h} fill={isPanel(leaf, k) ? C.panel : C.glass} stroke={C.line} strokeWidth={stroke * 1.1} />
-                        {leaf.net && <rect x={gl.x} y={gl.y} width={gl.w} height={gl.h} fill={`url(#${netId})`} opacity={0.6} />}
+                        {leaf.net && leaf.opening !== 'fixed_sash' && <rect x={gl.x} y={gl.y} width={gl.w} height={gl.h} fill={`url(#${netId})`} opacity={0.6} />}
                       </g>
                     )
                   })}
@@ -205,17 +207,14 @@ export default function WindowSvg({ design, frameColor = '#f4f4f2', selectedId, 
                 <>
                   <rect x={ly.contour.x} y={ly.contour.y} width={ly.contour.w} height={ly.contour.h} fill={band} stroke={ly.sash ? C.contourLine : C.line} strokeWidth={stroke} />
                   <rect x={ly.glass.x} y={ly.glass.y} width={ly.glass.w} height={ly.glass.h} fill={leaf.panel ? C.panel : C.glass} stroke={C.line} strokeWidth={stroke * 1.1} />
-                  {leaf.net && <rect x={ly.glass.x} y={ly.glass.y} width={ly.glass.w} height={ly.glass.h} fill={`url(#${netId})`} opacity={0.6} />}
+                  {leaf.net && leaf.opening !== 'fixed_sash' && <rect x={ly.glass.x} y={ly.glass.y} width={ly.glass.w} height={ly.glass.h} fill={`url(#${netId})`} opacity={0.6} />}
                 </>
               )}
-              {!leaf.panel && openingLines(leaf.opening, ly.glass).map((d, i) => (
+              {/* линии открывания и крест глухой части рисуются и на сэндвич-панели (как WinStudio, сверка v08) */}
+              {openingLines(leaf.opening, ly.glass).map((d, i) => (
                 <path key={i} d={d} fill="none" stroke="#1a1a1a" strokeWidth={stroke * 1.1} />
               ))}
-              {/* дверь: цоколь (нижняя накладка) у створки — на чертеже, печати и в цехе дверь отличается от обычной створки */}
-              {leaf.door && ly.sash && (
-                <rect x={ly.sash.x + sashBody * 0.5} y={ly.sash.y + ly.sash.h - sashBody * 0.9} width={Math.max(0, ly.sash.w - sashBody)} height={sashBody * 0.55} fill="#8d97a1" stroke={C.line} strokeWidth={stroke} />
-              )}
-              {leaf.opening === 'fixed' && !leaf.panel && (
+              {leaf.opening === 'fixed' && (
                 <path
                   d={`M${ly.glass.x + ly.glass.w / 2 - CROSS},${ly.glass.y + ly.glass.h / 2} h${CROSS * 2} M${ly.glass.x + ly.glass.w / 2},${ly.glass.y + ly.glass.h / 2 - CROSS} v${CROSS * 2}`}
                   stroke="#1a1a1a"
@@ -244,21 +243,33 @@ export default function WindowSvg({ design, frameColor = '#f4f4f2', selectedId, 
               {ly.sash && side && handle(ly.sash, side, sashBody, `h${leaf.id}`)}
               {sb && leaf.sub && (
                 <g>
-                  {leaf.sub.dir === 'v' ? (
-                    <>
-                      <line x1={sb.ref.x} y1={rect.y + rect.h * 0.72} x2={sb.ref.x + sb.sizes[0]} y2={rect.y + rect.h * 0.72} stroke="#111111" strokeWidth={stroke * 0.8} />
-                      <Dot x={sb.ref.x} y={rect.y + rect.h * 0.72} />
-                      <Dot x={sb.ref.x + sb.sizes[0]} y={rect.y + rect.h * 0.72} />
-                      <Label cx={sb.ref.x + sb.sizes[0] / 2} cy={rect.y + rect.h * 0.72} text={fmtLen(sb.sizes[0])} onClick={onSubClick ? () => onSubClick(leaf.id, 0, sb.sizes[0]) : undefined} />
-                    </>
-                  ) : (
-                    <>
-                      <line x1={rect.x + rect.w * 0.28} y1={sb.ref.y} x2={rect.x + rect.w * 0.28} y2={sb.ref.y + sb.sizes[0]} stroke="#111111" strokeWidth={stroke * 0.8} />
-                      <Dot x={rect.x + rect.w * 0.28} y={sb.ref.y} />
-                      <Dot x={rect.x + rect.w * 0.28} y={sb.ref.y + sb.sizes[0]} />
-                      <Label cx={rect.x + rect.w * 0.28} cy={sb.ref.y + sb.sizes[0] / 2} text={fmtLen(sb.sizes[0])} onClick={onSubClick ? () => onSubClick(leaf.id, 0, sb.sizes[0]) : undefined} />
-                    </>
-                  )}
+                  {(() => {
+                    // как WinStudio (живая сверка 26.11.2026, варианты v09, o23–o30): 2 части по вертикали — подпись у ПЕРВОЙ части
+                    // (линия на 72 % высоты ячейки), 2 по горизонтали — у ПОСЛЕДНЕЙ (линия по центру); 3 части — у первой и последней
+                    const n = sb.sizes.length
+                    const idx = n === 2 ? (leaf.sub.dir === 'v' ? [0] : [1]) : [0, n - 1]
+                    const cx = rect.x + rect.w / 2
+                    const ly72 = rect.y + rect.h * 0.72
+                    return idx.map((k) => {
+                      const a = sb.sizes.slice(0, k).reduce((s, x) => s + x, 0)
+                      const click = onSubClick ? () => onSubClick(leaf.id, k, sb.sizes[k]) : undefined
+                      return leaf.sub!.dir === 'v' ? (
+                        <g key={k}>
+                          <line x1={sb.ref.x + a} y1={ly72} x2={sb.ref.x + a + sb.sizes[k]} y2={ly72} stroke="#111111" strokeWidth={stroke * 0.8} />
+                          <Dot x={sb.ref.x + a} y={ly72} />
+                          <Dot x={sb.ref.x + a + sb.sizes[k]} y={ly72} />
+                          <Label cx={sb.ref.x + a + sb.sizes[k] / 2} cy={ly72} text={fmtLen(sb.sizes[k])} onClick={click} />
+                        </g>
+                      ) : (
+                        <g key={k}>
+                          <line x1={cx} y1={sb.ref.y + a} x2={cx} y2={sb.ref.y + a + sb.sizes[k]} stroke="#111111" strokeWidth={stroke * 0.8} />
+                          <Dot x={cx} y={sb.ref.y + a} />
+                          <Dot x={cx} y={sb.ref.y + a + sb.sizes[k]} />
+                          <Label cx={cx} cy={sb.ref.y + a + sb.sizes[k] / 2} text={fmtLen(sb.sizes[k])} onClick={click} />
+                        </g>
+                      )
+                    })
+                  })()}
                 </g>
               )}
               {sel && <rect x={rect.x + stroke * 2} y={rect.y + stroke * 2} width={rect.w - stroke * 4} height={rect.h - stroke * 4} fill="none" stroke="#0e9a2f" strokeWidth={stroke * 3} strokeDasharray={`${font} ${font * 0.5}`} />}

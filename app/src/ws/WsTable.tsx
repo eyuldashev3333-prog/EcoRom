@@ -27,7 +27,7 @@ export default function WsTable({ data, currency }: { data: TableData | null; cu
     if (!x || x.v === 0) return ''
     if (x.unit === 'm2') return `${fmtM2(x.v).toFixed(2)} ${m2Unit()}`
     if (x.unit === 'm') return `${fmtM(x.v).toFixed(2)} ${mUnit()}`
-    return String(x.v)
+    return `${x.v} dona` // как «1 шт» у WinStudio
   }
   const costText = (m: CostMap | undefined, col: (typeof WS_COLS)[number]) => (m?.[col] ? money(m[col]!) : '')
   const pctOne = `(-${Math.round((one?.price.discountPct ?? 0) * 100) / 100}%)`
