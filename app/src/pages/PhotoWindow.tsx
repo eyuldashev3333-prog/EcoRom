@@ -6,7 +6,7 @@ import { colorHex } from '../lib/catalog'
 import { download, insideTelegram, sendToTelegram } from '../lib/export'
 import { isConvexQuad, premultiply, squareToQuad, warpTexture, type Pt, type Raster, type Range } from '../lib/perspective'
 import { renderWindow, type Rendered, type Tint } from '../lib/windowRender'
-import { resize, type WindowDesign } from '../lib/window'
+import { resizeChain, type WindowDesign } from '../lib/window'
 import { uz } from '../uz'
 
 const t = uz.photo
@@ -336,8 +336,8 @@ export default function PhotoWindow() {
               ))}
             </div>
             <div className="grid2">
-              <SizeInput label={uz.designer.width} value={design.width} min={300} onCommit={(n) => setDesign(resize(design, n, design.height))} />
-              <SizeInput label={uz.designer.height} value={design.height} min={300} onCommit={(n) => setDesign(resize(design, design.width, n))} />
+              <SizeInput label={uz.designer.width} value={design.width} min={300} onCommit={(n) => setDesign(resizeChain(design, n, design.height))} />
+              <SizeInput label={uz.designer.height} value={design.height} min={300} onCommit={(n) => setDesign(resizeChain(design, design.width, n))} />
             </div>
             <details>
               <summary>{t.advanced}</summary>

@@ -634,6 +634,110 @@ export function equalize(d: WindowDesign): WindowDesign {
   return { ...d, root: walk(d.root, d.width, d.height) }
 }
 
+// ---------- цепочка размеров как в WinStudio (p078t1/h.java, живая сверка 27.11.2026) ----------
+// Цепочка = все линии сетки по оси (импосты и границы рам). Правка идёт по линиям: импосты на одной линии двигаются вместе,
+// вложенные деления пересчитываются по новым позициям линий — пустот в раме не бывает.
+const CHAIN_MIN = 300
+const key6 = (x: number) => Math.round(x * 1e6) / 1e6
+
+/** линии сетки по оси: 0, все границы ячеек, габарит */
+export function chainLines(d: WindowDesign, axis: 'w' | 'h'): number[] {
+  const { cells } = layout(d)
+  const all = axis === 'w' ? [0, d.width, ...cells.flatMap((c) => [c.rect.x, c.rect.x + c.rect.w])] : [0, d.height, ...cells.flatMap((c) => [c.rect.y, c.rect.y + c.rect.h])]
+  return [...new Set(all.map(key6))].sort((a, b) => a - b)
+}
+
+/** перенести линии сетки oldLines → newLines (тот же порядок): размеры всех делений оси пересчитываются по новым позициям */
+export function remapAxis(d: WindowDesign, axis: 'w' | 'h', oldLines: number[], newLines: number[]): WindowDesign {
+  const map = new Map(oldLines.map((x, i) => [key6(x), newLines[i]]))
+  const to = (x: number) => map.get(key6(x)) ?? x
+  const dir = axis === 'w' ? 'v' : 'h'
+  const walk = (n: Node, start: number): Node => {
+    if (n.kind === 'leaf') return n
+    // деление другой оси: детям та же область по нашей оси
+    if (n.dir !== dir) return { ...n, children: n.children.map((c) => walk(c, start)) }
+    const bounds = [start]
+    n.sizes.forEach((s) => bounds.push(bounds[bounds.length - 1] + s))
+    const nb = bounds.map(to)
+    const sizes = n.sizes.map((_, i) => nb[i + 1] - nb[i])
+    return { ...n, sizes, children: n.children.map((c, i) => walk(c, bounds[i])) }
+  }
+  const last = newLines[newLines.length - 1]
+  const root = walk(d.root, 0)
+  return axis === 'w' ? { ...d, width: last, root } : { ...d, height: last, root }
+}
+
+const segsOf = (lines: number[]) => lines.slice(1).map((x, i) => x - lines[i])
+const linesOf = (segs: number[]) => segs.reduce((acc, s) => (acc.push(acc[acc.length - 1] + s), acc), [0])
+
+/** правка отрезка цепочки (как WinStudio): не последний — двигается следующая линия, последний — предыдущая; минимум 300 мм с переносом нехватки */
+export function setChainSegment(d: WindowDesign, axis: 'w' | 'h', index: number, value: number): WindowDesign {
+  const lines = chainLines(d, axis)
+  const old = segsOf(lines)
+  const n = old.length
+  if (n < 2 || index < 0 || index >= n) return d
+  const s = [...old]
+  const v = Math.round(value)
+  if (index < n - 1) {
+    s[index] = v
+    s[index + 1] = old[index] + old[index + 1] - v
+    if (s[index] < CHAIN_MIN) {
+      s[index + 1] += s[index] - CHAIN_MIN
+      s[index] = CHAIN_MIN
+    }
+    for (let k = index + 1; k < n; k++) {
+      if (s[k] > CHAIN_MIN) break
+      const lack = CHAIN_MIN - s[k]
+      s[k] = CHAIN_MIN
+      if (k < n - 1) s[k + 1] -= lack
+      else s[index] -= lack
+    }
+  } else {
+    s[index] = Math.max(CHAIN_MIN, v)
+    s[n - 2] -= s[index] - old[index]
+    for (let k = n - 2; k >= 0; k--) {
+      if (s[k] > CHAIN_MIN) break
+      const lack = CHAIN_MIN - s[k]
+      s[k] = CHAIN_MIN
+      if (k > 0) s[k - 1] -= lack
+      else s[n - 1] -= lack
+    }
+  }
+  return remapAxis(d, axis, lines, linesOf(s))
+}
+
+/** новый габарит (как WinStudio): разницу забирает последний отрезок цепочки, минимум 300 мм с переносом влево */
+export function resizeChain(d: WindowDesign, width: number, height: number): WindowDesign {
+  let out = d
+  for (const [axis, total] of [['w', width], ['h', height]] as const) {
+    const cur = axis === 'w' ? out.width : out.height
+    if (total === cur) continue
+    const lines = chainLines(out, axis)
+    const s = segsOf(lines)
+    s[s.length - 1] += total - cur
+    for (let k = s.length - 1; k >= 0; k--) {
+      if (s[k] >= CHAIN_MIN) continue
+      const lack = CHAIN_MIN - s[k]
+      s[k] = CHAIN_MIN
+      if (k > 0) s[k - 1] -= lack
+    }
+    const nl = linesOf(s)
+    // если окно меньше 300 × частей — последний отрезок забирает всё, габарит всё равно ровно введённый
+    nl[nl.length - 1] = total
+    out = remapAxis(out, axis, lines, nl)
+  }
+  return out
+}
+
+/** «Выровнять размеры?» по кружку в конце цепочки: все отрезки цепочки равны */
+export function equalizeChain(d: WindowDesign, axis: 'w' | 'h'): WindowDesign {
+  const lines = chainLines(d, axis)
+  if (lines.length < 3) return d
+  const total = lines[lines.length - 1]
+  const step = total / (lines.length - 1)
+  return remapAxis(d, axis, lines, lines.map((_, i) => (i === lines.length - 1 ? total : i * step)))
+}
+
 /** Проблемы чертежа, при которых цену и стекло считать нельзя: 'size' — габарит вне 200…6000 мм, 'pane' — стекло меньше 50 мм (отрицательные/нулевые панели). */
 export function designProblems(d: WindowDesign, dims: Dims = DEFAULT_DIMS): ('size' | 'pane')[] {
   const out: ('size' | 'pane')[] = []

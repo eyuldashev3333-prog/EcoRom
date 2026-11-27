@@ -1,13 +1,16 @@
 import { useId } from 'react'
 import { fmtLen } from '../lib/units'
-import { arcLength, DEFAULT_DIMS, frameSides, isPanel, layout, leafLayers, splitBoxes, subLayout, type Opening, type Rect, type WindowDesign } from '../lib/window'
+import { arcLength, chainLines, DEFAULT_DIMS, frameSides, isPanel, layout, leafLayers, subLayout, type Opening, type Rect, type WindowDesign } from '../lib/window'
 
 interface Props {
   design: WindowDesign
   frameColor?: string
   selectedId?: string | null
   onSelect?: (leafId: string) => void
-  onPartClick?: (splitId: string, index: number, current: number) => void
+  /** нажатие на размер в цепочке частей: ось, номер отрезка, текущий размер */
+  onChainClick?: (axis: 'w' | 'h', index: number, current: number) => void
+  /** нажатие на кружок в конце цепочки — «Выровнять размеры?» */
+  onChainEqualize?: (axis: 'w' | 'h') => void
   onSizeClick?: (axis: 'w' | 'h', current: number) => void
   onSubClick?: (leafId: string, index: number, current: number) => void // размер части ячейки с импостом внутри
   maxHeight?: number
@@ -80,7 +83,7 @@ function handleSide(o: Opening): 'r' | 'l' | 'b' | 't' | null {
   }
 }
 
-export default function WindowSvg({ design, frameColor = '#f4f4f2', selectedId, onSelect, onPartClick, onSizeClick, onSubClick, maxHeight = 420, fontScale = 1, legend, badge, note }: Props) {
+export default function WindowSvg({ design, frameColor = '#f4f4f2', selectedId, onSelect, onChainClick, onChainEqualize, onSizeClick, onSubClick, maxHeight = 420, fontScale = 1, legend, badge, note }: Props) {
   // свой id на каждый чертёж: на одной странице (PDF заказа) их несколько
   const uidRaw = useId().replace(/[^a-zA-Z0-9]/g, '')
   const clipId = `clip${uidRaw}`
@@ -89,7 +92,6 @@ export default function WindowSvg({ design, frameColor = '#f4f4f2', selectedId, 
   const { cells, joins, frames } = layout(design)
   // составное окно (Г, Т, ступени): несколько отдельных рам, рамы рисуются каждая со своим контуром
   const composite = frames.length > 1 || frames.some((f) => f.w !== design.width || f.h !== design.height)
-  const splits = splitBoxes(design)
   const M = Math.max(W, H)
   const font = M * 0.031 * fontScale
   const rise = design.shape === 'arch' ? Math.min(design.archRise ?? 0, W / 2, H) : 0
@@ -145,9 +147,9 @@ export default function WindowSvg({ design, frameColor = '#f4f4f2', selectedId, 
   }
 
   // линии сетки: границы всех ячеек и рам (позиции импостов и соединений), по возрастанию
-  const uniq = (xs: number[]) => [...new Set(xs.map((v) => Math.round(v * 100) / 100))].sort((a, b) => a - b)
-  const gridX = uniq([0, W, ...cells.flatMap((c) => [c.rect.x, c.rect.x + c.rect.w])])
-  const gridY = uniq([0, H, ...cells.flatMap((c) => [c.rect.y, c.rect.y + c.rect.h])])
+  // (те же линии, что правит setChainSegment — номер отрезка совпадает)
+  const gridX = chainLines(design, 'w')
+  const gridY = chainLines(design, 'h')
 
   return (
     <svg
@@ -307,18 +309,32 @@ export default function WindowSvg({ design, frameColor = '#f4f4f2', selectedId, 
             ))}
             {lines.slice(0, -1).map((p, i) => {
               const size = lines[i + 1] - p
-              // нажатие меняет размер, если часть совпадает с частью какого-то деления; иначе только показ
-              const hit = splits.flatMap((s) => s.parts.map((pr, k) => ({ s, pr, k }))).find(({ s, pr }) => s.split.dir === (v ? 'v' : 'h') && (v ? pr.x === p && pr.w === size : pr.y === p && pr.h === size))
+              // как WinStudio: любой отрезок цепочки меняется (двигается линия сетки со всеми импостами на ней)
               return (
                 <Label
                   key={`l${i}`}
                   cx={v ? p + size / 2 : -offP}
                   cy={v ? H + offP : p + size / 2}
                   text={fmtLen(size)}
-                  onClick={hit ? () => onPartClick?.(hit.s.split.id, hit.k, size) : undefined}
+                  onClick={onChainClick ? () => onChainClick(v ? 'w' : 'h', i, size) : undefined}
                 />
               )
             })}
+            {/* синий кружок в конце цепочки — «Выровнять размеры?» (WinStudio) */}
+            {onChainEqualize && (
+              <circle
+                cx={v ? lines[lines.length - 1] : -offP}
+                cy={v ? H + offP : lines[lines.length - 1]}
+                r={dotR * 3.2}
+                fill="#4a90e2"
+                fillOpacity={0.35}
+                style={{ cursor: 'pointer' }}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onChainEqualize(v ? 'w' : 'h')
+                }}
+              />
+            )}
           </g>
         ) : null,
       )}

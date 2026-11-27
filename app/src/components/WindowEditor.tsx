@@ -8,15 +8,14 @@ import { fmtLen, lenToMm, lenUnit, withLenUnit } from '../lib/units'
 import { Confirm } from './Dialog'
 import {
   OPENINGS,
-  equalize,
+  equalizeChain,
   findNode,
-  hasUnequalParts,
   layout,
   measure,
   mergeParent,
   newDesign,
-  resize,
-  setPartSize,
+  resizeChain,
+  setChainSegment,
   splitLeaf,
   updateLeaf,
   type Leaf,
@@ -71,18 +70,15 @@ export default function WindowEditor({ value: design, onChange, frameColor, lege
   const [control, setControl] = useState(true)
   const [selected, setSelected] = useState<string | null>(null)
   const [pad, setPad] = useState<PadReq | null>(null)
-  const [eq, setEq] = useState<{ w: number; h: number } | null>(null)
+  const [eq, setEq] = useState<'w' | 'h' | null>(null)
   const [picking, setPicking] = useState(false)
   const [cellOpen, setCellOpen] = useState(false)
   const m = useMemo(() => measure(design), [design])
   const sel = selected ? (findNode(design.root, selected) as Leaf | null) : null
   const set = (fn: (d: WindowDesign) => WindowDesign) => onChange(fn(design))
 
-  // смена габарита: если части неравные — спрашиваем «Уравнять размеры?»
-  const changeSize = (w: number, h: number) => {
-    if (hasUnequalParts(design)) setEq({ w, h })
-    else onChange(resize(design, w, h))
-  }
+  // смена габарита как WinStudio: разницу забирает последний отрезок цепочки; «Уравнять размеры?» — по кружку в конце цепочки
+  const changeSize = (w: number, h: number) => onChange(resizeChain(design, w, h))
   const setSize = (axis: 'w' | 'h', current: number) =>
     setPad({
       title: withLenUnit(axis === 'w' ? t.width : t.height),
@@ -118,9 +114,10 @@ export default function WindowEditor({ value: design, onChange, frameColor, lege
               setCellOpen(true)
             }}
             onSizeClick={setSize}
-            onPartClick={(splitId, i, cur) =>
-              setPad({ title: withLenUnit(t.partSize), value: cur, min: 100, max: 6000, apply: (n) => set((d) => setPartSize(d, splitId, i, n)) })
+            onChainClick={(axis, i, cur) =>
+              setPad({ title: withLenUnit(t.partSize), value: Math.round(cur), min: 1, max: 6000, apply: (n) => set((d) => setChainSegment(d, axis, i, n)) })
             }
+            onChainEqualize={setEq}
           />
           <p className="muted hint">{t.hint}</p>
         </div>
@@ -205,12 +202,9 @@ export default function WindowEditor({ value: design, onChange, frameColor, lege
           text={t.equalizeSub}
           no={t.no}
           yes={t.yes}
-          onNo={() => {
-            onChange(resize(design, eq.w, eq.h))
-            setEq(null)
-          }}
+          onNo={() => setEq(null)}
           onYes={() => {
-            onChange(equalize(resize(design, eq.w, eq.h)))
+            onChange(equalizeChain(design, eq))
             setEq(null)
           }}
         />

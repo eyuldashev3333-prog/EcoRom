@@ -4,7 +4,7 @@ import WindowSvg from '../components/WindowSvg'
 import { MiniWindow } from '../components/ConfigPicker'
 import { itemColor } from '../lib/catalog'
 import { DOBOR, SIDES, selList, type ItemOptions, type Side } from '../lib/quote'
-import { equalize, findNode, hasUnequalParts, resize, setPartSize, setSubSize, type WindowDesign } from '../lib/window'
+import { equalizeChain, findNode, resizeChain, setChainSegment, setSubSize, type WindowDesign } from '../lib/window'
 import { uz } from '../uz'
 import './ws.css'
 import { ConfigDialog, CellDialog } from './WsDialogs'
@@ -81,7 +81,7 @@ export default function WsEditor() {
   const [picking, setPicking] = useState(false)
   const [cellFor, setCellFor] = useState<string | null>(null)
   const [pad, setPad] = useState<PadReq | null>(null)
-  const [eq, setEq] = useState<{ w: number; h: number } | null>(null)
+  const [eq, setEq] = useState<'w' | 'h' | null>(null) // ось, по которой спрашиваем «выровнять?»
   const [askDel, setAskDel] = useState(false)
   const [toast, setToast] = useState<{ text: string; bad?: boolean } | null>(null)
 
@@ -142,9 +142,9 @@ export default function WsEditor() {
   const setDesign = (nd: WindowDesign) => it && !ro && w.patchItem(it.key, { design: nd })
   const changeSize = (nw: number, nh: number) => {
     if (!design) return
-    // WinStudio спрашивает «выровнять?», если части неравны ПОСЛЕ смены габарита (750/750 → 1800 даёт 750/1050)
-    if (hasUnequalParts(resize(design, nw, nh))) setEq({ w: nw, h: nh })
-    else setDesign(resize(design, nw, nh))
+    // как WinStudio (живая сверка 27.11.2026): разницу забирает последний отрезок цепочки, вопроса «выровнять?» нет —
+    // он только по кружку в конце цепочки размеров
+    setDesign(resizeChain(design, nw, nh))
   }
   const askNumber = (value: number, apply: (n: number) => void) => setPad({ value, min: 0, max: 1e12, plain: true, apply })
   const go = async (path: string) => {
@@ -208,7 +208,8 @@ export default function WsEditor() {
                 frameColor={itemColor(catalog.byId.get(it.options.color ?? ''))}
                 onSelect={(leafId) => !ro && setCellFor(leafId)}
                 onSizeClick={(axis, current) => !ro && setPad({ value: current, min: 300, max: 6000, apply: (n) => changeSize(axis === 'w' ? n : design.width, axis === 'h' ? n : design.height) })}
-                onPartClick={(splitId, i, current) => !ro && setPad({ value: current, min: 100, max: 6000, apply: (n) => setDesign(setPartSize(design, splitId, i, n)) })}
+                onChainClick={(axis, i, current) => !ro && setPad({ value: Math.round(current), min: 1, max: 6000, apply: (n) => setDesign(setChainSegment(design, axis, i, n)) })}
+                onChainEqualize={(axis) => !ro && setEq(axis)}
                 onSubClick={(leafId, i, current) => !ro && setPad({ value: current, min: 100, max: 6000, apply: (n) => setDesign(setSubSize(design, leafId, i, n)) })}
               />
             </div>
@@ -359,12 +360,9 @@ export default function WsEditor() {
           text={t.equalizeQ}
           no={t.no}
           yes={t.yes}
-          onNo={() => {
-            setDesign(resize(design, eq.w, eq.h))
-            setEq(null)
-          }}
+          onNo={() => setEq(null)}
           onYes={() => {
-            setDesign(equalize(resize(design, eq.w, eq.h)))
+            setDesign(equalizeChain(design, eq))
             setEq(null)
           }}
         />
