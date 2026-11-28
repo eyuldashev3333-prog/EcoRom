@@ -69,7 +69,9 @@ export default function OrderEdit() {
   }, [])
   const [orderNo, setOrderNo] = useState<number | null>(null)
   const [status, setStatus] = useState('new')
-  const [frozenMarkup, setFrozenMarkup] = useState<number | null>(null) // наценка, с которой заказ был сохранён
+  const [frozenMarkup, setFrozenMarkup] = useState<number | null>(null) // маржа компании заказа (доля); null — по умолчанию из прайса (35%)
+  const [savedMarkup, setSavedMarkup] = useState<number | null>(null) // маржа в базе: старый заказ ниже минимума сохраняется, пока её не трогают
+  const [marginText, setMarginText] = useState<string | null>(null) // что набрано в поле «Marja» (пока не применено)
   const [savedContract, setSavedContract] = useState(0) // договор из базы (оплаты считаются от него)
   const [loaded, setLoaded] = useState(!id) // блок оплат — только после загрузки заказа (иначе % от нуля)
   const [imported, setImported] = useState(false) // заказ из истории (таблица): без чертежей
@@ -105,7 +107,9 @@ export default function OrderEdit() {
       setDiscount(Number(o.discount_pct))
       setContract(String(Number(o.contract_price) || ''))
       setSavedContract(Number(o.contract_price))
-      setFrozenMarkup(Number(o.markup) || null)
+      // маржа как сохранена (0 у старых заказов №2600–2602 остаётся 0 — раньше 0 подменялся общей наценкой)
+      setFrozenMarkup(o.markup === null || o.markup === undefined ? null : Number(o.markup))
+      setSavedMarkup(o.markup === null || o.markup === undefined ? null : Number(o.markup))
       setImported(!!o.is_imported)
       setHead({ windows: o.windows_count, area: Number(o.area_m2), cost: Number(o.calc_cost) })
       const { data: its } = await supabase.from('order_items').select('id, pos, title, qty, design, options, note, cost, area_m2, calc, materials').eq('order_id', id).order('pos')
@@ -149,9 +153,18 @@ export default function OrderEdit() {
   const pctSum = discount > 0 ? Math.max(0, Math.round(fullPrice - suggested)) : 0
   const liveCost = calc.reduce((s, c, i) => s + c.live.cost * items[i].qty, 0)
   const priceDrift = items.some((x) => x.frozen) && Math.abs(liveCost - cost) > 1
-  const recalc = () => {
-    setItems((xs) => xs.map((x) => ({ ...x, frozen: undefined })))
-    setFrozenMarkup(null)
+  // пересчёт по новым ценам прайса; маржа заказа остаётся той, что выбрал руководитель
+  const recalc = () => setItems((xs) => xs.map((x) => ({ ...x, frozen: undefined })))
+  const markupMin = catalog.settings.markupMin
+  const keepsOld = savedMarkup !== null && Math.abs(markupUsed - savedMarkup) < 1e-9 // старый заказ, маржу не трогали
+  const markupBad = markupUsed < markupMin - 1e-9 && !keepsOld
+  const pctText = (x: number) => String(Math.round(x * 1000) / 10).replace('.', ',')
+  const applyMargin = (text: string) => {
+    const v = Number(text.replace(',', '.'))
+    setMarginText(null)
+    if (!Number.isFinite(v) || v < 0) return
+    setFrozenMarkup(Math.round(v * 10) / 1000) // 35 → 0.35 (точность 0,1%)
+    setContract('') // маржа изменилась — договор снова следует за расчётом (цена растёт вместе с маржой)
   }
   const problems = items.flatMap((it, i) => designProblems(it.design).map((c) => ({ pos: i + 1, code: c })))
   const unknownIds = [...new Set(calc.flatMap((c) => c.q.unknown))]
@@ -187,6 +200,7 @@ export default function OrderEdit() {
   }
 
   const save = async () => {
+    if (!locked && markupBad) return setMsg({ ok: false, text: `${t.marginMin} ${pctText(markupMin)}%` })
     if (!locked) {
       if (problems.length) return setMsg({ ok: false, text: problems.map((p) => `${p.pos}-pozitsiya: ${p.code === 'size' ? t.badSize : t.badPane}`).join('; ') })
       if (unknownIds.length) return setMsg({ ok: false, text: t.unknownItems })
@@ -365,6 +379,23 @@ export default function OrderEdit() {
           <tbody>
             <tr><td>{t.windows}</td><td>{windows} · {Math.round(area * 100) / 100} m²</td></tr>
             <tr><td>{t.cost}</td><td>{formatSum(cost)}</td></tr>
+            <tr className={markupBad || (keepsOld && markupUsed < markupMin - 1e-9) ? 'bad' : ''}>
+              <td>{t.margin}</td>
+              <td>
+                <input
+                  className="money"
+                  inputMode="decimal"
+                  aria-label={t.margin}
+                  disabled={locked}
+                  value={marginText ?? pctText(markupUsed)}
+                  onChange={(e) => setMarginText(e.target.value.replace(/[^\d.,]/g, ''))}
+                  onBlur={(e) => applyMargin(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+                />
+                {markupBad && <small className="debt-tag"> {t.marginMin} {pctText(markupMin)}%</small>}
+                {!markupBad && keepsOld && markupUsed < markupMin - 1e-9 && <small className="muted"> {t.marginOld}</small>}
+              </td>
+            </tr>
             <tr>
               <td>{t.discount} %</td>
               <td>
@@ -417,13 +448,13 @@ export default function OrderEdit() {
             <tr className={pr.marginPct < marginAlert ? 'bad' : ''}>
               <td>{t.profit}</td>
               <td>
-                {formatSum(pr.profit)} ({pr.marginPct}%)
+                {formatSum(pr.profit)} ({t.profitOfCost} {cost > 0 ? pctText(pr.profit / cost) : '0'}%)
               </td>
             </tr>
           </tbody>
         </table>
         {rateMissing && <p className="warn">{t.rateMissing}</p>}
-        <button disabled={busy || items.length === 0 || !client.full_name.trim()} onClick={save}>
+        <button disabled={busy || items.length === 0 || !client.full_name.trim() || (!locked && markupBad)} onClick={save}>
           {t.save}
         </button>
       </div>

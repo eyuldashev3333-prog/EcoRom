@@ -14,11 +14,12 @@ export interface PriceSettings {
   resultCurrency: string
   taxName: string
   taxPct: number
-  markup: number // общая наценка (доля), когда схема не выбрана
+  markup: number // маржа компании по умолчанию для нового заказа (доля, 0.35 = 35%); схема добавляет свою маржу поверх
+  markupMin: number // меньше этой маржи заказ не сохранить (решение Asad 28.11.2026: только 35% и выше)
   schemes: Scheme[]
 }
 
-export const SETTING_KEYS = ['markup', 'price_currency', 'currency_rate', 'result_currency', 'tax_name', 'tax_pct', 'finance_schemes'] as const
+export const SETTING_KEYS = ['markup', 'markup_min', 'price_currency', 'currency_rate', 'result_currency', 'tax_name', 'tax_pct', 'finance_schemes'] as const
 
 const num = (v: unknown, def: number) => {
   const n = Number(v)
@@ -26,19 +27,19 @@ const num = (v: unknown, def: number) => {
 }
 const str = (v: unknown, def: string) => (typeof v === 'string' && v.trim() ? v : def)
 
-/** схемы по умолчанию — скидки 1/2/3/5% с наценкой заказа (поведение до появления таблицы схем) */
-export const defaultSchemes = (markup: number): Scheme[] =>
-  [1, 2, 3, 5].map((d) => ({ id: `d${d}`, name: `Chegirma ${d}%`, discount: d, margin: Math.round(markup * 1000) / 10, margin_work: Math.round(markup * 1000) / 10 }))
+/** схемы по умолчанию — скидки 1/2/3/5%; своей маржи нет: маржа компании заказа идёт поверх (иначе она сложилась бы дважды) */
+export const defaultSchemes = (): Scheme[] => [1, 2, 3, 5].map((d) => ({ id: `d${d}`, name: `Chegirma ${d}%`, discount: d, margin: 0, margin_work: 0 }))
 
 export function parsePriceSettings(rows: { key: string; value: unknown }[]): PriceSettings {
   const m = new Map(rows.map((r) => [r.key, r.value]))
-  const markup = num(m.get('markup'), 0.37)
+  const markupMin = Math.max(num(m.get('markup_min'), 0.35), 0)
+  const markup = Math.max(num(m.get('markup'), 0.35), markupMin)
   const raw = m.get('finance_schemes')
   const schemes = Array.isArray(raw)
     ? (raw as Partial<Scheme>[])
         .filter((s) => s && typeof s.id === 'string')
         .map((s) => ({ id: String(s.id), name: str(s.name, String(s.id)), discount: num(s.discount, 0), margin: num(s.margin, 0), margin_work: num(s.margin_work, 0) }))
-    : defaultSchemes(markup)
+    : defaultSchemes()
   const cur = str(m.get('price_currency'), "so'm")
   return {
     currency: cur,
@@ -47,6 +48,7 @@ export function parsePriceSettings(rows: { key: string; value: unknown }[]): Pri
     taxName: str(m.get('tax_name'), 'QQS'),
     taxPct: Math.max(num(m.get('tax_pct'), 0), 0),
     markup,
+    markupMin,
     schemes,
   }
 }

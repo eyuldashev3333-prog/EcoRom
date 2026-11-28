@@ -22,9 +22,10 @@ export function itemPrice(
   const d = scheme ? scheme.discount : orderDiscountPct
   const own = Number(o.own_price)
   if (own > 0) return round2(own * (1 - d / 100))
-  // схема: скидка на всё, затем своя маржа на материалы и на работы; без схемы — общая наценка на всё
-  const mm = scheme ? scheme.margin / 100 : markup
-  const mw = scheme ? scheme.margin_work / 100 : markup
+  // маржа компании заказа (markup, по умолчанию 35%) идёт всегда; схема добавляет свою маржу материалов/работ поверх и даёт скидку.
+  // Раньше схема ЗАМЕНЯЛА общую наценку — с выбранной схемой (маржа 0) прибыль в цену не попадала (решение Asad 28.11.2026).
+  const mm = markup + (scheme ? scheme.margin / 100 : 0)
+  const mw = markup + (scheme ? scheme.margin_work / 100 : 0)
   const mat = Math.max(cost - workCost, 0)
   return round2(mat * (1 - d / 100) * (1 + mm) + workCost * (1 - d / 100) * (1 + mw))
 }

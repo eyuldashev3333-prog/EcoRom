@@ -116,7 +116,7 @@ export function useWsOrder(paramId?: string) {
       setDiscount(Number(o.discount_pct))
       setSavedContract(Number(o.contract_price))
       setSavedSuggested(Number(o.calc_suggested))
-      setFrozenMarkup(Number(o.markup) || null)
+      setFrozenMarkup(o.markup === null || o.markup === undefined ? null : Number(o.markup)) // 0 у старых заказов остаётся 0
       const { data: its } = await supabase.from('order_items').select('id, pos, title, qty, design, options, note, cost, area_m2, calc, materials').eq('order_id', first).order('pos')
       setItems(
         ((its as { id: string; title: string | null; qty: number; design: WindowDesign; options: ItemOptions; note: string | null; cost: number; area_m2: number; calc: { lines?: QuoteLine[] }; materials: { items?: Material[] } }[]) ?? []).map((x) => ({
@@ -154,10 +154,10 @@ export function useWsOrder(paramId?: string) {
   const taxK = 1 + catalog.settings.taxPct / 100
   const scheme = (it: WsItem) => catalog.settings.schemes.find((s) => s.id === it.options.scheme)
   // цена окна клиенту (со скидкой схемы) и без скидки — как строки «окно» / «цена» у WinStudio
-  // наценка по колонкам (как «цена» в таблице WinStudio: стоимость колонки × (1 + маржа схемы)); без схемы — общая наценка заказа
+  // наценка по колонкам («цена» в таблице WinStudio: стоимость колонки × (1 + маржа)): маржа компании заказа + маржа схемы поверх (как itemPrice)
   const margins = items.map((it) => {
     const sc = scheme(it)
-    return { mat: sc ? sc.margin / 100 : markupUsed, work: sc ? sc.margin_work / 100 : markupUsed }
+    return { mat: markupUsed + (sc ? sc.margin / 100 : 0), work: markupUsed + (sc ? sc.margin_work / 100 : 0) }
   })
   const prices = items.map((it, i) => {
     const q = calc[i]?.q

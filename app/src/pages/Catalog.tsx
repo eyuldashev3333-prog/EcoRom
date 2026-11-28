@@ -181,7 +181,7 @@ export default function Catalog() {
   }
   const addScheme = () => {
     if (settings.schemes.some((s) => isPlaceholder(s.name))) return flash(false, t.renameFirst)
-    return saveSchemes([...settings.schemes, { id: `s${Date.now().toString(36)}`, name: 'new_finance', discount: 0, margin: Math.round(settings.markup * 1000) / 10, margin_work: Math.round(settings.markup * 1000) / 10 }])
+    return saveSchemes([...settings.schemes, { id: `s${Date.now().toString(36)}`, name: 'new_finance', discount: 0, margin: 0, margin_work: 0 }]) // маржа компании заказа идёт поверх схемы
   }
 
   const jump = (kind: string) => document.getElementById(`t-${kind}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
@@ -232,7 +232,19 @@ export default function Catalog() {
           </label>
           <label>
             {t.markup}
-            <input inputMode="decimal" value={String(Math.round(settings.markup * 1000) / 10)} onChange={(e) => setSettings((s) => ({ ...s, markup: (Number(e.target.value.replace(',', '.')) || 0) / 100 }))} onBlur={() => saveSetting('markup', settings.markup)} />
+            <input
+              inputMode="decimal"
+              value={String(Math.round(settings.markup * 1000) / 10)}
+              onChange={(e) => setSettings((s) => ({ ...s, markup: (Number(e.target.value.replace(',', '.')) || 0) / 100 }))}
+              onBlur={() => {
+                // маржа по умолчанию не ниже минимума (35%)
+                if (settings.markup < settings.markupMin) {
+                  setSettings((s) => ({ ...s, markup: s.markupMin }))
+                  return flash(false, `${uz.order.marginMin} ${Math.round(settings.markupMin * 1000) / 10}%`)
+                }
+                saveSetting('markup', settings.markup)
+              }}
+            />
           </label>
         </div>
       </section>
@@ -295,7 +307,7 @@ export default function Catalog() {
           <button type="button" className="ghost" onClick={addScheme}>
             + {t.add}
           </button>
-          <button type="button" className="ghost" onClick={() => saveSchemes(defaultSchemes(settings.markup))}>
+          <button type="button" className="ghost" onClick={() => saveSchemes(defaultSchemes())}>
             {t.resetSchemes}
           </button>
         </div>
