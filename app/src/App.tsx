@@ -20,6 +20,7 @@ import ShopOrder from './pages/ShopOrder'
 import InstallOrder from './pages/InstallOrder'
 import Breakages from './pages/Breakages'
 import Expenses from './pages/Expenses'
+import Income from './pages/Income'
 import Leaks from './pages/Leaks'
 import Settings from './pages/Settings'
 import Offcuts from './pages/Offcuts'
@@ -114,6 +115,7 @@ export default function App() {
           <Route path="/my-pay" element={<MyPay />} />
           <Route path="/my-works" element={me.role === 'ishlab' || me.role === 'montajchi' ? <MyWorks /> : <Navigate to="/" />} />
           <Route path="/expenses" element={me.role === 'rahbar' ? <Expenses /> : <Navigate to="/" />} />
+          <Route path="/income" element={me.role === 'rahbar' ? <Income /> : <Navigate to="/" />} />
           <Route path="/service" element={me.role === 'rahbar' ? <Service /> : <Navigate to="/" />} />
           <Route path="/servis/:id" element={me.role === 'montajchi' ? <ServiceWork /> : <Navigate to="/" />} />
           <Route path="/stock" element={me.role === 'rahbar' ? <Stock /> : <Navigate to="/" />} />

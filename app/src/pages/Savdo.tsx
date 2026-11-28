@@ -12,7 +12,8 @@ const fmt = (n: number) => new Intl.NumberFormat('ru-RU').format(Math.round(n))
 interface OrderR { id: string; raqami: number; ismi: string; alyumin: number; plast: number; termo: number; umumiy: number; soni: number; dogovor: number; foyda: number; holati: string }
 interface SalR { id: string; name: string; rate: string | null; etap: { id: string; amount: number; date: string }[]; oldi: number; oyligi: number }
 // storno: строка отмены/возврата (со знаком «−»); сумма всех строк месяца = итог, правке не подлежит
-interface PrixodR { id: string; date: string; raqami: number; ismi: string; amount: number; note: string | null; storno?: boolean }
+// src 'income' — приход мимо заказов (Moliya → Kirim): без номера заказа, правится только встречной записью на странице «Kirim»
+interface PrixodR { id: string; date: string; raqami: number | null; ismi: string; amount: number; note: string | null; storno?: boolean; src?: 'payment' | 'income' }
 interface RasxodR { id: string; date: string; category: string; category_id: number; amount: number; note: string | null; employee: string | null; storno?: boolean }
 interface Month {
   month: string
@@ -82,12 +83,13 @@ export default function Savdo() {
     { key: 'oyligi', label: 'OYLIGI (hisob)', type: 'money', width: 130, total: true },
     { key: 'qoldiq', label: 'QOLDIQ', type: 'money', width: 110, total: true, className: (r) => (r.qoldiq > 0 ? 'neg' : '') },
   ]
+  const prixodEditable = (r: PrixodR) => !r.storno && r.src !== 'income'
   const prixodCols: Col<PrixodR>[] = [
-    { key: 'date', label: 'SANA', type: 'date', width: 100, editable: (r) => !r.storno, sticky: true },
-    { key: 'raqami', label: 'ISH №', width: 70 },
+    { key: 'date', label: 'SANA', type: 'date', width: 100, editable: prixodEditable, sticky: true },
+    { key: 'raqami', label: 'ISH №', width: 70, render: (r) => (r.raqami === null ? <a className="xl-link" onClick={() => nav('/income')}>{uz.income.title}</a> : r.raqami) },
     { key: 'ismi', label: 'MIJOZ', width: 200 },
-    { key: 'amount', label: 'PRIXOD', type: 'money', width: 130, editable: (r) => !r.storno, total: true, className: (r) => (r.storno ? 'neg' : '') },
-    { key: 'note', label: 'IZOH', width: 220, editable: (r) => !r.storno },
+    { key: 'amount', label: 'PRIXOD', type: 'money', width: 130, editable: prixodEditable, total: true, className: (r) => (r.storno ? 'neg' : '') },
+    { key: 'note', label: 'IZOH', width: 220, editable: prixodEditable },
   ]
   const catOpts = (d?.categories ?? []).map((c) => ({ value: String(c.id), label: c.name }))
   const rasxodCols: Col<RasxodR>[] = [
@@ -112,7 +114,7 @@ export default function Savdo() {
       { title: 'BUYURTMALAR', cols: xc(ordersCols), rows: d.orders.map((o) => ({ ...o, holati: uz.order.statuses[o.holati] })) },
       { title: 'ISH HAQI', cols: xc(salCols), rows: salRows },
       { title: 'RASXOD TURLARI', cols: xc(catCols), rows: catRows },
-      { title: 'PRIXOD', cols: xc(prixodCols), rows: d.prixod.map((p) => ({ ...p })) },
+      { title: 'PRIXOD', cols: xc(prixodCols), rows: d.prixod.map((p) => ({ ...p, raqami: p.raqami ?? uz.income.title })) },
       { title: 'RASXOD', cols: xc(rasxodCols), rows: d.rasxod.map((r) => ({ ...r, category_id: r.category })) },
       {
         title: 'FOYDA HISOBI · KASSA HISOBI',

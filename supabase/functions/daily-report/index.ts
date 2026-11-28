@@ -20,6 +20,7 @@ interface Report {
   month_start: string
   today: { orders: number; sum: number; paid: number }
   month: { orders: number; sum: number }
+  other_in?: { today: number; month: number } // Moliya → Kirim: продажа со склада и свободный приход (в кассу, не в прибыль)
   expenses_today: { expenses: number; purchases: number; total: number }
   expenses_month: { expenses: number; purchases: number; total: number }
 }
@@ -36,6 +37,9 @@ export function reportText(r: Report, backup: 'ok' | 'fail' | 'none') {
       ? `🛒 <b>Bugun: ${t.orders} ta buyurtma · ${sum(t.sum)}</b>\n      To‘langan: ${sum(t.paid)} (${pct}%)`
       : '🛒 <b>Bugun buyurtma yo‘q</b>',
     `📈 <b>${period}: ${r.month.orders} ta buyurtma · ${sum(r.month.sum)}</b>`,
+    ...(Number(r.other_in?.today ?? 0) !== 0 || Number(r.other_in?.month ?? 0) !== 0
+      ? [`💵 <b>Boshqa kirim: bugun ${sum(r.other_in?.today ?? 0)}</b> · ${period}: ${sum(r.other_in?.month ?? 0)}`]
+      : []),
     '',
     `💸 <b>Bugungi xarajat: ${sum(r.expenses_today.total)}</b>\n      xarajatlar ${fmt(r.expenses_today.expenses)} · xomashyo xaridi ${fmt(r.expenses_today.purchases)}`,
     `💸 <b>${period}: ${sum(r.expenses_month.total)}</b>\n      xarajatlar ${fmt(r.expenses_month.expenses)} · xomashyo xaridi ${fmt(r.expenses_month.purchases)}`,

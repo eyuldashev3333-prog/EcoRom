@@ -18,7 +18,7 @@ export const TABLES = [
   'employees', 'app_settings', 'clients', 'catalog_items', 'stages', 'expense_categories', 'suppliers',
   'orders', 'order_items', 'item_stage_marks', 'order_material_checks',
   'install_jobs', 'install_job_members', 'install_marks', 'glass_breakages', 'service_tickets',
-  'purchases', 'purchase_items', 'supplier_payments', 'stock_movements',
+  'purchases', 'purchase_items', 'supplier_payments', 'incomes', 'stock_movements', // incomes раньше stock_movements: движение продажи ссылается на приход
   'expenses', 'payments', 'pay_rules', 'salary_payouts', 'notifications', 'audit_log',
   // добавлены 26.11.2026 — раньше не попадали в бэкап
   'legacy_savdo', 'order_status_log', 'order_shop_workers', 'order_shop_late', 'accept_late', 'offcuts',

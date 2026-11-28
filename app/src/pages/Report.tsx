@@ -19,7 +19,7 @@ interface Rep {
   losses: { breakage: number; service: number; stock: number; total: number }
   profit: number
   profit_without_works: number
-  cash: { received: number; expenses: number; salaries: number; suppliers: number; net: number; balance_now: number }
+  cash: { received: number; other?: number; expenses: number; salaries: number; suppliers: number; net: number; balance_now: number }
   debts: { clients: number; suppliers: number }
 }
 
@@ -157,6 +157,7 @@ export default function Report() {
             <table className="kv">
               <tbody>
                 <Row label={t.received} value={r.cash.received} />
+                <Row label={t.otherIn} value={r.cash.other ?? 0} to="/income" />
                 <Row label={t.paidExp} value={r.cash.expenses} minus />
                 <Row label={t.paidSal} value={r.cash.salaries} minus />
                 <Row label={t.paidSup} value={r.cash.suppliers} minus />

@@ -1,7 +1,7 @@
 // Разделы и пункты меню по ролям — общие для боковой панели (ПК), нижней навигации (телефон) и главной.
 // tone — цвет плитки с иконкой: зелёный деньги, синий заказы, оранжевый склад/цех, фиолетовый монтаж/сервис, красный риски, серый настройки.
 import {
-  ArrowLeftRight, BarChart3, BookOpen, Box, CalendarCheck, Camera, ClipboardList, Factory, Hammer, KeyRound, LayoutGrid,
+  ArrowLeftRight, BarChart3, BookOpen, Box, CalendarCheck, Camera, ClipboardList, Factory, HandCoins, Hammer, KeyRound, LayoutGrid,
   Receipt, ScrollText, Scissors, Settings2, ShoppingCart, SlidersHorizontal, Store, Table2, TriangleAlert, Truck, User, Users,
   Wallet, Wrench, type LucideIcon,
 } from 'lucide-react'
@@ -57,6 +57,7 @@ export function sectionsFor(role: Role): SectionDef[] {
       {
         id: 'pul', label: s.pul, short: s.pul, icon: Wallet, tone: 'green',
         items: [
+          { to: '/income', label: h.income, icon: HandCoins, tone: 'green' },
           { to: '/expenses', label: h.expenses, icon: Receipt, tone: 'red' },
           { to: '/payroll', label: h.payroll, icon: Users, tone: 'green' },
           { to: '/pay-rules', label: uz.payroll.rules, icon: ScrollText, tone: 'green' },

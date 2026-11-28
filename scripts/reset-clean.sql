@@ -9,6 +9,7 @@ alter table purchase_items disable trigger trg_nomut_purchase_items;
 alter table stock_movements disable trigger trg_nomut_stock_movements;
 alter table supplier_payments disable trigger trg_nomut_supplier_payments;
 alter table salary_payouts disable trigger trg_nomut_salary_payouts;
+alter table incomes disable trigger trg_nomut_incomes;
 
 -- деньги и склад
 delete from payments;
@@ -22,6 +23,7 @@ delete from purchase_items;
 delete from purchases;
 delete from purchase_drafts;
 delete from stock_movements;
+delete from incomes;   -- после stock_movements: движение продажи ссылается на приход
 delete from offcuts;
 -- заказы и всё, что к ним привязано
 delete from install_order_photos;
@@ -44,4 +46,5 @@ alter table purchase_items enable trigger trg_nomut_purchase_items;
 alter table stock_movements enable trigger trg_nomut_stock_movements;
 alter table supplier_payments enable trigger trg_nomut_supplier_payments;
 alter table salary_payouts enable trigger trg_nomut_salary_payouts;
+alter table incomes enable trigger trg_nomut_incomes;
 commit;

@@ -8,7 +8,7 @@ const MONTHS = ['Yan', 'Fev', 'Mar', 'Apr', 'May', 'Iyn', 'Iyl', 'Avg', 'Sen', '
 
 interface Rep {
   month: string
-  cash: { received: number; expenses: number; salaries: number; suppliers: number; net: number }
+  cash: { received: number; other?: number; expenses: number; salaries: number; suppliers: number; net: number }
   expenses: { total: number; by_category: { name: string; amount: number }[] }
 }
 const tk = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Tashkent' }).slice(0, 7)
@@ -18,6 +18,8 @@ const shift = (m: string, d: number) => {
   return `${x.getUTCFullYear()}-${String(x.getUTCMonth() + 1).padStart(2, '0')}`
 }
 const out = (r: Rep) => Number(r.cash.expenses) + Number(r.cash.salaries) + Number(r.cash.suppliers)
+// всё, что пришло в кассу: оплаты по заказам + «Kirim» (ombordan sotish, eski mijozlar)
+const inn = (r: Rep) => Number(r.cash.received) + Number(r.cash.other ?? 0)
 const short = (n: number) => (Math.abs(n) >= 1e6 ? `${Math.round(n / 1e5) / 10} mln` : Math.abs(n) >= 1e3 ? `${Math.round(n / 1e3)} ming` : String(Math.round(n)))
 const PALETTE = ['#1f7a3d', '#2d6cdf', '#b26a00', '#7a4bc2', '#c0392b', '#6b7a8f']
 
@@ -34,9 +36,9 @@ export default function FinanceCharts() {
   if (!reps) return <p className="muted">{uz.loading}</p>
   const cur = reps[reps.length - 1]
   if (!cur) return null
-  const inc = Number(cur.cash.received)
+  const inc = inn(cur)
   const outc = out(cur)
-  const max = Math.max(1, ...reps.flatMap((r) => [Number(r.cash.received), out(r)]))
+  const max = Math.max(1, ...reps.flatMap((r) => [inn(r), out(r)]))
   const W = 600, H = 220, pl = 8, pb = 26, pt = 14
   const gw = (W - pl) / reps.length
   const y = (v: number) => pt + (H - pt - pb) * (1 - v / max)
@@ -67,7 +69,8 @@ export default function FinanceCharts() {
           <h3>{t.incomeCalc}</h3>
           <table className="tbl">
             <tbody>
-              <tr><td>{t.fromClients}</td><td className="num">{formatSum(inc)}</td></tr>
+              <tr><td>{t.fromClients}</td><td className="num">{formatSum(Number(cur.cash.received))}</td></tr>
+              <tr><td>{t.otherIncome}</td><td className="num">{formatSum(Number(cur.cash.other ?? 0))}</td></tr>
               <tr className="sum"><td><b>{t.income}</b></td><td className="num"><b>{formatSum(inc)}</b></td></tr>
             </tbody>
           </table>
@@ -104,7 +107,7 @@ export default function FinanceCharts() {
             {reps.map((r, i) => {
               const x0 = pl + i * gw + gw * 0.14
               const bw = gw * 0.34
-              const a = Number(r.cash.received), b = out(r)
+              const a = inn(r), b = out(r)
               const m = Number(r.month.split('-')[1]) - 1
               return (
                 <g key={r.month}>
